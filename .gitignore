@@ -1,0 +1,30 @@
+# Entornos virtuales
+venv/
+.env/
+
+# Archivos compilados
+__pycache__/
+*.py[cod]
+
+# Configuración del editor
+.vscode/
+*.code-workspace
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de logs
+*.log
+
+# Archivos de Jupyter (si usás)
+.ipynb_checkpoints/
+
+# Credenciales o configuraciones sensibles
+*.env
+
+# Archivos JSON con credenciales
+*.json
+
+# Archivos PDF de informes
+*.pdf
