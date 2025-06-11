@@ -137,25 +137,7 @@ def crear_mensaje_email(titular, boletines_data, observaciones_principal=None):
     observacion_key = observaciones_principal or boletines_data[0].get('observaciones', 'default')
     mensaje_base = mensajes.get(str(observacion_key), mensajes['default'])
     
-    # Agregar información de los boletines
-    mensaje_detalle = f"\n\nDETALLE DE BOLETINES:\n"
-    mensaje_detalle += "=" * 50 + "\n"
-    
-    for boletin in boletines_data:
-        mensaje_detalle += f"""
-Boletín: {boletin['numero_boletin']}
-Fecha: {boletin['fecha_boletin']}
-Orden: {boletin['numero_orden']}
-Marca en Custodia: {boletin['marca_custodia']}
-Marca Publicada: {boletin['marca_publicada']}
-Clase: {boletin['clase']}
-Expediente: {boletin['numero_expediente']}
-Solicitante: {boletin['solicitante']}
-Agente: {boletin['agente']}
-{'-' * 30}
-"""
-    
-    return mensaje_base + mensaje_detalle
+    return mensaje_base
 
 def obtener_archivo_reporte(boletines_data):
     """
