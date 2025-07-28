@@ -162,7 +162,7 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
     try:
         # Crear mensaje
         msg = MIMEMultipart()
-        msg['From'] = email_usuario
+        msg['From'] = "Mi Marca"
         msg['To'] = destinatario
         msg['Subject'] = asunto
         

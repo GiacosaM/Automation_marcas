@@ -1,47 +1,350 @@
+# app.py - Versión integrada con dashboard y configuración
+
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+import math
+
+# Importar configuración
+from config import get_config, set_config, show_settings_page
+
+# Importar módulos existentes
 from database import crear_conexion, crear_tabla, insertar_datos, obtener_datos, actualizar_registro, eliminar_registro, insertar_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente
 from extractor import extraer_datos_agrupados
 from report_generator import generar_informe_pdf
 from email_sender import procesar_envio_emails, generar_reporte_envios
 
-import math
+# Configuración de página usando config
+st.set_page_config(
+    page_title=get_config("app.title", "Sistema de Gestión de Marcas"),
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-
-# Custom CSS para barra de navegación fija
-st.markdown(
-    """
-    <style>
-    .navbar {
+# CSS personalizado mejorado
+st.markdown(f"""
+<style>
+    /* Tema profesional */
+    .main {{
+        padding-top: 2rem;
+    }}
+    
+    /* Header principal */
+    .main-header {{
+        background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        color: white;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }}
+    
+    /* Cards de estadísticas */
+    .metric-card {{
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #3b82f6;
+        margin: 1rem 0;
+    }}
+    
+    /* Botones mejorados */
+    .stButton > button {{
+        background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+    }}
+    
+    .stButton > button:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+    }}
+    
+    /* Navbar fija mejorada */
+    .navbar {{
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        background-color: #f8f9fa;
-        padding: 10px 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
+        padding: 1rem 2rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         z-index: 1000;
         display: flex;
         align-items: center;
-    }
-    .navbar button {
-        margin-right: 10px;
-    }
-    .main-content {
-        margin-top: 60px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+        justify-content: space-between;
+    }}
+    
+    /* Tablas mejoradas */
+    .dataframe {{
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }}
+    
+    /* Progress bars */
+    .stProgress > div > div {{
+        background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+    }}
+</style>
+""", unsafe_allow_html=True)
+# ================================
+# FUNCIONES DEL DASHBOARD
+# ================================
 
+def get_dashboard_data(conn):
+    """Obtiene datos para el dashboard."""
+    cursor = conn.cursor()
+    
+    # Estadísticas generales
+    cursor.execute("SELECT COUNT(*) FROM boletines")
+    total_boletines = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 1")
+    reportes_generados = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_enviado = 1")
+    reportes_enviados = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(DISTINCT titular) FROM clientes")
+    total_clientes = cursor.fetchone()[0]
+    
+    # Datos por fecha (últimos 30 días)
+    cursor.execute("""
+        SELECT DATE(fecha_alta) as fecha, COUNT(*) as cantidad
+        FROM boletines 
+        WHERE fecha_alta >= date('now', '-30 days')
+        GROUP BY DATE(fecha_alta)
+        ORDER BY fecha
+    """)
+    datos_timeline = cursor.fetchall()
+    
+    # Top titulares
+    cursor.execute("""
+        SELECT titular, COUNT(*) as cantidad
+        FROM boletines
+        GROUP BY titular
+        ORDER BY cantidad DESC
+        LIMIT 10
+    """)
+    top_titulares = cursor.fetchall()
+    
+    cursor.close()
+    
+    return {
+        'total_boletines': total_boletines,
+        'reportes_generados': reportes_generados,
+        'reportes_enviados': reportes_enviados,
+        'total_clientes': total_clientes,
+        'datos_timeline': datos_timeline,
+        'top_titulares': top_titulares
+    }
+
+def create_timeline_chart(datos_timeline):
+    """Crea gráfico de línea temporal."""
+    if not datos_timeline:
+        return None
+    
+    df = pd.DataFrame(datos_timeline, columns=['fecha', 'cantidad'])
+    df['fecha'] = pd.to_datetime(df['fecha'])
+    
+    fig = px.line(
+        df, x='fecha', y='cantidad',
+        title='Boletines Procesados (Últimos 30 días)',
+        labels={'fecha': 'Fecha', 'cantidad': 'Cantidad de Boletines'}
+    )
+    
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font_color='#1e293b',
+        title_font_size=16,
+        showlegend=False
+    )
+    
+    fig.update_traces(
+        line=dict(color='#3b82f6', width=3),
+    )
+    
+    return fig
+
+def create_top_clients_chart(top_titulares):
+    """Crea gráfico de barras de top clientes."""
+    if not top_titulares:
+        return None
+    
+    df = pd.DataFrame(top_titulares, columns=['titular', 'cantidad'])
+    
+    fig = px.bar(
+        df, x='cantidad', y='titular',
+        orientation='h',
+        title='Top 10 Titulares por Cantidad de Boletines',
+        labels={'cantidad': 'Cantidad', 'titular': 'Titular'}
+    )
+    
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font_color='#1e293b',
+        title_font_size=16,
+        height=400
+    )
+    
+    fig.update_traces(marker_color='#3b82f6')
+    
+    return fig
+
+def create_status_donut(reportes_generados, reportes_enviados, total_boletines):
+    """Crea gráfico de dona para estados de reportes."""
+    pendientes_generacion = total_boletines - reportes_generados
+    pendientes_envio = reportes_generados - reportes_enviados
+    
+    labels = ['Enviados', 'Pendiente Envío', 'Pendiente Generación']
+    values = [reportes_enviados, pendientes_envio, pendientes_generacion]
+    colors = ['#10b981', '#f59e0b', '#ef4444']
+    
+    fig = go.Figure(data=[go.Pie(
+        labels=labels, 
+        values=values,
+        hole=.3,
+        marker_colors=colors
+    )])
+    
+    fig.update_layout(
+        title="Estado de Reportes",
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font_color='#1e293b',
+        title_font_size=16
+    )
+    
+    return fig
+
+def show_dashboard():
+    """Muestra el dashboard principal."""
+    company_name = get_config("app.company_name", "Mi Estudio Contable")
+    st.markdown(f'<div class="main-header"><h1>📊 {get_config("app.title", "Sistema de Gestión de Marcas")}</h1><p>Panel de Control Ejecutivo - {company_name}</p></div>', unsafe_allow_html=True)
+    
+    # Obtener datos
+    conn = crear_conexion()
+    if not conn:
+        st.error("No se pudo conectar a la base de datos")
+        return
+    
+    try:
+        crear_tabla(conn)
+        data = get_dashboard_data(conn)
+        
+        # Métricas principales
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                label="📋 Total Boletines",
+                value=data['total_boletines'],
+                delta=f"{data['total_boletines'] - data['reportes_generados']} pendientes" if data['total_boletines'] - data['reportes_generados'] > 0 else "Todo procesado"
+            )
+        
+        with col2:
+            percentage = (data['reportes_generados']/max(data['total_boletines'], 1)*100) if data['total_boletines'] > 0 else 0
+            st.metric(
+                label="📄 Reportes Generados",
+                value=data['reportes_generados'],
+                delta=f"{percentage:.1f}%"
+            )
+        
+        with col3:
+            percentage = (data['reportes_enviados']/max(data['reportes_generados'], 1)*100) if data['reportes_generados'] > 0 else 0
+            st.metric(
+                label="📧 Reportes Enviados",
+                value=data['reportes_enviados'],
+                delta=f"{percentage:.1f}%"
+            )
+        
+        with col4:
+            st.metric(
+                label="👥 Clientes Registrados",
+                value=data['total_clientes']
+            )
+        
+        st.divider()
+        
+        # Gráficos
+        col_left, col_right = st.columns(2)
+        
+        with col_left:
+            # Timeline de boletines
+            timeline_fig = create_timeline_chart(data['datos_timeline'])
+            if timeline_fig:
+                st.plotly_chart(timeline_fig, use_container_width=True)
+            else:
+                st.info("📈 No hay datos suficientes para mostrar la línea temporal")
+        
+        with col_right:
+            # Estado de reportes
+            donut_fig = create_status_donut(
+                data['reportes_generados'], 
+                data['reportes_enviados'], 
+                data['total_boletines']
+            )
+            st.plotly_chart(donut_fig, use_container_width=True)
+        
+        # Top clientes (solo si está habilitado en configuración)
+        if get_config("reports.include_charts", True):
+            st.subheader("📈 Análisis de Clientes")
+            top_clients_fig = create_top_clients_chart(data['top_titulares'])
+            if top_clients_fig:
+                st.plotly_chart(top_clients_fig, use_container_width=True)
+            else:
+                st.info("📊 No hay datos de titulares para mostrar")
+        
+        # Alertas y notificaciones
+        st.subheader("🔔 Alertas del Sistema")
+        
+        pendientes_generacion = data['total_boletines'] - data['reportes_generados']
+        pendientes_envio = data['reportes_generados'] - data['reportes_enviados']
+        
+        if pendientes_generacion > 0:
+            st.warning(f"⚠️ Hay {pendientes_generacion} boletines pendientes de generar reportes")
+        
+        if pendientes_envio > 0:
+            st.info(f"📧 Hay {pendientes_envio} reportes listos para enviar")
+        
+        if pendientes_generacion == 0 and pendientes_envio == 0 and data['total_boletines'] > 0:
+            st.success("✅ Todos los reportes han sido procesados y enviados")
+        
+        if data['total_boletines'] == 0:
+            st.info("📂 No hay boletines cargados en el sistema")
+    
+    except Exception as e:
+        st.error(f"Error al cargar el dashboard: {e}")
+    finally:
+        conn.close()
+
+# ================================
+# INICIALIZACIÓN DE ESTADO
+# ================================
 
 
 # Inicializar estado de la sesión
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 'dashboard'
 if 'show_db_section' not in st.session_state:
     st.session_state.show_db_section = False
 if 'show_clientes_section' not in st.session_state:
     st.session_state.show_clientes_section = False
+if 'show_email_section' not in st.session_state:
+    st.session_state.show_email_section = False
 if 'selected_record_id' not in st.session_state:
     st.session_state.selected_record_id = None
 if 'selected_cliente_id' not in st.session_state:
@@ -54,127 +357,200 @@ if 'pending_action' not in st.session_state:
     st.session_state.pending_action = None
 if 'pending_data' not in st.session_state:
     st.session_state.pending_data = None
-
 if 'datos_insertados' not in st.session_state:
     st.session_state.datos_insertados = False
-
 if 'email_credentials' not in st.session_state:
     st.session_state.email_credentials = {'email': '', 'password': ''}
+if 'confirmar_generar_informes' not in st.session_state:
+    st.session_state.confirmar_generar_informes = False
 
-if 'show_email_section' not in st.session_state:
-    st.session_state.show_email_section = False
+# ================================
+# BARRA DE NAVEGACIÓN
+# ================================
 
 st.markdown('<div class="navbar">', unsafe_allow_html=True)
-col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([1, 1, 1, 1])
-
-# Add consistent styling to all buttons
-button_style = """
-    <style>
-    .stButton>button {
-        width: 150px;  /* Uniform width */
-        height: 40px;  /* Uniform height */
-        font-size: 16px;  /* Uniform font size */
-        text-align: center;
-        margin: 0 auto;  /* Center alignment */
-    }
-    </style>
-"""
-st.markdown(button_style, unsafe_allow_html=True)
+col_nav1, col_nav2, col_nav3, col_nav4, col_nav5, col_nav6, col_nav7 = st.columns(7)
 
 with col_nav1:
-    if st.button("Historial"):
+    if st.button("🏠 Dashboard"):
+        st.session_state.current_page = 'dashboard'
+        # Reset other sections
+        st.session_state.show_db_section = False
+        st.session_state.show_clientes_section = False
+        st.session_state.show_email_section = False
+        st.rerun()
+
+with col_nav2:
+    if st.button("📤 Cargar Datos"):
+        st.session_state.current_page = 'upload'
+        st.session_state.show_db_section = False
+        st.session_state.show_clientes_section = False
+        st.session_state.show_email_section = False
+        st.rerun()
+
+with col_nav3:
+    if st.button("📊 Historial"):
         st.session_state.show_db_section = not st.session_state.show_db_section
+        st.session_state.current_page = 'historial'
         if st.session_state.show_db_section:
             st.session_state.show_clientes_section = False
             st.session_state.show_email_section = False
-with col_nav2:
-    if st.button("Clientes"):
+
+with col_nav4:
+    if st.button("👥 Clientes"):
         st.session_state.show_clientes_section = not st.session_state.show_clientes_section
+        st.session_state.current_page = 'clientes'
         if st.session_state.show_clientes_section:
             st.session_state.show_db_section = False
             st.session_state.show_email_section = False
-with col_nav3:
-    if st.button("Generar Informes"):
-        conn = crear_conexion()
-        if conn:
-            try:
-                crear_tabla(conn)
-                generar_informe_pdf(conn)
-                st.success("Informe PDF generado exitosamente.")
-            except Exception as e:
-                st.error(f"Error: {e}")
-            finally:
-                conn.close()
-with col_nav4:
-    if st.button("Enviar Emails"):
+
+with col_nav5:
+    if 'confirmar_generar_informes' not in st.session_state:
+        st.session_state.confirmar_generar_informes = False
+    
+    if not st.session_state.confirmar_generar_informes:
+        # Botón inicial para generar informes
+        if st.button("📄 Generar Informes"):
+            # Verificar si hay reportes pendientes de generar
+            conn = crear_conexion()
+            if conn:
+                try:
+                    crear_tabla(conn)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0")
+                    reportes_pendientes = cursor.fetchone()[0]
+                    cursor.close()
+                    
+                    if reportes_pendientes > 0:
+                        st.session_state.confirmar_generar_informes = True
+                        st.rerun()
+                    else:
+                        st.info("ℹ️ No hay reportes pendientes de generar.")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error al verificar reportes pendientes: {e}")
+                finally:
+                    conn.close()
+    else:
+        # Mostrar confirmación
+        st.markdown("⚠️ **¿Confirmar generación?**")
+        col_confirm1, col_confirm2 = st.columns(2)
+        
+        with col_confirm1:
+            if st.button("✅ Sí, generar", type="primary", key="confirm_generate"):
+                conn = crear_conexion()
+                if conn:
+                    try:
+                        crear_tabla(conn)
+                        
+                        # Obtener número de reportes pendientes para mostrar progreso
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0")
+                        total_pendientes = cursor.fetchone()[0]
+                        cursor.close()
+                        
+                        if total_pendientes > 0:
+                            with st.spinner(f"Generando {total_pendientes} informes PDF..."):
+                                watermark_path = get_config("reports.watermark_path", "imagenes/marca_agua.jpg")
+                                generar_informe_pdf(conn, watermark_path)
+                            
+                            st.success(f"✅ {total_pendientes} informes PDF generados exitosamente.")
+                            st.balloons()  # Efecto visual de celebración
+                        else:
+                            st.info("ℹ️ No había reportes pendientes de generar.")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error durante la generación: {e}")
+                    finally:
+                        conn.close()
+                
+                # Reset del estado de confirmación
+                st.session_state.confirmar_generar_informes = False
+                st.rerun()
+        
+        with col_confirm2:
+            if st.button("❌ Cancelar", key="cancel_generate"):
+                st.session_state.confirmar_generar_informes = False
+                st.info("Operación cancelada.")
+                st.rerun()
+
+with col_nav6:
+    if st.button("📧 Enviar Emails"):
         st.session_state.show_email_section = not st.session_state.show_email_section
+        st.session_state.current_page = 'emails'
         if st.session_state.show_email_section:
             st.session_state.show_db_section = False
             st.session_state.show_clientes_section = False
 
+with col_nav7:
+    if st.button("⚙️ Configuración"):
+        st.session_state.current_page = 'settings'
+        st.session_state.show_db_section = False
+        st.session_state.show_clientes_section = False
+        st.session_state.show_email_section = False
+        st.rerun()
+
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Contenido principal
+# ================================
+# CONTENIDO PRINCIPAL
+# ================================
+
 st.markdown('<div class="main-content">', unsafe_allow_html=True)
 
-# Interfaz Streamlit
-st.title("Boletines por Titular")
+# Mostrar página según selección
+if st.session_state.current_page == 'dashboard':
+    show_dashboard()
 
-# Sección para subir archivo
-archivo = st.file_uploader("Subí un archivo XLSX", type=["xlsx"])
+elif st.session_state.current_page == 'settings':
+    show_settings_page()
 
-if archivo:
-    # Leer el archivo Excel
-    df = pd.read_excel(archivo)
+elif st.session_state.current_page == 'upload':
+    st.title("📤 Carga de Boletines")
     
-    # Extraer datos agrupados
-    datos_agrupados = extraer_datos_agrupados(df)
+    # Sección para subir archivo
+    archivo = st.file_uploader("Subí un archivo XLSX", type=["xlsx"])
 
-    # Crear conexión y tabla
-    conn = crear_conexion()
-    if conn:
-        try:
-            crear_tabla(conn)
-            #st.write("Tablas 'boletines' y 'clientes' verificadas/creadas.")
-            # Insertar datos en la base de datos
-            if st.button("Ingresa los datos a la base de datos"):
-                insertar_datos(conn, datos_agrupados)
-                st.success("Datos insertados en la base de datos correctamente.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-        finally:
-            conn.close()
+    if archivo:
+        # Leer el archivo Excel
+        df = pd.read_excel(archivo)
+        
+        # Extraer datos agrupados
+        datos_agrupados = extraer_datos_agrupados(df)
 
-    # Mostrar datos agrupados en formato de planilla
-    if datos_agrupados:
-        for titular, registros in datos_agrupados.items():
-            st.subheader(f"Titular: {titular}")
-            # Convertir registros a DataFrame
-            df_registros = pd.DataFrame(registros)
-            # Añadir columna 'Titular' con el valor del titular
-            df_registros['Titular'] = titular
-            # Reordenar columnas para que 'Titular' esté al principio
-            cols = ['Titular'] + [col for col in df_registros.columns if col != 'Titular']
-            df_registros = df_registros[cols]
-            # Mostrar el DataFrame como tabla interactiva
-            st.dataframe(df_registros, use_container_width=True)
-    else:
-        st.warning("No se encontraron titulares.")
-
-    # Botón para generar el informe PDF
-    if st.button("Generar Informe PDF"):
+        # Crear conexión y tabla
         conn = crear_conexion()
         if conn:
             try:
                 crear_tabla(conn)
                 
-                generar_informe_pdf(conn)
-                st.success("Informe PDF generado exitosamente.")
-                
+                # Insertar datos en la base de datos
+                if st.button("📥 Ingresar datos a la base de datos", type="primary"):
+                    with st.spinner("Insertando datos..."):
+                        insertar_datos(conn, datos_agrupados)
+                    st.success("✅ Datos insertados en la base de datos correctamente.")
+                    st.balloons()
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"❌ Error: {e}")
             finally:
                 conn.close()
+
+        # Mostrar datos agrupados en formato de planilla
+        if datos_agrupados:
+            st.subheader("📋 Vista previa de datos")
+            for titular, registros in datos_agrupados.items():
+                with st.expander(f"📁 Titular: {titular} ({len(registros)} registros)"):
+                    # Convertir registros a DataFrame
+                    df_registros = pd.DataFrame(registros)
+                    # Añadir columna 'Titular' con el valor del titular
+                    df_registros['Titular'] = titular
+                    # Reordenar columnas para que 'Titular' esté al principio
+                    cols = ['Titular'] + [col for col in df_registros.columns if col != 'Titular']
+                    df_registros = df_registros[cols]
+                    # Mostrar el DataFrame como tabla interactiva
+                    st.dataframe(df_registros, use_container_width=True)
+        else:
+            st.warning("⚠️ No se encontraron titulares en el archivo.")
 
 # Sección para mostrar y filtrar datos de la base de datos (boletines)
 if st.session_state.show_db_section:
@@ -187,7 +563,6 @@ if st.session_state.show_db_section:
         try:
             # Asegurar que las tablas existan antes de consultar
             crear_tabla(conn)
-            # st.write("Tablas 'boletines' y 'clientes' verificadas/creadas.")
             
             # Obtener datos y actualizar estado
             rows, columns = obtener_datos(conn)
@@ -250,8 +625,8 @@ if st.session_state.show_db_section:
                 if filtro_ciudad:
                     filtered_df = filtered_df[filtered_df['ciudad'].str.contains(filtro_ciudad, case=False, na=False)]
 
-                # Paginación
-                rows_per_page = 10
+                # Paginación - usar configuración
+                rows_per_page = get_config("ui.items_per_page", 10)
                 total_rows = len(filtered_df)
                 total_pages = math.ceil(total_rows / rows_per_page) if total_rows > 0 else 1
                 page_options = [f"Página {i+1} de {total_pages}" for i in range(total_pages)]
@@ -328,7 +703,8 @@ if st.session_state.show_db_section:
                 else:
                     st.warning("No se encontraron registros que coincidan con los filtros.")
             else:
-                st.warning("La base de datos está vacía.")
+                    st.warning("La base de datos está vacía.")
+                
 
             # Manejar acción pendiente para boletines
             if st.session_state.pending_action:
@@ -577,7 +953,13 @@ if st.session_state.show_clientes_section:
 if st.session_state.show_email_section:
     st.markdown("---")
     st.header("Envío de Reportes por Email")
+
+    # Usar configuración para email
+    smtp_server = get_config("email.smtp_server", "smtp.gmail.com")
+    smtp_port = get_config("email.smtp_port", 587)
+    batch_size = get_config("email.batch_size", 10)
     
+    st.info(f"Configuración de email: {smtp_server}:{smtp_port} (Lote: {batch_size})")
     # Configurar credenciales de email
     st.subheader("Configuración de Email")
     

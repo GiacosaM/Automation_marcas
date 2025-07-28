@@ -28,3 +28,9 @@ Thumbs.db
 
 # Archivos PDF de informes
 *.pdf
+
+__pycache__/
+*.pyc
+*.log
+*.db
+
