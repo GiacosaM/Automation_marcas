@@ -277,6 +277,24 @@ def show_dashboard():
                 value=data['total_clientes']
             )
         
+        # Alertas y notificaciones
+        st.subheader("🔔 Alertas del Sistema")
+        
+        pendientes_generacion = data['total_boletines'] - data['reportes_generados']
+        pendientes_envio = data['reportes_generados'] - data['reportes_enviados']
+        
+        if pendientes_generacion > 0:
+            st.warning(f"⚠️ Hay {pendientes_generacion} boletines pendientes de generar reportes")
+        
+        if pendientes_envio > 0:
+            st.info(f"📧 Hay {pendientes_envio} reportes listos para enviar")
+        
+        if pendientes_generacion == 0 and pendientes_envio == 0 and data['total_boletines'] > 0:
+            st.success("✅ Todos los reportes han sido procesados y enviados")
+        
+        if data['total_boletines'] == 0:
+            st.info("📂 No hay boletines cargados en el sistema")
+        
         st.divider()
         
         # Gráficos
@@ -307,24 +325,6 @@ def show_dashboard():
                 st.plotly_chart(top_clients_fig, use_container_width=True)
             else:
                 st.info("📊 No hay datos de titulares para mostrar")
-        
-        # Alertas y notificaciones
-        st.subheader("🔔 Alertas del Sistema")
-        
-        pendientes_generacion = data['total_boletines'] - data['reportes_generados']
-        pendientes_envio = data['reportes_generados'] - data['reportes_enviados']
-        
-        if pendientes_generacion > 0:
-            st.warning(f"⚠️ Hay {pendientes_generacion} boletines pendientes de generar reportes")
-        
-        if pendientes_envio > 0:
-            st.info(f"📧 Hay {pendientes_envio} reportes listos para enviar")
-        
-        if pendientes_generacion == 0 and pendientes_envio == 0 and data['total_boletines'] > 0:
-            st.success("✅ Todos los reportes han sido procesados y enviados")
-        
-        if data['total_boletines'] == 0:
-            st.info("📂 No hay boletines cargados en el sistema")
     
     except Exception as e:
         st.error(f"Error al cargar el dashboard: {e}")
@@ -334,7 +334,6 @@ def show_dashboard():
 # ================================
 # INICIALIZACIÓN DE ESTADO
 # ================================
-
 
 # Inicializar estado de la sesión
 if 'current_page' not in st.session_state:
@@ -437,7 +436,7 @@ with col_nav5:
         col_confirm1, col_confirm2 = st.columns(2)
         
         with col_confirm1:
-            if st.button("✅ Sí, generar", type="primary", key="confirm_generate"):
+            if st.button("✅", type="primary", key="confirm_generate"):
                 conn = crear_conexion()
                 if conn:
                     try:
@@ -469,7 +468,7 @@ with col_nav5:
                 st.rerun()
         
         with col_confirm2:
-            if st.button("❌ Cancelar", key="cancel_generate"):
+            if st.button("❌", key="cancel_generate"):
                 st.session_state.confirmar_generar_informes = False
                 st.info("Operación cancelada.")
                 st.rerun()
@@ -586,6 +585,7 @@ if st.session_state.show_db_section:
                     filtro_clase = st.text_input("Clase", "").strip()
                     filtro_reporte_enviado = st.checkbox("Reportes pendientes de ser Enviados")
                     filtro_reporte_generado = st.checkbox("Reportes Pendientes de Generacion")
+                    filtro_importancia_pendiente = st.checkbox("Reportes con Importancia Pendiente")
                 
                 # Filtros de clientes
                 col4, col5, col6 = st.columns(3)
@@ -618,6 +618,8 @@ if st.session_state.show_db_section:
                     filtered_df = filtered_df[filtered_df['reporte_enviado'] == False]
                 if filtro_reporte_generado:
                     filtered_df = filtered_df[filtered_df['reporte_generado'] == False]
+                if filtro_importancia_pendiente:
+                    filtered_df = filtered_df[filtered_df['importancia'] == 'Pendiente']
                 if filtro_email:
                     filtered_df = filtered_df[filtered_df['email'].str.contains(filtro_email, case=False, na=False)]
                 if filtro_telefono:
@@ -668,6 +670,11 @@ if st.session_state.show_db_section:
                             edit_reporte_enviado = st.checkbox("Reporte Enviado", value=selected_record['reporte_enviado'])
                             edit_reporte_generado = st.checkbox("Reporte Generado", value=selected_record['reporte_generado'])
                             edit_titular = st.text_input("Titular", value=selected_record['titular'])
+                            edit_importancia = st.selectbox(
+                                "Importancia",
+                                options=["Baja", "Media", "Alta", "Pendiente"],
+                                index=["Baja", "Media", "Alta", "Pendiente"].index(selected_record.get('importancia', "Baja")) if selected_record.get('importancia') in ["Baja", "Media", "Alta", "Pendiente"] else 0
+                            )
 
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
@@ -692,7 +699,8 @@ if st.session_state.show_db_section:
                                     "clases_acta": edit_clases_acta,
                                     "reporte_enviado": edit_reporte_enviado,
                                     "reporte_generado": edit_reporte_generado,
-                                    "titular": edit_titular
+                                    "titular": edit_titular,
+                                    "importancia": edit_importancia
                                 }
 
                             if delete_button:
@@ -703,9 +711,8 @@ if st.session_state.show_db_section:
                 else:
                     st.warning("No se encontraron registros que coincidan con los filtros.")
             else:
-                    st.warning("La base de datos está vacía.")
+                st.warning("La base de datos está vacía.")
                 
-
             # Manejar acción pendiente para boletines
             if st.session_state.pending_action:
                 if st.session_state.pending_action == "update_boletines":
@@ -720,7 +727,7 @@ if st.session_state.show_db_section:
                                     data["numero_orden"], data["solicitante"], data["agente"],
                                     data["numero_expediente"], data["clase"], data["marca_custodia"],
                                     data["marca_publicada"], data["clases_acta"], data["reporte_enviado"],
-                                    data["titular"],data["reporte_generado"]
+                                    data["titular"], data["reporte_generado"], data["importancia"]
                                 )
                                 # Refrescar datos
                                 rows, columns = obtener_datos(conn)
@@ -779,7 +786,6 @@ if st.session_state.show_clientes_section:
         try:
             # Asegurar que las tablas existan
             crear_tabla(conn)
-            # st.write("Tablas 'boletines' y 'clientes' verificadas/creadas.")
             # Obtener datos de clientes
             rows, columns = obtener_clientes(conn)
             st.session_state.clientes_data = pd.DataFrame(rows, columns=columns)
@@ -947,7 +953,6 @@ if st.session_state.show_clientes_section:
             st.error(f"Error al consultar clientes: {e}")
         finally:
             conn.close()
-
 
 # Sección para envío de emails
 if st.session_state.show_email_section:
@@ -1121,6 +1126,5 @@ if st.session_state.show_email_section:
     else:
         st.warning("⚠️ Por favor, ingresa las credenciales de Gmail para continuar.")
         st.info("Necesitas un email de Gmail y un App Password para enviar los reportes.")
-
 
 st.markdown('</div>', unsafe_allow_html=True)

@@ -1,3 +1,5 @@
+# database.py - Versión modificada con campo importancia
+
 import sqlite3
 import logging
 
@@ -50,11 +52,26 @@ def crear_tabla(conn):
                 ruta_reporte TEXT,
                 titular TEXT,
                 fecha_alta DATE DEFAULT (datetime('now', 'localtime')),
-                observaciones TEXT
+                observaciones TEXT,
+                importancia TEXT DEFAULT 'Pendiente' CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
             )
         """)
         conn.commit()
         logging.info("Tabla 'boletines' creada o verificada correctamente.")
+
+        # Verificar si la columna importancia existe, si no, agregarla
+        cursor.execute("PRAGMA table_info(boletines)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'importancia' not in columns:
+            logging.info("Agregando columna 'importancia' a la tabla existente...")
+            cursor.execute("""
+                ALTER TABLE boletines 
+                ADD COLUMN importancia TEXT DEFAULT 'Pendiente' 
+                CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
+            """)
+            conn.commit()
+            logging.info("Columna 'importancia' agregada correctamente.")
 
         # Crear tabla clientes
         logging.info("Intentando crear la tabla 'clientes'...")
@@ -106,8 +123,8 @@ def insertar_datos(conn, datos_agrupados):
                 ))
                 if cursor.fetchone()[0] == 0:  # Si no existe, insertar
                     cursor.execute('''
-                        INSERT INTO boletines (numero_boletin, titular, fecha_boletin, numero_orden, solicitante, agente, numero_expediente, clase, marca_custodia, marca_publicada, clases_acta)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO boletines (numero_boletin, titular, fecha_boletin, numero_orden, solicitante, agente, numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         registro["Número de Boletín"],
                         titular,
@@ -119,7 +136,8 @@ def insertar_datos(conn, datos_agrupados):
                         registro["Clase"],
                         registro["Marca en Custodia"],
                         registro["Marca Publicada"],
-                        registro["Clases/Acta"]
+                        registro["Clases/Acta"],
+                        'Pendiente'  # Valor por defecto para importancia
                     ))
                     logging.debug(f"Insertado registro: Boletín {registro['Número de Boletín']}, Orden {registro['Número de Orden']}, Titular {titular}")
                 else:
@@ -138,11 +156,11 @@ def obtener_datos(conn):
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                b.id, b.titular,b.marca_custodia,b.marca_publicada,b.numero_boletin, b.fecha_boletin, 
+                b.id, b.titular, b.marca_custodia, b.marca_publicada, b.numero_boletin, b.fecha_boletin, 
                 b.numero_orden, 
                 b.solicitante, b.agente, b.numero_expediente, b.clase, 
                 b.clases_acta, 
-                b.reporte_enviado, b.reporte_generado,  b.fecha_alta,
+                b.reporte_enviado, b.reporte_generado, b.fecha_alta, b.importancia,
                 c.email, c.telefono, c.direccion, c.ciudad
             FROM boletines b
             LEFT JOIN clientes c ON b.titular = c.titular
@@ -159,28 +177,90 @@ def obtener_datos(conn):
 
 def actualizar_registro(conn, id, numero_boletin, fecha_boletin, numero_orden, solicitante, 
                        agente, numero_expediente, clase, marca_custodia, marca_publicada, 
-                       clases_acta, reporte_enviado, titular, reporte_generado):
+                       clases_acta, reporte_enviado, titular, reporte_generado, importancia=None):
     """Actualiza un registro en la tabla boletines."""
     try:
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE boletines
-            SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
-                solicitante = ?, agente = ?, numero_expediente = ?, 
-                clase = ?, marca_custodia = ?, marca_publicada = ?, 
-                clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?
-            WHERE id = ?
-        """, (
-            numero_boletin, fecha_boletin, numero_orden, solicitante,
-            agente, numero_expediente, clase, marca_custodia,
-            marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
-            id
-        ))
+        if importancia is not None:
+            cursor.execute("""
+                UPDATE boletines
+                SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
+                    solicitante = ?, agente = ?, numero_expediente = ?, 
+                    clase = ?, marca_custodia = ?, marca_publicada = ?, 
+                    clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?, importancia = ?
+                WHERE id = ?
+            """, (
+                numero_boletin, fecha_boletin, numero_orden, solicitante,
+                agente, numero_expediente, clase, marca_custodia,
+                marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
+                importancia, id
+            ))
+        else:
+            cursor.execute("""
+                UPDATE boletines
+                SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
+                    solicitante = ?, agente = ?, numero_expediente = ?, 
+                    clase = ?, marca_custodia = ?, marca_publicada = ?, 
+                    clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?
+                WHERE id = ?
+            """, (
+                numero_boletin, fecha_boletin, numero_orden, solicitante,
+                agente, numero_expediente, clase, marca_custodia,
+                marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
+                id
+            ))
         conn.commit()
         logging.info(f"Registro actualizado: ID {id}")
     except sqlite3.Error as e:
         logging.error(f"Error al actualizar: {e}")
         raise Exception(f"Error al actualizar: {e}")
+    finally:
+        cursor.close()
+
+def actualizar_importancia_boletin(conn, boletin_id, importancia):
+    """Actualiza específicamente la importancia de un boletín."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE boletines 
+            SET importancia = ?
+            WHERE id = ? AND reporte_enviado = 0
+        """, (importancia, boletin_id))
+        
+        if cursor.rowcount > 0:
+            conn.commit()
+            logging.info(f"Importancia actualizada para boletín ID {boletin_id}: {importancia}")
+            return True
+        else:
+            logging.warning(f"No se pudo actualizar importancia para boletín ID {boletin_id} (posiblemente ya enviado)")
+            return False
+    except sqlite3.Error as e:
+        logging.error(f"Error al actualizar importancia: {e}")
+        raise Exception(f"Error al actualizar importancia: {e}")
+    finally:
+        cursor.close()
+
+def obtener_boletines_para_clasificar(conn):
+    """Obtiene boletines con reporte generado pero no enviado para clasificar."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
+                b.numero_orden, b.solicitante, b.marca_custodia, 
+                b.marca_publicada, b.importancia,
+                c.email
+            FROM boletines b
+            LEFT JOIN clientes c ON b.titular = c.titular
+            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0
+            ORDER BY b.titular, b.numero_boletin, b.numero_orden
+        """)
+        rows = cursor.fetchall()
+        columns = [description[0] for description in cursor.description]
+        return rows, columns
+    except sqlite3.Error as e:
+        logging.error(f"Error al consultar boletines para clasificar: {e}")
+        raise Exception(f"Error al consultar boletines para clasificar: {e}")
     finally:
         cursor.close()
 

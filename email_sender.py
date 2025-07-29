@@ -24,35 +24,33 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
 def obtener_mensajes_predefinidos():
-    """Diccionario con mensajes predefinidos según el valor de observaciones."""
+    """Diccionario con mensajes predefinidos según el valor de importancia."""
     return {
-        "1": """
+        "Alta": """
         Estimado/a cliente,
         
-        Le informamos que hemos encontrado marcas de su interés publicadas en el boletín oficial.
+        Hemos detectado marcas de ALTA importancia publicadas en el boletín oficial que requieren su atención pronta.
         Adjunto encontrará el reporte detallado con la información correspondiente.
+        
+        Por favor, contáctenos para cualquier aclaración o acción necesaria.
+        
+        Saludos cordiales.
+        """,
+        "Media": """
+        Estimado/a cliente,
+        
+        Le informamos que se han encontrado marcas de importancia MEDIA en las publicaciones recientes.
+        El reporte adjunto contiene los detalles relevantes para su revisión.
         
         Quedamos a su disposición para cualquier consulta.
         
         Saludos cordiales.
         """,
-        "2": """
+        "Baja": """
         Estimado/a cliente,
         
-        Le notificamos sobre nuevas publicaciones de marcas que requieren su atención inmediata.
-        Por favor, revise el reporte adjunto para más detalles.
-        
-        Si necesita asesoramiento, no dude en contactarnos.
-        
-        Saludos cordiales.
-        """,
-        "3": """
-        Estimado/a cliente,
-        
-        Hemos detectado marcas relacionadas con su área de interés en las últimas publicaciones.
-        El reporte adjunto contiene toda la información relevante.
-        
-        Quedamos a su disposición.
+        Le enviamos el reporte de marcas de importancia BAJA correspondientes al período actual.
+        Adjunto encontrará la información detallada para su revisión.
         
         Saludos cordiales.
         """,
@@ -68,8 +66,8 @@ def obtener_mensajes_predefinidos():
 
 def obtener_registros_pendientes_envio(conn):
     """
-    Obtiene todos los registros con reporte_generado=True y reporte_enviado=False
-    agrupados por cliente.
+    Obtiene todos los registros con reporte_generado=True, reporte_enviado=False
+    y importancia IN ('Baja', 'Media', 'Alta'), agrupados por cliente.
     """
     try:
         cursor = conn.cursor()
@@ -78,11 +76,12 @@ def obtener_registros_pendientes_envio(conn):
                 b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
                 b.numero_orden, b.solicitante, b.agente, b.numero_expediente, 
                 b.clase, b.marca_custodia, b.marca_publicada, b.clases_acta,
-                b.observaciones, b.nombre_reporte, b.ruta_reporte,
+                b.observaciones, b.nombre_reporte, b.ruta_reporte, b.importancia,
                 c.email, c.telefono, c.direccion, c.ciudad
             FROM boletines b
             LEFT JOIN clientes c ON b.titular = c.titular
-            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0
+            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0 
+            AND b.importancia IN ('Baja', 'Media', 'Alta')
             ORDER BY b.titular, b.numero_boletin
         """)
         
@@ -94,10 +93,10 @@ def obtener_registros_pendientes_envio(conn):
             titular = row[1]  # b.titular
             if titular not in registros_por_cliente:
                 registros_por_cliente[titular] = {
-                    'email': row[15],  # c.email
-                    'telefono': row[16],  # c.telefono
-                    'direccion': row[17],  # c.direccion
-                    'ciudad': row[18],  # c.ciudad
+                    'email': row[16],  # c.email
+                    'telefono': row[17],  # c.telefono
+                    'direccion': row[18],  # c.direccion
+                    'ciudad': row[19],  # c.ciudad
                     'boletines': []
                 }
             
@@ -115,7 +114,8 @@ def obtener_registros_pendientes_envio(conn):
                 'clases_acta': row[11],
                 'observaciones': row[12],
                 'nombre_reporte': row[13],
-                'ruta_reporte': row[14]
+                'ruta_reporte': row[14],
+                'importancia': row[15]
             })
         
         logging.info(f"Se encontraron {len(registros_por_cliente)} clientes con reportes pendientes de envío.")
@@ -127,15 +127,39 @@ def obtener_registros_pendientes_envio(conn):
     finally:
         cursor.close()
 
-def crear_mensaje_email(titular, boletines_data, observaciones_principal=None):
+def determinar_importancia_principal(boletines_data):
     """
-    Crea el contenido del mensaje de email basado en las observaciones.
+    Determina el nivel de importancia más alto entre los boletines.
+    Prioridad: Alta > Media > Baja
+    """
+    prioridad = {
+        'Alta': 3,
+        'Media': 2,
+        'Baja': 1
+    }
+    
+    max_importancia = 'Baja'
+    max_prioridad = -1
+    
+    for boletin in boletines_data:
+        importancia = boletin.get('importancia', 'Baja')
+        if importancia in prioridad and prioridad[importancia] > max_prioridad:
+            max_prioridad = prioridad[importancia]
+            max_importancia = importancia
+    
+    return max_importancia
+
+def crear_mensaje_email(titular, boletines_data):
+    """
+    Crea el contenido del mensaje de email basado en la importancia más alta.
     """
     mensajes = obtener_mensajes_predefinidos()
     
-    # Usar la observación del primer boletín o la observación principal
-    observacion_key = observaciones_principal or boletines_data[0].get('observaciones', 'default')
-    mensaje_base = mensajes.get(str(observacion_key), mensajes['default'])
+    # Determinar la importancia principal
+    importancia_principal = determinar_importancia_principal(boletines_data)
+    
+    # Seleccionar el mensaje basado en la importancia
+    mensaje_base = mensajes.get(importancia_principal, mensajes['default'])
     
     return mensaje_base
 
@@ -291,7 +315,7 @@ def procesar_envio_emails(conn, email_usuario, password_usuario):
                     })
             
             except Exception as e:
-                logging.error(f"Error procesando cliente {titular}: {e}")
+                logging.error(f"Error procesando cliente Compose a response in Spanish: {titular}: {e}")
                 resultados['fallidos'].append({
                     'titular': titular,
                     'email': datos_cliente.get('email', 'N/A'),
