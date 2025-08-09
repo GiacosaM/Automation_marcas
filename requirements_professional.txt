@@ -1,0 +1,9 @@
+# Componentes profesionales para dashboard contable
+streamlit-extras>=0.4.0
+streamlit-shadcn-ui>=0.2.0
+streamlit-echarts>=0.4.0
+streamlit-elements>=0.1.0
+streamlit-card>=0.0.5
+plotly>=5.15.0
+streamlit-lottie>=0.0.5
+extra-streamlit-components>=0.1.60
