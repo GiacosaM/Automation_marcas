@@ -1,7 +1,8 @@
 import streamlit as st
 import sqlite3
 import bcrypt
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 
 class AuthManager:
     def __init__(self, db_path="boletines.db"):
@@ -122,6 +123,9 @@ def show_login():
                 border-radius: 16px; color: white; text-align: center;">
         <h2>🔐 Acceso al Sistema</h2>
         <p>Ingresa tus credenciales para continuar</p>
+        <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+            <small>🔒 Sesión segura con timeout automático de 60 minutos</small>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -131,6 +135,10 @@ def show_login():
         with st.form("login_form", clear_on_submit=True):
             username = st.text_input("👤 Usuario", placeholder="admin")
             password = st.text_input("🔑 Contraseña", type="password", placeholder="admin123")
+            
+            # Checkbox para recordar sesión (futuro)
+            remember_me = st.checkbox("🔄 Mantener sesión activa", value=False, 
+                                    help="Extiende el tiempo de sesión a 8 horas")
             
             if st.form_submit_button("🚀 Iniciar Sesión", use_container_width=True, type="primary"):
                 if username and password:
@@ -145,6 +153,11 @@ def show_login():
                             # Establecer session state
                             st.session_state['authenticated'] = True
                             st.session_state['user_info'] = user_info
+                            st.session_state['last_activity'] = datetime.now()
+                            
+                            # Si seleccionó "mantener sesión", extender timeout
+                            if remember_me:
+                                st.session_state['extended_session'] = True
                             
                             st.success(f"✅ ¡Bienvenido {user_info['name']}!")
                             st.rerun()
@@ -164,9 +177,146 @@ def check_authentication():
     """Verificar si el usuario está autenticado"""
     return st.session_state.get('authenticated', False)
 
+def check_session_timeout():
+    """Verificar si la sesión ha expirado"""
+    if 'authenticated' not in st.session_state or not st.session_state['authenticated']:
+        return False
+    
+    # Configurar timeout de sesión
+    # 60 minutos normal, 8 horas si está marcado "mantener sesión"
+    if st.session_state.get('extended_session', False):
+        session_timeout_minutes = 480  # 8 horas
+    else:
+        session_timeout_minutes = 60   # 1 hora
+    
+    if 'last_activity' not in st.session_state:
+        st.session_state['last_activity'] = datetime.now()
+        return True
+    
+    # Verificar si ha pasado el tiempo límite
+    time_elapsed = datetime.now() - st.session_state['last_activity']
+    if time_elapsed.total_seconds() > (session_timeout_minutes * 60):
+        # Sesión expirada
+        logout_user()
+        st.warning("⏰ Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.")
+        return False
+    
+    # Actualizar última actividad
+    st.session_state['last_activity'] = datetime.now()
+    return True
+
+def logout_user():
+    """Cerrar sesión del usuario"""
+    # Limpiar todas las variables de sesión relacionadas con autenticación
+    if 'authenticated' in st.session_state:
+        del st.session_state['authenticated']
+    if 'user_info' in st.session_state:
+        del st.session_state['user_info']
+    if 'last_activity' in st.session_state:
+        del st.session_state['last_activity']
+    
+    # Limpiar otros datos de sesión específicos de la aplicación
+    session_keys_to_clear = [
+        'current_page', 'show_db_section', 'show_clientes_section', 
+        'show_email_section', 'selected_record_id', 'selected_cliente_id',
+        'db_data', 'clientes_data', 'pending_action', 'pending_data',
+        'datos_insertados', 'email_credentials', 'confirmar_generar_informes',
+        'email_config', 'confirmar_envio_emails', 'resultados_envio'
+    ]
+    
+    for key in session_keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+
+def show_user_info():
+    """Mostrar información del usuario logueado y botón de logout"""
+    if 'user_info' in st.session_state and st.session_state['user_info']:
+        user_info = st.session_state['user_info']
+        
+        # Mostrar información del usuario en la parte superior
+        st.markdown(f"""
+        <div style="background: linear-gradient(90deg, #2d2d2d 0%, #3a3a3a 100%); 
+                    padding: 0.8rem; border-radius: 10px; margin-bottom: 1rem; 
+                    display: flex; justify-content: space-between; align-items: center;
+                    color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+            <div style="display: flex; align-items: center;">
+                <div style="background: #667eea; width: 40px; height: 40px; border-radius: 50%; 
+                           display: flex; align-items: center; justify-content: center; 
+                           margin-right: 12px; font-weight: bold; font-size: 16px;">
+                    {user_info['name'][0].upper()}
+                </div>
+                <div>
+                    <div style="font-weight: 600; font-size: 16px;">{user_info['name']}</div>
+                    <div style="font-size: 12px; color: #bbb;">👤 {user_info['username']} | 🔑 {user_info['role']}</div>
+                </div>
+            </div>
+            <div style="text-align: right; font-size: 12px; color: #bbb;">
+                <div>📅 {datetime.now().strftime("%d/%m/%Y")}</div>
+                <div>🕐 {datetime.now().strftime("%H:%M")}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Botón de logout en sidebar
+        with st.sidebar:
+            st.markdown("---")
+            if st.button("🚪 Cerrar Sesión", type="secondary", use_container_width=True):
+                logout_user()
+                st.success("✅ Sesión cerrada correctamente")
+                time.sleep(1)
+                st.rerun()
+            
+            # Mostrar tiempo de sesión restante
+            if 'last_activity' in st.session_state:
+                time_elapsed = datetime.now() - st.session_state['last_activity']
+                
+                # Calcular tiempo restante basado en tipo de sesión
+                if st.session_state.get('extended_session', False):
+                    total_minutes = 480  # 8 horas
+                    session_type = "extendida"
+                else:
+                    total_minutes = 60   # 1 hora
+                    session_type = "normal"
+                
+                remaining_minutes = total_minutes - int(time_elapsed.total_seconds() / 60)
+                
+                if remaining_minutes > 60:
+                    # Mostrar en horas y minutos
+                    hours = remaining_minutes // 60
+                    minutes = remaining_minutes % 60
+                    time_display = f"{hours}h {minutes}m"
+                else:
+                    time_display = f"{remaining_minutes}m"
+                
+                if remaining_minutes > 0:
+                    # Color basado en tiempo restante
+                    if remaining_minutes <= 5:
+                        color = "#dc3545"  # Rojo
+                        icon = "🔴"
+                    elif remaining_minutes <= 15:
+                        color = "#ffc107"  # Amarillo
+                        icon = "🟡"
+                    else:
+                        color = "#28a745"  # Verde
+                        icon = "🟢"
+                    
+                    st.markdown(f"""
+                    <div style="background: #f8f9fa; padding: 0.5rem; border-radius: 8px; 
+                               text-align: center; margin-top: 1rem; border-left: 4px solid {color};">
+                        <small style="color: #666;">{icon} Sesión {session_type}: <strong>{time_display}</strong></small>
+                    </div>
+                    """, unsafe_allow_html=True)
+
 def handle_authentication():
     """Manejar autenticación completa - función simple"""
     if not check_authentication():
         show_login()
         return False
+    
+    # Verificar timeout de sesión
+    if not check_session_timeout():
+        return False
+    
+    # Mostrar información del usuario si está autenticado
+    show_user_info()
     return True
