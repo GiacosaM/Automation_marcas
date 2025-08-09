@@ -121,11 +121,8 @@ def show_login():
     <div style="max-width: 400px; margin: 2rem auto; padding: 2rem; 
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                 border-radius: 16px; color: white; text-align: center;">
-        <h2>🔐 Acceso al Sistema</h2>
-        <p>Ingresa tus credenciales para continuar</p>
-        <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-            <small>🔒 Sesión segura con timeout automático de 60 minutos</small>
-        </div>
+        <h2>🔐 Sistema de Gestión</h2>
+        <p style="margin: 0; opacity: 0.9;">Estudio Contable - Marcas y Patentes</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -133,10 +130,10 @@ def show_login():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.form("login_form", clear_on_submit=True):
-            username = st.text_input("👤 Usuario", placeholder="admin")
-            password = st.text_input("🔑 Contraseña", type="password", placeholder="admin123")
+            username = st.text_input("👤 Usuario", placeholder="Ingrese su usuario")
+            password = st.text_input("🔑 Contraseña", type="password", placeholder="Ingrese su contraseña")
             
-            # Checkbox para recordar sesión (futuro)
+            # Checkbox para recordar sesión
             remember_me = st.checkbox("🔄 Mantener sesión activa", value=False, 
                                     help="Extiende el tiempo de sesión a 8 horas")
             
@@ -167,11 +164,6 @@ def show_login():
                         st.error("❌ Usuario o contraseña incorrectos")
                 else:
                     st.error("⚠️ Por favor completa todos los campos")
-    
-    # Información de prueba
-    with st.expander("ℹ️ Credenciales de prueba"):
-        st.write("**Usuario:** admin")
-        st.write("**Contraseña:** admin123")
 
 def check_authentication():
     """Verificar si el usuario está autenticado"""
@@ -233,38 +225,66 @@ def show_user_info():
     if 'user_info' in st.session_state and st.session_state['user_info']:
         user_info = st.session_state['user_info']
         
-        # Mostrar información del usuario en la parte superior
+        # Header principal limpio sin botón
         st.markdown(f"""
         <div style="background: linear-gradient(90deg, #2d2d2d 0%, #3a3a3a 100%); 
-                    padding: 0.8rem; border-radius: 10px; margin-bottom: 1rem; 
-                    display: flex; justify-content: space-between; align-items: center;
+                    padding: 0.8rem 1.5rem; border-radius: 10px; margin-bottom: 1rem; 
+                    display: flex; align-items: center;
                     color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-            <div style="display: flex; align-items: center;">
+            <div style="display: flex; align-items: center; flex-grow: 1;">
                 <div style="background: #667eea; width: 40px; height: 40px; border-radius: 50%; 
                            display: flex; align-items: center; justify-content: center; 
                            margin-right: 12px; font-weight: bold; font-size: 16px;">
                     {user_info['name'][0].upper()}
                 </div>
-                <div>
+                <div style="flex-grow: 1;">
                     <div style="font-weight: 600; font-size: 16px;">{user_info['name']}</div>
-                    <div style="font-size: 12px; color: #bbb;">👤 {user_info['username']} | 🔑 {user_info['role']}</div>
+                    <div style="font-size: 12px; color: #bbb;">👤 {user_info['username']} | 🔑 {user_info['role']} | 📅 {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>
                 </div>
-            </div>
-            <div style="text-align: right; font-size: 12px; color: #bbb;">
-                <div>📅 {datetime.now().strftime("%d/%m/%Y")}</div>
-                <div>🕐 {datetime.now().strftime("%H:%M")}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Botón de logout en sidebar
+        # Botón de logout solo en sidebar
         with st.sidebar:
             st.markdown("---")
-            if st.button("🚪 Cerrar Sesión", type="secondary", use_container_width=True):
-                logout_user()
-                st.success("✅ Sesión cerrada correctamente")
-                time.sleep(1)
-                st.rerun()
+            st.markdown("### 👤 Usuario Activo")
+            st.markdown(f"**{user_info['name']}**")
+            st.markdown(f"*{user_info['role']}*")
+            
+            # Botón estilizado para logout
+            st.markdown("""
+            <style>
+            .sidebar-logout-btn .stButton > button {
+                background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 8px !important;
+                padding: 0.5rem 1rem !important;
+                font-weight: 600 !important;
+                font-size: 14px !important;
+                transition: all 0.3s ease !important;
+                box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3) !important;
+                width: 100% !important;
+            }
+            
+            .sidebar-logout-btn .stButton > button:hover {
+                background: linear-gradient(135deg, #c82333 0%, #bd2130 100%) !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4) !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Contenedor con clase para el estilo
+            with st.container():
+                st.markdown('<div class="sidebar-logout-btn">', unsafe_allow_html=True)
+                if st.button("🚪 Cerrar Sesión", type="secondary", use_container_width=True, key="logout_sidebar"):
+                    logout_user()
+                    st.success("✅ Sesión cerrada")
+                    time.sleep(1)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             
             # Mostrar tiempo de sesión restante
             if 'last_activity' in st.session_state:
