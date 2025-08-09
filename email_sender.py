@@ -13,15 +13,23 @@ from typing import List, Dict, Tuple, Optional
 # Importar funciones de logs desde database.py
 from database import insertar_log_envio
 
-# Configuración de logging
+# Configuración de logging optimizado para emails
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,  # Solo registrar WARNING y ERROR por defecto
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('email_sender.log'),
         logging.StreamHandler()
     ]
 )
+
+# Logger específico para eventos críticos de email
+email_logger = logging.getLogger('email_events')
+email_logger.setLevel(logging.INFO)
+email_handler = logging.FileHandler('boletines.log')  # Usar el mismo archivo
+email_handler.setFormatter(logging.Formatter('%(asctime)s - EMAIL - %(message)s'))
+email_logger.addHandler(email_handler)
+email_logger.propagate = False
 
 # Configuración de email
 SMTP_SERVER = "smtp.gmail.com"
@@ -233,8 +241,8 @@ def obtener_registros_pendientes_envio(conn):
             registros_por_cliente_importancia[clave]['importancia'] = importancia
         
         titulares_unicos = len(set(clave.split('|')[0] for clave in registros_por_cliente_importancia.keys()))
-        logging.info(f"Se encontraron {len(registros_por_cliente_importancia)} grupos (titular+importancia) con reportes pendientes de envío.")
-        logging.info(f"Titulares únicos afectados: {titulares_unicos}")
+        # Solo log para procesos de envío importantes
+        email_logger.info(f"📊 Procesando envíos: {len(registros_por_cliente_importancia)} grupos, {titulares_unicos} titulares únicos")
         return registros_por_cliente_importancia
     
     except sqlite3.Error as e:
@@ -288,7 +296,9 @@ def obtener_archivo_reporte(boletines_data):
             if os.path.exists(ruta_completa):
                 return ruta_completa, boletin['nombre_reporte']
             else:
-                logging.warning(f"Archivo no encontrado: {ruta_completa}")
+                # Solo log archivos faltantes críticos
+                if not archivo_adjunto:
+                    email_logger.warning(f"⚠️ Archivo de reporte faltante para {titular} ({importancia})")
     
     return None, None
 
@@ -346,11 +356,11 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         server.sendmail(email_usuario, destinatario, text)
         server.quit()
         
-        logging.info(f"Email enviado exitosamente a: {destinatario}")
+        email_logger.info(f"📧 Email enviado exitosamente: {destinatario}")
         return True
-    
+        
     except Exception as e:
-        logging.error(f"Error al enviar email a {destinatario}: {e}")
+        email_logger.error(f"❌ Error al enviar email a {destinatario}: {e}")
         return False
 
 def actualizar_estado_envio(conn, boletines_ids):

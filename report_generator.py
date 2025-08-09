@@ -8,7 +8,15 @@ from collections import defaultdict
 from typing import List, Tuple, Optional
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Logger específico para eventos críticos de reportes
+report_logger = logging.getLogger('report_events')
+report_logger.setLevel(logging.INFO)
+report_handler = logging.FileHandler('boletines.log')
+report_handler.setFormatter(logging.Formatter('%(asctime)s - REPORT - %(message)s'))
+report_logger.addHandler(report_handler)
+report_logger.propagate = False
 logger = logging.getLogger(__name__)
 
 class ProfessionalReportPDF(FPDF):

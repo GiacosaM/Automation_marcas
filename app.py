@@ -42,7 +42,7 @@ apply_professional_theme()
 from config import get_config, set_config, show_settings_page, load_email_credentials, save_email_credentials, validate_email_format
 
 # Importar módulos existentes
-from database import crear_conexion, crear_tabla, insertar_datos, obtener_datos, actualizar_registro, eliminar_registro, insertar_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente, obtener_logs_envios, obtener_estadisticas_logs, limpiar_logs_antiguos, obtener_emails_enviados, obtener_ruta_reporte_pdf
+from database import crear_conexion, crear_tabla, insertar_datos, obtener_datos, actualizar_registro, eliminar_registro, insertar_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente, obtener_logs_envios, obtener_estadisticas_logs, limpiar_logs_antiguos, obtener_emails_enviados, obtener_ruta_reporte_pdf, optimizar_archivo_log, limpieza_automatica_logs, configurar_limpieza_logs
 from extractor import extraer_datos_agrupados
 from report_generator import generar_informe_pdf
 from email_sender import procesar_envio_emails, generar_reporte_envios, obtener_info_reportes_pendientes, obtener_estadisticas_envios, validar_email, validar_clientes_para_envio
@@ -164,40 +164,56 @@ def show_grid_data(df, key, selection_mode='single'):
     if grid_response['data'] is not None and len(grid_response['data']) > 0:
         df_new = pd.DataFrame(grid_response['data'])
         
-        # Iterar sobre las filas modificadas
+        # Verificar si hay cambios reales comparando con el DataFrame original
         for index, row in df_new.iterrows():
             original_row = df.loc[df['id'] == row['id']].iloc[0] if not df[df['id'] == row['id']].empty else None
             
             if original_row is not None and row['importancia'] != original_row['importancia']:
-                conn = crear_conexion()
-                if conn:
-                    try:
-                        actualizar_registro(
-                            conn,
-                            int(row['id']),
-                            row['numero_boletin'],
-                            row['fecha_boletin'],
-                            row['numero_orden'],
-                            row['solicitante'],
-                            row['agente'],
-                            row['numero_expediente'],
-                            row['clase'],
-                            row['marca_custodia'],
-                            row['marca_publicada'],
-                            row['clases_acta'],
-                            bool(row['reporte_enviado']),
-                            row['titular'],
-                            bool(row['reporte_generado']),
-                            row['importancia']
-                        )
-                        st.success(f"✅ Importancia actualizada a '{row['importancia']}'")
-                        time.sleep(0.5)
-                        st.rerun()  # Cambiar de experimental_rerun a rerun
-                    except Exception as e:
-                        st.error(f"Error al actualizar: {e}")
-                    finally:
-                        if conn:
-                            conn.close()
+                # Crear identificador único para evitar procesar el mismo cambio múltiples veces
+                cambio_id = f"{row['id']}_{original_row['importancia']}_to_{row['importancia']}"
+                
+                # Usar session_state para evitar procesamiento múltiple
+                if 'cambios_procesados' not in st.session_state:
+                    st.session_state.cambios_procesados = set()
+                
+                if cambio_id not in st.session_state.cambios_procesados:
+                    # Marcar como procesado ANTES de ejecutar para evitar race conditions
+                    st.session_state.cambios_procesados.add(cambio_id)
+                    
+                    conn = crear_conexion()
+                    if conn:
+                        try:
+                            actualizar_registro(
+                                conn,
+                                int(row['id']),
+                                row['numero_boletin'],
+                                row['fecha_boletin'],
+                                row['numero_orden'],
+                                row['solicitante'],
+                                row['agente'],
+                                row['numero_expediente'],
+                                row['clase'],
+                                row['marca_custodia'],
+                                row['marca_publicada'],
+                                row['clases_acta'],
+                                bool(row['reporte_enviado']),
+                                row['titular'],
+                                bool(row['reporte_generado']),
+                                row['importancia']
+                            )
+                            
+                            st.success(f"✅ Importancia actualizada a '{row['importancia']}'")
+                            time.sleep(0.3)
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Error al actualizar: {e}")
+                            # Remover de procesados si hubo error para permitir reintento
+                            st.session_state.cambios_procesados.discard(cambio_id)
+                        finally:
+                            if conn:
+                                conn.close()
+                    break  # Procesar solo un cambio a la vez
 
     return grid_response
 
@@ -406,6 +422,170 @@ st.markdown(f"""
         margin: 10px 0;
         border: 1px solid #444;
         color: #e5e5e5;
+    }}
+    
+    /* Estilos para botones de gestión de emails */
+    .email-management-container {{
+        background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%);
+        padding: 20px;
+        border-radius: 12px;
+        margin: 15px 0;
+        border: 1px solid #4a4a5a;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }}
+    
+    .email-management-title {{
+        color: #e5e5e5;
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        text-align: center;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }}
+    
+    /* Botones primarios de email con estilo avanzado */
+    .stButton > button[kind="primary"] {{
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        text-transform: none;
+        font-size: 0.95rem;
+    }}
+    
+    .stButton > button[kind="primary"]:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    }}
+    
+    .stButton > button[kind="primary"]:active {{
+        transform: translateY(0px);
+        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+    }}
+    
+    /* Botones secundarios de email */
+    .stButton > button:not([kind="primary"]) {{
+        background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%);
+        color: #e5e5e5;
+        border: 1px solid #5a5a6a;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }}
+    
+    .stButton > button:not([kind="primary"]):hover {{
+        background: linear-gradient(135deg, #3d3d4d 0%, #4d4d5d 100%);
+        border-color: #667eea;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    }}
+    
+    /* Botones de confirmación específicos */
+    .email-confirm-button {{
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    }}
+    
+    .email-cancel-button {{
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+    }}
+    
+    /* Pestañas de email con colores específicos - Mayor especificidad */
+    .email-management-container .stTabs [data-baseweb="tab-list"] {{
+        background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%) !important;
+        border-radius: 12px !important;
+        padding: 6px !important;
+        margin-bottom: 25px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid #4a4a5a !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"] {{
+        background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%) !important;
+        color: #b5b5c3 !important;
+        border: 1px solid #3a3a4a !important;
+        border-radius: 8px !important;
+        margin: 0 3px !important;
+        transition: all 0.3s ease !important;
+        font-weight: 600 !important;
+        padding: 12px 20px !important;
+        font-size: 0.9rem !important;
+        text-transform: none !important;
+        min-height: 45px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"]:hover {{
+        background: linear-gradient(135deg, #3d3d4d 0%, #4d4d5d 100%) !important;
+        color: #667eea !important;
+        border-color: #667eea !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2) !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"][aria-selected="true"] {{
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border-color: #5a6fd8 !important;
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4) !important;
+        transform: translateY(-2px) !important;
+        font-weight: 700 !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"][aria-selected="true"]:hover {{
+        background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%) !important;
+        box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5) !important;
+    }}
+    
+    /* Estilos adicionales para pestañas específicas por emoji */
+    .email-management-container .stTabs [data-baseweb="tab"]:nth-child(1)[aria-selected="true"] {{
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+        box-shadow: 0 4px 20px rgba(40, 167, 69, 0.4) !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"]:nth-child(2)[aria-selected="true"] {{
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4) !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"]:nth-child(3)[aria-selected="true"] {{
+        background: linear-gradient(135deg, #fd7e14 0%, #e83e8c 100%) !important;
+        box-shadow: 0 4px 20px rgba(253, 126, 20, 0.4) !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"]:nth-child(4)[aria-selected="true"] {{
+        background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%) !important;
+        box-shadow: 0 4px 20px rgba(111, 66, 193, 0.4) !important;
+    }}
+    
+    .email-management-container .stTabs [data-baseweb="tab"]:nth-child(5)[aria-selected="true"] {{
+        background: linear-gradient(135deg, #20c997 0%, #fd7e14 100%) !important;
+        box-shadow: 0 4px 20px rgba(32, 201, 151, 0.4) !important;
     }}
     
     /* Métricas de Streamlit */
@@ -1061,6 +1241,29 @@ elif tabs == 'Configuración':
 # CONTENIDO PRINCIPAL
 # ================================
 
+# Inicialización automática del sistema (solo una vez por sesión)
+if 'sistema_inicializado' not in st.session_state:
+    st.session_state.sistema_inicializado = False
+
+if not st.session_state.sistema_inicializado:
+    try:
+        # Ejecutar limpieza automática de logs al iniciar
+        conn = crear_conexion()
+        if conn:
+            try:
+                resultado_limpieza = limpieza_automatica_logs(conn)
+                st.session_state.resultado_limpieza_automatica = resultado_limpieza
+                st.session_state.sistema_inicializado = True
+            except Exception as e:
+                # Si hay error, no bloquear la aplicación
+                st.session_state.resultado_limpieza_automatica = {'mensaje': f'Error en limpieza: {e}'}
+                st.session_state.sistema_inicializado = True
+            finally:
+                conn.close()
+    except:
+        # Si no se puede conectar, marcar como inicializado para no bloquear
+        st.session_state.sistema_inicializado = True
+
 # Mostrar contenido basado en la página actual
 if st.session_state.current_page == 'dashboard':
     show_dashboard()
@@ -1402,7 +1605,6 @@ elif st.session_state.current_page == 'historial' and st.session_state.show_db_s
                     with tab3:
                         col1, col2 = st.columns(2)
                         with col1:
-                            filtro_clase = st.text_input("🏷️ Clase", placeholder="Número de clase...")
                             filtro_importancia = st.select_slider(
                                 "⚡ Importancia",
                                 options=["Todos", "Baja", "Media", "Alta", "Pendiente"],
@@ -1439,9 +1641,6 @@ elif st.session_state.current_page == 'historial' and st.session_state.show_db_s
                     
                     if filtro_fecha:
                         mask &= (pd.to_datetime(filtered_df['fecha_boletin']).dt.date == filtro_fecha)
-                    
-                    if filtro_clase:
-                        mask &= filtered_df['clase'].astype(str).str.contains(filtro_clase, na=False)
                     
                     if filtro_importancia != "Todos":
                         mask &= (filtered_df['importancia'] == filtro_importancia)
@@ -1884,9 +2083,257 @@ elif st.session_state.current_page == 'emails' and st.session_state.show_email_s
                 
                 st.divider()
                 
+                # Aplicar estilos CSS para gestión de emails
+                st.markdown('<div class="email-management-container">', unsafe_allow_html=True)
+                
+                # Estilos CSS globales y muy específicos para las pestañas de gestión de emails
+                st.markdown("""
+                    <style>
+                    /* ESTILOS FORZADOS PARA PESTAÑAS DE EMAIL */
+                    
+                    /* Contenedor de pestañas con mayor especificidad */
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] {
+                        background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%) !important;
+                        border-radius: 12px !important;
+                        padding: 8px !important;
+                        margin-bottom: 20px !important;
+                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+                        border: 1px solid #4a4a5a !important;
+                    }
+                    
+                    /* Pestañas individuales */
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"] {
+                        background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%) !important;
+                        color: #b5b5c3 !important;
+                        border: 1px solid #3a3a4a !important;
+                        border-radius: 8px !important;
+                        margin: 0 3px !important;
+                        font-weight: 600 !important;
+                        padding: 12px 16px !important;
+                        font-size: 0.9rem !important;
+                        transition: all 0.3s ease !important;
+                        min-height: 45px !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                    }
+                    
+                    /* Hover state */
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"]:hover {
+                        background: rgba(102, 126, 234, 0.2) !important;
+                        color: #ffffff !important;
+                        transform: translateY(-2px) !important;
+                    }
+                    
+                    /* Pestaña activa - Estados específicos por posición */
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"]:nth-child(1)[aria-selected="true"] {
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+                        color: white !important;
+                        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4) !important;
+                    }
+                    
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"]:nth-child(2)[aria-selected="true"] {
+                        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+                        color: white !important;
+                        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4) !important;
+                    }
+                    
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"]:nth-child(3)[aria-selected="true"] {
+                        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+                        color: white !important;
+                        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4) !important;
+                    }
+                    
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"]:nth-child(4)[aria-selected="true"] {
+                        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+                        color: white !important;
+                        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4) !important;
+                    }
+                    
+                    div[data-testid="stTabs"] > div[data-baseweb="tab-list"] > button[data-baseweb="tab"]:nth-child(5)[aria-selected="true"] {
+                        background: linear-gradient(135deg, #ec4899 0%, #be185d 100%) !important;
+                        color: white !important;
+                        box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4) !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                
+                # JavaScript más agresivo para aplicar estilos
+                import streamlit.components.v1 as components
+                components.html("""
+                <script>
+                function applyEmailTabStyles() {
+                    // Buscar todas las pestañas
+                    const tabList = document.querySelector('div[data-testid="stTabs"] > div[data-baseweb="tab-list"]');
+                    if (!tabList) return;
+                    
+                    // Estilizar contenedor de pestañas
+                    tabList.style.cssText = `
+                        background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%) !important;
+                        border-radius: 12px !important;
+                        padding: 8px !important;
+                        margin-bottom: 20px !important;
+                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+                        border: 1px solid #4a4a5a !important;
+                    `;
+                    
+                    // Buscar y estilizar pestañas individuales
+                    const tabs = tabList.querySelectorAll('button[data-baseweb="tab"]');
+                    const gradients = [
+                        'linear-gradient(135deg, #10b981 0%, #059669 100%)', // Verde - Enviar
+                        'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', // Azul - Configuración
+                        'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', // Naranja - Historial
+                        'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', // Púrpura - Logs
+                        'linear-gradient(135deg, #ec4899 0%, #be185d 100%)'  // Rosa - Enviados
+                    ];
+                    
+                    tabs.forEach((tab, index) => {
+                        // Estilos base para todas las pestañas
+                        tab.style.cssText = `
+                            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%) !important;
+                            color: #b5b5c3 !important;
+                            border: 1px solid #3a3a4a !important;
+                            border-radius: 8px !important;
+                            margin: 0 3px !important;
+                            font-weight: 600 !important;
+                            padding: 12px 16px !important;
+                            font-size: 0.9rem !important;
+                            transition: all 0.3s ease !important;
+                            min-height: 45px !important;
+                        `;
+                        
+                        // Si la pestaña está activa, aplicar gradiente específico
+                        if (tab.getAttribute('aria-selected') === 'true') {
+                            tab.style.background = gradients[index] + ' !important';
+                            tab.style.color = 'white !important';
+                            tab.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4) !important';
+                        }
+                        
+                        // Agregar listener para mantener estilos al hacer clic
+                        tab.addEventListener('click', function() {
+                            setTimeout(() => {
+                                tabs.forEach((t, i) => {
+                                    t.style.cssText = `
+                                        background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%) !important;
+                                        color: #b5b5c3 !important;
+                                        border: 1px solid #3a3a4a !important;
+                                        border-radius: 8px !important;
+                                        margin: 0 3px !important;
+                                        font-weight: 600 !important;
+                                        padding: 12px 16px !important;
+                                        font-size: 0.9rem !important;
+                                        transition: all 0.3s ease !important;
+                                        min-height: 45px !important;
+                                    `;
+                                    
+                                    if (t.getAttribute('aria-selected') === 'true') {
+                                        t.style.background = gradients[i] + ' !important';
+                                        t.style.color = 'white !important';
+                                        t.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4) !important';
+                                    }
+                                });
+                            }, 50);
+                        });
+                    });
+                }
+                
+                // Aplicar estilos inmediatamente y después de un delay
+                setTimeout(applyEmailTabStyles, 100);
+                setTimeout(applyEmailTabStyles, 500);
+                setTimeout(applyEmailTabStyles, 1000);
+                
+                // Observar cambios en el DOM para reaplicar estilos
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'childList' || mutation.type === 'attributes') {
+                            setTimeout(applyEmailTabStyles, 100);
+                        }
+                    });
+                });
+                
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['aria-selected']
+                });
+                </script>
+                """, height=0)
+                
                 # Pestañas para organizar la funcionalidad - SIEMPRE VISIBLES
-                st.subheader("🔧 Gestión de Emails")
-                tab1, tab2, tab3, tab4, tab5 = st.tabs(["🚀 Enviar Emails", "⚙️ Configuración", "📊 Historial de Envíos", "📋 Logs Detallados", "📁 Emails Enviados"])
+                st.markdown('<h3 class="email-management-title">🔧 Gestión de Emails</h3>', unsafe_allow_html=True)
+                
+                # CSS más agresivo usando st.write
+                st.write("""
+                <style>
+                /* FORZAR ESTILOS PARA PESTAÑAS DE EMAIL - MÁXIMA PRIORIDAD */
+                [data-testid="stTabs"] [data-baseweb="tab-list"] {
+                    background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%) !important;
+                    border-radius: 12px !important;
+                    padding: 8px !important;
+                    margin-bottom: 20px !important;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+                    border: 1px solid #4a4a5a !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"] {
+                    background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%) !important;
+                    color: #b5b5c3 !important;
+                    border: 1px solid #3a3a4a !important;
+                    border-radius: 8px !important;
+                    margin: 0 3px !important;
+                    font-weight: 600 !important;
+                    padding: 12px 16px !important;
+                    font-size: 0.9rem !important;
+                    transition: all 0.3s ease !important;
+                    min-height: 45px !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"]:hover {
+                    background: rgba(102, 126, 234, 0.2) !important;
+                    color: #ffffff !important;
+                    transform: translateY(-2px) !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]:nth-of-type(1) {
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+                    color: white !important;
+                    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4) !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]:nth-of-type(2) {
+                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+                    color: white !important;
+                    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4) !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]:nth-of-type(3) {
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+                    color: white !important;
+                    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4) !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]:nth-of-type(4) {
+                    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+                    color: white !important;
+                    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4) !important;
+                }
+                
+                [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]:nth-of-type(5) {
+                    background: linear-gradient(135deg, #ec4899 0%, #be185d 100%) !important;
+                    color: white !important;
+                    box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4) !important;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # Forzar actualización con timestamp único
+                import time
+                unique_key = f"email_tabs_{int(time.time())}"
+                
+                tab1, tab2, tab3, tab4, tab5 = st.tabs(
+                    ["🚀 Enviar Emails", "⚙️ Configuración", "📊 Historial de Envíos", "📋 Logs Detallados", "📁 Emails Enviados"]
+                )
                 
                 # Solo mostrar contenido de envío si no hay reportes pendientes
                 with tab1:
@@ -2408,7 +2855,7 @@ elif st.session_state.current_page == 'emails' and st.session_state.show_email_s
                                     # Herramientas de administración
                                     st.markdown("---")
                                     st.markdown("##### 🔧 Herramientas de Administración")
-                                    col_admin1, col_admin2 = st.columns(2)
+                                    col_admin1, col_admin2, col_admin3 = st.columns(3)
                                     
                                     with col_admin1:
                                         if st.button("🗑️ Limpiar Logs Antiguos (30+ días)", use_container_width=True):
@@ -2424,6 +2871,19 @@ elif st.session_state.current_page == 'emails' and st.session_state.show_email_s
                                                 st.error(f"❌ Error al limpiar logs: {e}")
                                     
                                     with col_admin2:
+                                        if st.button("🔧 Optimizar Archivo Log", use_container_width=True):
+                                            try:
+                                                resultado = optimizar_archivo_log()
+                                                if "optimizado" in resultado.lower():
+                                                    st.success(f"✅ {resultado}")
+                                                else:
+                                                    st.info(f"ℹ️ {resultado}")
+                                                time.sleep(1)
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"❌ Error al optimizar: {e}")
+                                    
+                                    with col_admin3:
                                         if st.button("📊 Exportar Logs", use_container_width=True):
                                             # Preparar CSV para descarga
                                             csv = logs_df.to_csv(index=False)
@@ -2435,9 +2895,76 @@ elif st.session_state.current_page == 'emails' and st.session_state.show_email_s
                                                 use_container_width=True
                                             )
                                 
-                                else:
-                                    st.info("📭 No hay logs de envíos registrados")
+                                # Información del Sistema de Limpieza Automática
+                                st.markdown("---")
+                                st.markdown("##### 🤖 Sistema de Limpieza Automática")
+                                
+                                try:
+                                    config_logs = configurar_limpieza_logs()
                                     
+                                    # Mostrar configuración actual
+                                    col_config1, col_config2, col_config3 = st.columns(3)
+                                    
+                                    with col_config1:
+                                        st.markdown("**📋 Configuración Actual:**")
+                                        st.info(f"🗑️ Logs exitosos: {config_logs['dias_conservar_exitosos']} días")
+                                        st.info(f"❌ Logs de errores: {config_logs['dias_conservar_errores']} días")
+                                        st.info(f"🔄 Frecuencia limpieza: {config_logs['frecuencia_limpieza_dias']} días")
+                                    
+                                    with col_config2:
+                                        st.markdown("**📊 Estado del Sistema:**")
+                                        st.metric("📁 Tamaño del Log", f"{config_logs['tamaño_actual_mb']} MB")
+                                        st.info(f"🔧 Auto-optimización: {config_logs['tamaño_auto_optimizacion_mb']} MB")
+                                        
+                                        # Color del estado según el tamaño
+                                        if config_logs['tamaño_actual_mb'] > config_logs['tamaño_auto_optimizacion_mb']:
+                                            st.error("⚠️ Log necesita optimización")
+                                        elif config_logs['tamaño_actual_mb'] > config_logs['tamaño_maximo_mb']:
+                                            st.warning("📈 Log creciendo")
+                                        else:
+                                            st.success("✅ Log en buen estado")
+                                    
+                                    with col_config3:
+                                        st.markdown("**🕐 Última Actividad:**")
+                                        st.info(f"🧹 Última limpieza: {config_logs['ultima_limpieza']}")
+                                        
+                                        # Mostrar resultado de la limpieza automática si está disponible
+                                        if 'resultado_limpieza_automatica' in st.session_state:
+                                            resultado = st.session_state.resultado_limpieza_automatica
+                                            if resultado['logs_eliminados'] > 0:
+                                                st.success(f"🤖 Último ciclo: {resultado['logs_eliminados']} logs eliminados")
+                                            else:
+                                                st.info("🤖 Sistema funcionando normalmente")
+                                
+                                except Exception as e:
+                                    st.error(f"Error al cargar configuración: {e}")
+                                
+                                # Información educativa sobre el sistema automático
+                                with st.expander("ℹ️ Información del Sistema Automático", expanded=False):
+                                    st.markdown("""
+                                    **🤖 Funcionamiento Automático:**
+                                    
+                                    - **Cada 7 días**: Se ejecuta limpieza automática de logs antiguos
+                                    - **Al superar 100MB**: El archivo se optimiza automáticamente creando respaldos
+                                    - **Cada 90 días**: Los respaldos muy antiguos se eliminan automáticamente
+                                    
+                                    **🔧 Qué se conserva:**
+                                    - ✅ **Errores**: Se conservan por 1 año (importantes para debugging)
+                                    - ✅ **Logs recientes**: Últimos 30 días de actividad
+                                    - ✅ **Respaldos**: Últimos 90 días de archivos optimizados
+                                    
+                                    **🗑️ Qué se elimina:**
+                                    - ❌ **Logs exitosos antiguos**: Mayores a 30 días
+                                    - ❌ **Respaldos antiguos**: Mayores a 90 días
+                                    - ❌ **Archivos de log grandes**: Se comprimen manteniendo información crítica
+                                    
+                                    **⚡ Beneficios:**
+                                    - Mejor rendimiento de la aplicación
+                                    - Menor uso de espacio en disco
+                                    - Logs más fáciles de revisar
+                                    - Mantenimiento automático sin intervención manual
+                                    """)
+                                
                             except Exception as e:
                                 st.error(f"Error al cargar logs: {e}")
                 
@@ -2609,6 +3136,9 @@ elif st.session_state.current_page == 'emails' and st.session_state.show_email_s
                                 st.markdown("- Verifica la conexión a la base de datos")
                                 st.markdown("- Revisa que la tabla 'envios_log' esté correctamente configurada")
                                 st.markdown("- Consulta los logs del sistema para más detalles")
+                
+                # Cerrar el contenedor de gestión de emails
+                st.markdown('</div>', unsafe_allow_html=True)
             
             else:
                 st.error("Error al obtener estadísticas de envíos")

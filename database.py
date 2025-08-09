@@ -4,9 +4,9 @@ import sqlite3
 import logging
 from datetime import datetime, timedelta
 
-# Configuración del logging
+# Configuración del logging optimizado
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,  # Solo registrar WARNING y ERROR por defecto
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('boletines.log'),
@@ -14,11 +14,23 @@ logging.basicConfig(
     ]
 )
 
+# Logger específico para eventos críticos del sistema
+critical_logger = logging.getLogger('critical_events')
+critical_logger.setLevel(logging.INFO)
+
+# Verificar si ya tiene handlers para evitar duplicados
+if not critical_logger.handlers:
+    critical_handler = logging.FileHandler('boletines.log')
+    critical_handler.setFormatter(logging.Formatter('%(asctime)s - CRITICAL - %(message)s'))
+    critical_logger.addHandler(critical_handler)
+
+critical_logger.propagate = False
+
 def crear_conexion():
     """Crea y devuelve una conexión a la base de datos SQLite."""
     try:
         conn = sqlite3.connect('boletines.db')
-        logging.info("Conexión a la base de datos establecida.")
+        # Solo log en caso de problemas - no en uso normal
         return conn
     except sqlite3.Error as e:
         logging.error(f"Error al conectar con la base de datos: {e}")
@@ -31,7 +43,13 @@ def crear_tabla(conn):
         cursor = conn.cursor()
         
         # Crear tabla boletines
-        logging.info("Intentando crear la tabla 'boletines'...")
+        # Solo log la primera creación de tablas, no verificaciones rutinarias
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='boletines'")
+        tabla_existe = cursor.fetchone()
+        
+        if not tabla_existe:
+            critical_logger.info("Creando tabla 'boletines' por primera vez...")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS boletines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,24 +76,31 @@ def crear_tabla(conn):
             )
         """)
         conn.commit()
-        logging.info("Tabla 'boletines' creada o verificada correctamente.")
+        
+        if not tabla_existe:
+            critical_logger.info("Tabla 'boletines' creada exitosamente.")
 
         # Verificar si la columna importancia existe, si no, agregarla
         cursor.execute("PRAGMA table_info(boletines)")
         columns = [column[1] for column in cursor.fetchall()]
         
         if 'importancia' not in columns:
-            logging.info("Agregando columna 'importancia' a la tabla existente...")
+            critical_logger.info("Agregando columna 'importancia' a la tabla existente...")
             cursor.execute("""
                 ALTER TABLE boletines 
                 ADD COLUMN importancia TEXT DEFAULT 'Pendiente' 
                 CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
             """)
             conn.commit()
-            logging.info("Columna 'importancia' agregada correctamente.")
+            critical_logger.info("Columna 'importancia' agregada correctamente.")
 
         # Crear tabla clientes
-        logging.info("Intentando crear la tabla 'clientes'...")
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='clientes'")
+        tabla_clientes_existe = cursor.fetchone()
+        
+        if not tabla_clientes_existe:
+            critical_logger.info("Creando tabla 'clientes' por primera vez...")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,10 +115,11 @@ def crear_tabla(conn):
             )
         """)
         conn.commit()
-        logging.info("Tabla 'clientes' creada o verificada correctamente.")
+        
+        if not tabla_clientes_existe:
+            critical_logger.info("Tabla 'clientes' creada exitosamente.")
 
-        # Crear índice en boletines
-        logging.info("Intentando crear índice en 'boletines'...")
+        # Crear índice en boletines (solo log si es necesario)
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_boletines
             ON boletines (numero_boletin, numero_orden, titular)
@@ -101,7 +127,12 @@ def crear_tabla(conn):
         conn.commit()
         
         # Crear tabla envios_log
-        logging.info("Intentando crear la tabla 'envios_log'...")
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='envios_log'")
+        tabla_envios_existe = cursor.fetchone()
+        
+        if not tabla_envios_existe:
+            critical_logger.info("Creando tabla 'envios_log' por primera vez...")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS envios_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,6 +147,9 @@ def crear_tabla(conn):
         """)
         conn.commit()
         
+        if not tabla_envios_existe:
+            critical_logger.info("Tabla 'envios_log' creada exitosamente.")
+        
         # Verificar y agregar columnas faltantes si la tabla ya existía
         try:
             cursor.execute("PRAGMA table_info(envios_log)")
@@ -123,17 +157,15 @@ def crear_tabla(conn):
             
             if 'numero_boletin' not in columns:
                 cursor.execute("ALTER TABLE envios_log ADD COLUMN numero_boletin TEXT")
-                logging.info("Columna 'numero_boletin' agregada a envios_log")
+                critical_logger.info("Columna 'numero_boletin' agregada a envios_log")
                 
             if 'importancia' not in columns:
                 cursor.execute("ALTER TABLE envios_log ADD COLUMN importancia TEXT")
-                logging.info("Columna 'importancia' agregada a envios_log")
+                critical_logger.info("Columna 'importancia' agregada a envios_log")
                 
             conn.commit()
         except Exception as e:
             logging.warning(f"Error actualizando estructura de envios_log: {e}")
-        
-        logging.info("Tabla 'envios_log' creada o verificada correctamente.")
         
         # Crear índice en envios_log
         cursor.execute('''
@@ -141,7 +173,6 @@ def crear_tabla(conn):
             ON envios_log (titular, fecha_envio, estado)
         ''')
         conn.commit()
-        logging.info("Índice 'idx_boletines' creado o verificado correctamente.")
 
     except sqlite3.Error as e:
         logging.error(f"Error al crear tablas o índice: {e}")
@@ -154,6 +185,9 @@ def insertar_datos(conn, datos_agrupados):
     """Inserta los datos agrupados en la tabla 'boletines', verificando duplicados."""
     try:
         cursor = conn.cursor()
+        insertados = 0
+        omitidos = 0
+        
         for titular, registros in datos_agrupados.items():
             for registro in registros:
                 # Verificar si el registro ya existe
@@ -183,11 +217,18 @@ def insertar_datos(conn, datos_agrupados):
                         registro["Clases/Acta"],
                         'Pendiente'  # Valor por defecto para importancia
                     ))
-                    logging.debug(f"Insertado registro: Boletín {registro['Número de Boletín']}, Orden {registro['Número de Orden']}, Titular {titular}")
+                    insertados += 1
                 else:
-                    logging.info(f"Registro omitido (ya existe): Boletín {registro['Número de Boletín']}, Orden {registro['Número de Orden']}, Titular {titular}")
+                    omitidos += 1
+                    
         conn.commit()
-        logging.info("Inserción de datos completada.")
+        
+        # Solo log si hubo inserción significativa
+        if insertados > 0:
+            critical_logger.info(f"Inserción completada: {insertados} nuevos registros, {omitidos} omitidos")
+        elif omitidos > 50:  # Log solo si hay muchos registros omitidos  
+            critical_logger.info(f"Procesamiento completado: {omitidos} registros ya existían")
+            
     except sqlite3.Error as e:
         logging.error(f"Error al insertar datos: {e}")
         raise Exception(f"Error al insertar datos: {e}")
@@ -211,7 +252,7 @@ def obtener_datos(conn):
         """)
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description]
-        logging.info("Datos obtenidos correctamente desde la base de datos.")
+        # Eliminado logging rutinario - solo registrar errores
         return rows, columns
     except sqlite3.Error as e:
         logging.error(f"Error al consultar datos: {e}")
@@ -254,7 +295,9 @@ def actualizar_registro(conn, id, numero_boletin, fecha_boletin, numero_orden, s
                 id
             ))
         conn.commit()
-        logging.info(f"Registro actualizado: ID {id}")
+        # Solo log actualizaciones importantes (cambios de estado o importancia)
+        if importancia is not None or reporte_enviado or reporte_generado:
+            critical_logger.info(f"Registro actualizado (crítico): ID {id} - Importancia: {importancia}, Enviado: {reporte_enviado}, Generado: {reporte_generado}")
     except sqlite3.Error as e:
         logging.error(f"Error al actualizar: {e}")
         raise Exception(f"Error al actualizar: {e}")
@@ -273,7 +316,9 @@ def actualizar_importancia_boletin(conn, boletin_id, importancia):
         
         if cursor.rowcount > 0:
             conn.commit()
-            logging.info(f"Importancia actualizada para boletín ID {boletin_id}: {importancia}")
+            # Solo log cambios de importancia significativos
+            if importancia in ['Alta', 'Media']:
+                critical_logger.info(f"Importancia actualizada a {importancia} para boletín ID {boletin_id}")
             return True
         else:
             logging.warning(f"No se pudo actualizar importancia para boletín ID {boletin_id} (posiblemente ya enviado)")
@@ -312,9 +357,16 @@ def eliminar_registro(conn, id):
     """Elimina un registro de la tabla boletines."""
     try:
         cursor = conn.cursor()
+        # Obtener información del registro antes de eliminarlo
+        cursor.execute("SELECT titular, numero_boletin, numero_orden FROM boletines WHERE id = ?", (id,))
+        registro_info = cursor.fetchone()
+        
         cursor.execute("DELETE FROM boletines WHERE id = ?", (id,))
         conn.commit()
-        logging.info(f"Registro eliminado: ID {id}")
+        
+        # Log solo eliminaciones importantes
+        if registro_info:
+            critical_logger.info(f"Registro eliminado: ID {id} - {registro_info[0]} (Boletín: {registro_info[1]}, Orden: {registro_info[2]})")
     except sqlite3.Error as e:
         logging.error(f"Error al eliminar: {e}")
         raise Exception(f"Error al eliminar: {e}")
@@ -449,7 +501,14 @@ def insertar_log_envio(conn, titular, email, estado, error=None, numero_boletin=
         """, (titular, email, estado, error, numero_boletin, importancia))
         
         conn.commit()
-        logging.info(f"Log de envío insertado: {titular} - {estado}")
+        
+        # Log crítico para todos los envíos de email (exitosos y fallidos)
+        if estado == 'exitoso':
+            critical_logger.info(f"📧 EMAIL ENVIADO: {titular} ({importancia}) → {email}")
+        elif estado == 'fallido':
+            critical_logger.error(f"❌ EMAIL FALLIDO: {titular} → {email} | Error: {error}")
+        elif estado in ['sin_email', 'sin_archivo']:
+            critical_logger.warning(f"⚠️ EMAIL OMITIDO: {titular} - {estado.replace('_', ' ').title()}")
         
     except sqlite3.Error as e:
         logging.error(f"Error al insertar log de envío: {e}")
@@ -740,3 +799,195 @@ def obtener_ruta_reporte_pdf(titular, fecha_envio=None):
     except Exception as e:
         logging.error(f"Error al buscar archivo PDF para {titular}: {e}")
         return None
+
+def limpiar_logs_antiguos(conn, dias=30):
+    """
+    Elimina logs de envío más antiguos que el número de días especificado.
+    Mantiene registros críticos y errores importantes.
+    """
+    try:
+        cursor = conn.cursor()
+        fecha_limite = datetime.now() - timedelta(days=dias)
+        
+        # Contar registros antes de eliminar
+        cursor.execute("""
+            SELECT COUNT(*) FROM envios_log 
+            WHERE fecha_envio < ? AND estado NOT IN ('fallido')
+        """, (fecha_limite,))
+        registros_a_eliminar = cursor.fetchone()[0]
+        
+        if registros_a_eliminar > 0:
+            # Eliminar solo logs exitosos antiguos, mantener errores
+            cursor.execute("""
+                DELETE FROM envios_log 
+                WHERE fecha_envio < ? AND estado = 'exitoso'
+            """, (fecha_limite,))
+            conn.commit()
+            
+            critical_logger.info(f"🧹 Limpieza de logs: {registros_a_eliminar} registros antiguos eliminados (conservando errores)")
+            return registros_a_eliminar
+        else:
+            return 0
+            
+    except sqlite3.Error as e:
+        logging.error(f"Error al limpiar logs antiguos: {e}")
+        raise Exception(f"Error al limpiar logs antiguos: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+
+def optimizar_archivo_log():
+    """
+    Optimiza el archivo de log rotando logs muy grandes.
+    """
+    try:
+        import os
+        log_file = 'boletines.log'
+        
+        if os.path.exists(log_file):
+            size = os.path.getsize(log_file)
+            # Si el archivo es mayor a 50MB, crear respaldo y limpiar
+            if size > 50 * 1024 * 1024:  # 50MB
+                import shutil
+                from datetime import datetime
+                
+                # Crear respaldo
+                backup_name = f"boletines_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                shutil.copy2(log_file, backup_name)
+                
+                # Mantener solo las últimas 1000 líneas del log actual
+                with open(log_file, 'r') as f:
+                    lines = f.readlines()
+                
+                if len(lines) > 1000:
+                    with open(log_file, 'w') as f:
+                        f.write(f"# Log optimizado el {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"# Respaldo creado: {backup_name}\n")
+                        f.writelines(lines[-1000:])  # Últimas 1000 líneas
+                    
+                    return f"Log optimizado. Respaldo: {backup_name}"
+        
+        return "Log no requiere optimización"
+        
+    except Exception as e:
+        logging.error(f"Error al optimizar archivo de log: {e}")
+        return f"Error: {e}"
+
+def limpieza_automatica_logs(conn):
+    """
+    Ejecuta limpieza automática de logs basada en configuración.
+    Se ejecuta automáticamente al iniciar la aplicación.
+    """
+    try:
+        import os
+        from datetime import datetime, timedelta
+        
+        resultado = {
+            'logs_eliminados': 0,
+            'archivo_optimizado': False,
+            'mensaje': ''
+        }
+        
+        # 1. Verificar si es necesario limpiar logs antiguos (cada 7 días)
+        config_file = 'log_config.txt'
+        ultima_limpieza = None
+        
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    fecha_str = f.read().strip()
+                    ultima_limpieza = datetime.fromisoformat(fecha_str)
+            except:
+                pass
+        
+        ahora = datetime.now()
+        debe_limpiar = (
+            ultima_limpieza is None or 
+            (ahora - ultima_limpieza).days >= 7
+        )
+        
+        if debe_limpiar:
+            # Ejecutar limpieza de logs antiguos (30+ días)
+            eliminados = limpiar_logs_antiguos(conn, 30)
+            resultado['logs_eliminados'] = eliminados
+            
+            # Actualizar fecha de última limpieza
+            with open(config_file, 'w') as f:
+                f.write(ahora.isoformat())
+            
+            if eliminados > 0:
+                critical_logger.info(f"🤖 Limpieza automática: {eliminados} logs antiguos eliminados")
+        
+        # 2. Verificar si el archivo de log necesita optimización
+        log_file = 'boletines.log'
+        if os.path.exists(log_file):
+            size = os.path.getsize(log_file)
+            # Auto-optimizar si supera 100MB (más agresivo que manual)
+            if size > 100 * 1024 * 1024:  # 100MB
+                resultado_opt = optimizar_archivo_log()
+                if "optimizado" in resultado_opt.lower():
+                    resultado['archivo_optimizado'] = True
+                    critical_logger.info("🤖 Optimización automática del archivo de log ejecutada")
+        
+        # 3. Limpiar archivos de respaldo muy antiguos (90+ días)
+        directorio = '.'
+        for archivo in os.listdir(directorio):
+            if archivo.startswith('boletines_backup_') and archivo.endswith('.log'):
+                try:
+                    fecha_archivo = os.path.getmtime(archivo)
+                    fecha_dt = datetime.fromtimestamp(fecha_archivo)
+                    
+                    if (ahora - fecha_dt).days > 90:
+                        os.remove(archivo)
+                        critical_logger.info(f"🤖 Respaldo antiguo eliminado: {archivo}")
+                except:
+                    pass
+        
+        # Generar mensaje de resultado
+        if resultado['logs_eliminados'] > 0 or resultado['archivo_optimizado']:
+            resultado['mensaje'] = f"Limpieza automática completada: {resultado['logs_eliminados']} logs eliminados"
+        else:
+            resultado['mensaje'] = "Sistema de logs en buen estado"
+            
+        return resultado
+        
+    except Exception as e:
+        logging.error(f"Error en limpieza automática: {e}")
+        return {'logs_eliminados': 0, 'archivo_optimizado': False, 'mensaje': f'Error: {e}'}
+
+def configurar_limpieza_logs():
+    """
+    Retorna la configuración actual de limpieza de logs.
+    """
+    import os
+    
+    config = {
+        'dias_conservar_exitosos': 30,
+        'dias_conservar_errores': 365,  # Errores se conservan 1 año
+        'frecuencia_limpieza_dias': 7,
+        'tamaño_maximo_mb': 50,
+        'tamaño_auto_optimizacion_mb': 100,
+        'respaldos_conservar_dias': 90
+    }
+    
+    # Verificar tamaño actual del log
+    log_file = 'boletines.log'
+    if os.path.exists(log_file):
+        size_mb = os.path.getsize(log_file) / (1024 * 1024)
+        config['tamaño_actual_mb'] = round(size_mb, 2)
+    else:
+        config['tamaño_actual_mb'] = 0
+    
+    # Verificar última limpieza
+    config_file = 'log_config.txt'
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                fecha_str = f.read().strip()
+                config['ultima_limpieza'] = fecha_str
+        except:
+            config['ultima_limpieza'] = 'Nunca'
+    else:
+        config['ultima_limpieza'] = 'Nunca'
+    
+    return config
