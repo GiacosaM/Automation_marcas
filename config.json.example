@@ -1,0 +1,34 @@
+{
+  "email": {
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "from_email": "tu-email@gmail.com",
+    "password": "tu-password-de-aplicacion",
+    "use_tls": true
+  },
+  "reports": {
+    "watermark_path": "imagenes/marca_agua.jpg",
+    "output_dir": "informes",
+    "temp_dir": "temp"
+  },
+  "database": {
+    "path": "boletines.db",
+    "backup_enabled": true,
+    "backup_interval_days": 7
+  },
+  "ui": {
+    "theme": "dark",
+    "language": "es",
+    "items_per_page": 20
+  },
+  "security": {
+    "session_timeout_minutes": 60,
+    "max_login_attempts": 3,
+    "password_min_length": 6
+  },
+  "alerts": {
+    "vencimiento_dias": 30,
+    "alerta_dias": 7,
+    "email_notifications": true
+  }
+}

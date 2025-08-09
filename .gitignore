@@ -1,13 +1,89 @@
-# Entornos virtuales
-venv/
-.env/
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Archivos compilados
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Configuración del editor
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.env/
+
+# IDEs
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+email_sender.log
+boletines.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Configuración sensible
+config.json
+credenciales.json
+.env
+.env.local
+.env.production
+
+# Archivos temporales
+temp/
+tmp/
+*.tmp
+
+# Informes generados
+informes/*.pdf
+Documentos/*.xlsx
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS generated files
+*.pid
+*.seed
+*.pid.lock
 *.code-workspace
 
 # Archivos de sistema
