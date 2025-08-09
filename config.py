@@ -117,6 +117,54 @@ def set_config(key_path, value):
     """Función helper para establecer configuración."""
     config.set(key_path, value)
 
+# Funciones para manejo de credenciales de email
+def load_email_credentials():
+    """Cargar credenciales de email desde credenciales.json"""
+    try:
+        credentials_file = "credenciales.json"
+        if os.path.exists(credentials_file):
+            with open(credentials_file, 'r', encoding='utf-8') as f:
+                credentials = json.load(f)
+                return {
+                    'email': credentials.get('email', ''),
+                    'password': credentials.get('password', '')
+                }
+        return {'email': '', 'password': ''}
+    except Exception as e:
+        logging.error(f"Error loading email credentials: {e}")
+        return {'email': '', 'password': ''}
+
+def save_email_credentials(email, password):
+    """Guardar credenciales de email en credenciales.json"""
+    try:
+        credentials_file = "credenciales.json"
+        
+        # Cargar credenciales existentes
+        credentials = {}
+        if os.path.exists(credentials_file):
+            with open(credentials_file, 'r', encoding='utf-8') as f:
+                credentials = json.load(f)
+        
+        # Actualizar solo email y password
+        credentials['email'] = email
+        credentials['password'] = password
+        
+        # Guardar de vuelta
+        with open(credentials_file, 'w', encoding='utf-8') as f:
+            json.dump(credentials, f, indent=2, ensure_ascii=False)
+        
+        logging.info("Email credentials saved successfully")
+        return True
+    except Exception as e:
+        logging.error(f"Error saving email credentials: {e}")
+        return False
+
+def validate_email_format(email):
+    """Validar formato de email"""
+    import re
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
 # settings_page.py - Página de configuración para Streamlit
 import streamlit as st
 
@@ -124,8 +172,108 @@ def show_settings_page():
     """Página de configuración en Streamlit."""
     st.header("⚙️ Configuración del Sistema")
     
+    # Configuración de credenciales de email
+    with st.expander("📧 Credenciales de Email", expanded=True):
+        st.markdown("### 🔐 Configuración de Email para Envío de Reportes")
+        
+        # Cargar credenciales actuales
+        current_credentials = load_email_credentials()
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            with st.form("email_credentials_form"):
+                st.markdown("**Credenciales de Email SMTP**")
+                
+                email_input = st.text_input(
+                    "📧 Email", 
+                    value=current_credentials.get('email', ''),
+                    placeholder="tu_email@gmail.com",
+                    help="Email desde donde se enviarán los reportes"
+                )
+                
+                password_input = st.text_input(
+                    "🔑 Contraseña de Aplicación", 
+                    type="password",
+                    placeholder="Contraseña de aplicación",
+                    help="Contraseña de aplicación de Gmail (no tu contraseña normal)"
+                )
+                
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                
+                with col_btn1:
+                    if st.form_submit_button("💾 Guardar", type="primary", use_container_width=True):
+                        if email_input and password_input:
+                            if validate_email_format(email_input):
+                                if save_email_credentials(email_input, password_input):
+                                    st.success("✅ Credenciales guardadas exitosamente")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Error al guardar credenciales")
+                            else:
+                                st.error("❌ Formato de email inválido")
+                        else:
+                            st.error("⚠️ Complete todos los campos")
+                
+                with col_btn2:
+                    if st.form_submit_button("🧪 Validar", use_container_width=True):
+                        if email_input and password_input:
+                            if validate_email_format(email_input):
+                                try:
+                                    # Intentar importar la función de validación
+                                    from email_sender import validar_credenciales_email
+                                    with st.spinner("Validando credenciales..."):
+                                        if validar_credenciales_email(email_input, password_input):
+                                            st.success("✅ Credenciales válidas")
+                                        else:
+                                            st.error("❌ Credenciales inválidas")
+                                except ImportError:
+                                    st.warning("⚠️ Módulo de validación no disponible")
+                                except Exception as e:
+                                    st.error(f"❌ Error al validar: {e}")
+                            else:
+                                st.error("❌ Formato de email inválido")
+                        else:
+                            st.error("⚠️ Complete todos los campos")
+                
+                with col_btn3:
+                    if st.form_submit_button("🗑️ Limpiar", use_container_width=True):
+                        if save_email_credentials("", ""):
+                            st.success("✅ Credenciales eliminadas")
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al eliminar credenciales")
+        
+        with col2:
+            st.markdown("##### 📊 Estado Actual")
+            if current_credentials['email']:
+                st.success(f"📧 **Email**: {current_credentials['email']}")
+                st.success("🔑 **Contraseña**: Configurada")
+                
+                # Validar formato
+                if validate_email_format(current_credentials['email']):
+                    st.success("✅ Formato válido")
+                else:
+                    st.error("❌ Formato inválido")
+            else:
+                st.warning("⚠️ No configurado")
+            
+            st.markdown("---")
+            st.markdown("##### 📋 Instrucciones")
+            st.info("""
+            **Para Gmail:**
+            1. Habilita verificación en 2 pasos
+            2. Genera una contraseña de aplicación
+            3. Usa esa contraseña aquí
+            """)
+            
+            st.markdown("##### 🔧 Configuración SMTP")
+            st.text("Servidor: smtp.gmail.com")
+            st.text("Puerto: 587")
+            st.text("Seguridad: TLS")
+    
     # Configuración de la aplicación
-    with st.expander("🏢 Configuración General", expanded=True):
+    with st.expander("🏢 Configuración General", expanded=False):
         col1, col2 = st.columns(2)
         
         with col1:

@@ -2,12 +2,16 @@ import smtplib
 import sqlite3
 import logging
 import os
+import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
+
+# Importar funciones de logs desde database.py
+from database import insertar_log_envio
 
 # Configuración de logging
 logging.basicConfig(
@@ -22,6 +26,30 @@ logging.basicConfig(
 # Configuración de email
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+
+def validar_email(email: str) -> bool:
+    """
+    Valida si un email tiene un formato correcto.
+    """
+    if not email:
+        return False
+    
+    patron = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(patron, email) is not None
+
+def validar_credenciales_email(email_usuario: str, password_usuario: str) -> bool:
+    """
+    Valida las credenciales de email intentando conectar al servidor SMTP.
+    """
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(email_usuario, password_usuario)
+        server.quit()
+        return True
+    except Exception as e:
+        logging.error(f"Error validando credenciales: {e}")
+        return False
 
 def obtener_mensajes_predefinidos():
     """Diccionario con mensajes predefinidos según el valor de importancia."""
@@ -64,13 +92,82 @@ def obtener_mensajes_predefinidos():
         """
     }
 
-def obtener_registros_pendientes_envio(conn):
+def obtener_info_reportes_pendientes(conn):
     """
-    Obtiene todos los registros con reporte_generado=True, reporte_enviado=False
-    y importancia IN ('Baja', 'Media', 'Alta'), agrupados por cliente.
+    Obtiene información detallada sobre reportes con importancia 'Pendiente'.
+    Retorna un diccionario con la información para mostrar al usuario.
     """
     try:
         cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                titular, COUNT(*) as cantidad,
+                GROUP_CONCAT(numero_boletin) as boletines,
+                GROUP_CONCAT(marca_publicada) as marcas
+            FROM boletines 
+            WHERE reporte_generado = 1 AND reporte_enviado = 0 
+            AND importancia = 'Pendiente'
+            GROUP BY titular
+            ORDER BY titular
+        """)
+        
+        rows = cursor.fetchall()
+        
+        info_pendientes = {
+            'total_reportes': 0,
+            'total_titulares': len(rows),
+            'detalles': []
+        }
+        
+        for row in rows:
+            titular, cantidad, boletines, marcas = row
+            info_pendientes['total_reportes'] += cantidad
+            info_pendientes['detalles'].append({
+                'titular': titular,
+                'cantidad': cantidad,
+                'boletines': boletines.split(',') if boletines else [],
+                'marcas': marcas.split(',') if marcas else []
+            })
+        
+        return info_pendientes
+    
+    except sqlite3.Error as e:
+        logging.error(f"Error al obtener información de reportes pendientes: {e}")
+        return None
+    finally:
+        cursor.close()
+
+def obtener_registros_pendientes_envio(conn):
+    """
+    Obtiene todos los registros con reporte_generado=True, reporte_enviado=False
+    y importancia IN ('Baja', 'Media', 'Alta'), agrupados por (titular, importancia).
+    También verifica si hay reportes con importancia 'Pendiente' que bloquean el envío.
+    
+    NUEVA LÓGICA: Un titular con múltiples importancias recibirá múltiples emails separados.
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Primero verificar si hay reportes con importancia 'Pendiente'
+        cursor.execute("""
+            SELECT COUNT(*) as pendientes_count, 
+                   GROUP_CONCAT(DISTINCT titular) as titulares_pendientes
+            FROM boletines 
+            WHERE reporte_generado = 1 AND reporte_enviado = 0 
+            AND importancia = 'Pendiente'
+        """)
+        
+        pendientes_result = cursor.fetchone()
+        pendientes_count = pendientes_result[0] if pendientes_result else 0
+        titulares_pendientes = pendientes_result[1] if pendientes_result else None
+        
+        if pendientes_count > 0:
+            titulares_list = titulares_pendientes.split(',') if titulares_pendientes else []
+            logging.warning(f"Se encontraron {pendientes_count} reportes con importancia 'Pendiente' que requieren revisión.")
+            logging.warning(f"Titulares afectados: {', '.join(titulares_list)}")
+            raise Exception(f"No se pueden enviar emails: hay {pendientes_count} reportes con importancia 'Pendiente' que requieren revisión manual. Titulares: {', '.join(titulares_list)}")
+        
+        # Si no hay pendientes, proceder con la consulta normal
         cursor.execute("""
             SELECT 
                 b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
@@ -82,25 +179,34 @@ def obtener_registros_pendientes_envio(conn):
             LEFT JOIN clientes c ON b.titular = c.titular
             WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0 
             AND b.importancia IN ('Baja', 'Media', 'Alta')
-            ORDER BY b.titular, b.numero_boletin
+            ORDER BY b.titular, b.importancia, b.numero_boletin
         """)
         
         rows = cursor.fetchall()
         
-        # Agrupar por titular
-        registros_por_cliente = {}
+        # NUEVA LÓGICA: Agrupar por (titular, importancia)
+        from collections import defaultdict
+        registros_por_grupo = defaultdict(lambda: {
+            'email': None,
+            'telefono': None,
+            'direccion': None,
+            'ciudad': None,
+            'boletines': []
+        })
+        
         for row in rows:
             titular = row[1]  # b.titular
-            if titular not in registros_por_cliente:
-                registros_por_cliente[titular] = {
-                    'email': row[16],  # c.email
-                    'telefono': row[17],  # c.telefono
-                    'direccion': row[18],  # c.direccion
-                    'ciudad': row[19],  # c.ciudad
-                    'boletines': []
-                }
+            importancia = row[15]  # b.importancia
+            clave_grupo = (titular, importancia)
             
-            registros_por_cliente[titular]['boletines'].append({
+            # Asignar datos del cliente (solo la primera vez)
+            if not registros_por_grupo[clave_grupo]['email']:
+                registros_por_grupo[clave_grupo]['email'] = row[16]  # c.email
+                registros_por_grupo[clave_grupo]['telefono'] = row[17]  # c.telefono
+                registros_por_grupo[clave_grupo]['direccion'] = row[18]  # c.direccion
+                registros_por_grupo[clave_grupo]['ciudad'] = row[19]  # c.ciudad
+            
+            registros_por_grupo[clave_grupo]['boletines'].append({
                 'id': row[0],
                 'numero_boletin': row[2],
                 'fecha_boletin': row[3],
@@ -118,8 +224,18 @@ def obtener_registros_pendientes_envio(conn):
                 'importancia': row[15]
             })
         
-        logging.info(f"Se encontraron {len(registros_por_cliente)} clientes con reportes pendientes de envío.")
-        return registros_por_cliente
+        # Convertir a diccionario normal con claves string
+        registros_por_cliente_importancia = {}
+        for (titular, importancia), datos in registros_por_grupo.items():
+            clave = f"{titular}|{importancia}"
+            registros_por_cliente_importancia[clave] = datos
+            registros_por_cliente_importancia[clave]['titular'] = titular
+            registros_por_cliente_importancia[clave]['importancia'] = importancia
+        
+        titulares_unicos = len(set(clave.split('|')[0] for clave in registros_por_cliente_importancia.keys()))
+        logging.info(f"Se encontraron {len(registros_por_cliente_importancia)} grupos (titular+importancia) con reportes pendientes de envío.")
+        logging.info(f"Titulares únicos afectados: {titulares_unicos}")
+        return registros_por_cliente_importancia
     
     except sqlite3.Error as e:
         logging.error(f"Error al obtener registros pendientes: {e}")
@@ -149,17 +265,15 @@ def determinar_importancia_principal(boletines_data):
     
     return max_importancia
 
-def crear_mensaje_email(titular, boletines_data):
+def crear_mensaje_email(titular, importancia, boletines_data):
     """
-    Crea el contenido del mensaje de email basado en la importancia más alta.
+    Crea el contenido del mensaje de email basado en la importancia específica del grupo.
+    NUEVA LÓGICA: Usa directamente la importancia del grupo (titular + importancia).
     """
     mensajes = obtener_mensajes_predefinidos()
     
-    # Determinar la importancia principal
-    importancia_principal = determinar_importancia_principal(boletines_data)
-    
-    # Seleccionar el mensaje basado en la importancia
-    mensaje_base = mensajes.get(importancia_principal, mensajes['default'])
+    # Usar directamente la importancia del grupo
+    mensaje_base = mensajes.get(importancia, mensajes['default'])
     
     return mensaje_base
 
@@ -182,11 +296,20 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
                 email_usuario=None, password_usuario=None):
     """
     Envía un email con archivo adjunto opcional.
+    Incluye validaciones mejoradas.
     """
     try:
+        # Validar email del destinatario
+        if not validar_email(destinatario):
+            raise Exception(f"Email del destinatario no válido: {destinatario}")
+        
+        # Validar email del remitente
+        if not validar_email(email_usuario):
+            raise Exception(f"Email del remitente no válido: {email_usuario}")
+        
         # Crear mensaje
         msg = MIMEMultipart()
-        msg['From'] = "Mi Marca"
+        msg['From'] = f"Mi Marca <{email_usuario}>"
         msg['To'] = destinatario
         msg['Subject'] = asunto
         
@@ -195,17 +318,23 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         
         # Agregar archivo adjunto si existe
         if archivo_adjunto and os.path.exists(archivo_adjunto):
-            with open(archivo_adjunto, "rb") as attachment:
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(attachment.read())
-            
-            encoders.encode_base64(part)
-            part.add_header(
-                'Content-Disposition',
-                f'attachment; filename= {nombre_archivo or os.path.basename(archivo_adjunto)}'
-            )
-            msg.attach(part)
-            logging.info(f"Archivo adjunto agregado: {nombre_archivo}")
+            try:
+                with open(archivo_adjunto, "rb") as attachment:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(attachment.read())
+                
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename= {nombre_archivo or os.path.basename(archivo_adjunto)}'
+                )
+                msg.attach(part)
+                logging.info(f"Archivo adjunto agregado: {nombre_archivo}")
+            except Exception as e:
+                logging.warning(f"Error al adjuntar archivo: {e}")
+                # Continuar sin archivo adjunto
+        elif archivo_adjunto:
+            logging.warning(f"Archivo adjunto no encontrado: {archivo_adjunto}")
         
         # Conectar al servidor SMTP
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -247,50 +376,157 @@ def actualizar_estado_envio(conn, boletines_ids):
     finally:
         cursor.close()
 
+def validar_clientes_para_envio(conn):
+    """
+    Valida los grupos (titular + importancia) antes del envío de emails y retorna un reporte de validación.
+    NUEVA LÓGICA: Validación por grupo (titular + importancia) en lugar de solo titular.
+    
+    Returns:
+        dict: Información sobre la validación de grupos
+    """
+    validacion = {
+        'total_grupos': 0,
+        'con_email': 0,
+        'sin_email': [],
+        'con_reporte': 0,
+        'sin_reporte': [],
+        'listos_para_envio': 0,
+        'puede_continuar': True,
+        'mensajes': []
+    }
+    
+    try:
+        # Obtener registros pendientes de envío agrupados por (titular + importancia)
+        registros_por_grupo = obtener_registros_pendientes_envio(conn)
+        
+        if not registros_por_grupo:
+            validacion['mensajes'].append("No hay reportes pendientes de envío.")
+            return validacion
+        
+        validacion['total_grupos'] = len(registros_por_grupo)
+        
+        # Analizar cada grupo (titular + importancia)
+        for clave_grupo, datos_grupo in registros_por_grupo.items():
+            titular = datos_grupo['titular']
+            importancia = datos_grupo['importancia']
+            identificador_grupo = f"{titular} ({importancia})"
+            
+            # Verificar si tiene email
+            if not datos_grupo['email'] or not datos_grupo['email'].strip():
+                validacion['sin_email'].append(identificador_grupo)
+                validacion['mensajes'].append(f"⚠️ Grupo '{identificador_grupo}' no tiene email registrado")
+            else:
+                validacion['con_email'] += 1
+            
+            # Verificar si tiene archivo de reporte
+            archivo_reporte, _ = obtener_archivo_reporte(datos_grupo['boletines'])
+            if not archivo_reporte:
+                validacion['sin_reporte'].append(identificador_grupo)
+                validacion['mensajes'].append(f"⚠️ Grupo '{identificador_grupo}' no tiene archivo de reporte")
+            else:
+                validacion['con_reporte'] += 1
+            
+            # Grupo listo si tiene email Y reporte
+            if (datos_grupo['email'] and datos_grupo['email'].strip() and archivo_reporte):
+                validacion['listos_para_envio'] += 1
+        
+        # Agregar mensajes de resumen
+        if validacion['sin_email']:
+            validacion['mensajes'].append(f"📧 {len(validacion['sin_email'])} grupos sin email no recibirán reportes")
+        
+        if validacion['sin_reporte']:
+            validacion['mensajes'].append(f"📄 {len(validacion['sin_reporte'])} grupos sin archivo de reporte")
+        
+        if validacion['listos_para_envio'] == 0:
+            validacion['puede_continuar'] = False
+            validacion['mensajes'].append("❌ No hay grupos listos para recibir emails")
+        else:
+            validacion['mensajes'].append(f"✅ {validacion['listos_para_envio']} grupos listos para recibir emails")
+    
+    except Exception as e:
+        validacion['puede_continuar'] = False
+        validacion['mensajes'].append(f"❌ Error durante la validación: {str(e)}")
+        logging.error(f"Error en validación de grupos: {e}")
+    
+    return validacion
+
 def procesar_envio_emails(conn, email_usuario, password_usuario):
     """
     Función principal para procesar y enviar todos los emails pendientes.
+    Incluye validación de reportes con importancia 'Pendiente'.
     """
     resultados = {
         'exitosos': [],
         'fallidos': [],
         'sin_email': [],
-        'sin_archivo': []
+        'sin_archivo': [],
+        'bloqueado_por_pendientes': False,
+        'info_pendientes': None
     }
     
     try:
-        # Obtener registros pendientes
-        registros_por_cliente = obtener_registros_pendientes_envio(conn)
+        # Verificar primero si hay reportes pendientes que bloqueen el envío
+        try:
+            registros_por_cliente = obtener_registros_pendientes_envio(conn)
+        except Exception as validation_error:
+            # Si hay reportes pendientes, obtener información detallada
+            info_pendientes = obtener_info_reportes_pendientes(conn)
+            resultados['bloqueado_por_pendientes'] = True
+            resultados['info_pendientes'] = info_pendientes
+            
+            logging.error(f"Envío bloqueado: {str(validation_error)}")
+            return resultados
         
         if not registros_por_cliente:
             logging.info("No hay reportes pendientes de envío.")
             return resultados
         
-        # Procesar cada cliente
-        for titular, datos_cliente in registros_por_cliente.items():
+        # Validar credenciales de email antes de procesar
+        if not validar_credenciales_email(email_usuario, password_usuario):
+            raise Exception("Credenciales de email inválidas. Verifique su email y contraseña.")
+        
+        # NUEVA LÓGICA: Procesar cada grupo (titular + importancia)
+        for clave_grupo, datos_grupo in registros_por_cliente.items():
             try:
+                titular = datos_grupo['titular']
+                importancia = datos_grupo['importancia']
+                
                 # Verificar si tiene email
-                if not datos_cliente['email']:
-                    logging.warning(f"Cliente {titular} no tiene email registrado.")
-                    resultados['sin_email'].append(titular)
+                if not datos_grupo['email']:
+                    logging.warning(f"Grupo {titular} ({importancia}) no tiene email registrado.")
+                    resultados['sin_email'].append(f"{titular} ({importancia})")
+                    
+                    # Registrar en logs
+                    try:
+                        insertar_log_envio(conn, titular, 'N/A', 'sin_email', 'Cliente sin email registrado', 'N/A', importancia)
+                    except Exception as log_error:
+                        logging.error(f"Error registrando log: {log_error}")
+                    
                     continue
                 
-                # Obtener archivo de reporte
-                archivo_reporte, nombre_reporte = obtener_archivo_reporte(datos_cliente['boletines'])
+                # Obtener archivo de reporte específico para esta importancia
+                archivo_reporte, nombre_reporte = obtener_archivo_reporte(datos_grupo['boletines'])
                 
                 if not archivo_reporte:
-                    logging.warning(f"No se encontró archivo de reporte para {titular}.")
-                    resultados['sin_archivo'].append(titular)
+                    logging.warning(f"No se encontró archivo de reporte para {titular} ({importancia}).")
+                    resultados['sin_archivo'].append(f"{titular} ({importancia})")
+                    
+                    # Registrar en logs
+                    try:
+                        insertar_log_envio(conn, titular, datos_grupo['email'], 'sin_archivo', 'Archivo de reporte no encontrado', 'N/A', importancia)
+                    except Exception as log_error:
+                        logging.error(f"Error registrando log: {log_error}")
+                    
                     continue
                 
-                # Crear mensaje
+                # Crear mensaje específico para esta importancia
                 mes_actual = datetime.now().strftime("%B %Y")
-                asunto = f"Reporte de marcas encontradas en el periodo {mes_actual}"
-                mensaje = crear_mensaje_email(titular, datos_cliente['boletines'])
+                asunto = f"Reporte de marcas de importancia {importancia} - {mes_actual}"
+                mensaje = crear_mensaje_email(titular, importancia, datos_grupo['boletines'])
                 
                 # Enviar email
                 if enviar_email(
-                    destinatario=datos_cliente['email'],
+                    destinatario=datos_grupo['email'],
                     asunto=asunto,
                     mensaje=mensaje,
                     archivo_adjunto=archivo_reporte,
@@ -299,20 +535,68 @@ def procesar_envio_emails(conn, email_usuario, password_usuario):
                     password_usuario=password_usuario
                 ):
                     # Actualizar estado en base de datos
-                    boletines_ids = [b['id'] for b in datos_cliente['boletines']]
+                    boletines_ids = [b['id'] for b in datos_grupo['boletines']]
                     actualizar_estado_envio(conn, boletines_ids)
+                    
+                    # Registrar envío exitoso en logs
+                    try:
+                        # Obtener información del primer boletín para los logs
+                        primer_boletin = datos_grupo['boletines'][0] if datos_grupo['boletines'] else {}
+                        numero_boletin = primer_boletin.get('numero_boletin', 'N/A')
+                        
+                        insertar_log_envio(
+                            conn, 
+                            titular, 
+                            datos_grupo['email'], 
+                            'exitoso', 
+                            None, 
+                            numero_boletin, 
+                            importancia
+                        )
+                    except Exception as log_error:
+                        logging.error(f"Error registrando log exitoso: {log_error}")
                     
                     resultados['exitosos'].append({
                         'titular': titular,
-                        'email': datos_cliente['email'],
-                        'cantidad_boletines': len(datos_cliente['boletines'])
+                        'importancia': importancia,
+                        'email': datos_grupo['email'],
+                        'cantidad_boletines': len(datos_grupo['boletines'])
                     })
                 else:
+                    # Registrar envío fallido en logs
+                    try:
+                        primer_boletin = datos_grupo['boletines'][0] if datos_grupo['boletines'] else {}
+                        numero_boletin = primer_boletin.get('numero_boletin', 'N/A')
+                        
+                        insertar_log_envio(
+                            conn, 
+                            titular, 
+                            datos_grupo['email'], 
+                            'fallido', 
+                            'Error en envío de email', 
+                            numero_boletin, 
+                            importancia
+                        )
+                    except Exception as log_error:
+                        logging.error(f"Error registrando log fallido: {log_error}")
+                    
                     resultados['fallidos'].append({
                         'titular': titular,
-                        'email': datos_cliente['email'],
+                        'importancia': importancia,
+                        'email': datos_grupo['email'],
                         'error': 'Error en envío de email'
                     })
+            
+            except Exception as e:
+                titular = datos_grupo.get('titular', 'N/A')
+                importancia = datos_grupo.get('importancia', 'N/A')
+                logging.error(f"Error procesando grupo {titular} ({importancia}): {e}")
+                resultados['fallidos'].append({
+                    'titular': titular,
+                    'importancia': importancia,
+                    'email': datos_grupo.get('email', 'N/A'),
+                    'error': str(e)
+                })
             
             except Exception as e:
                 logging.error(f"Error procesando cliente Compose a response in Spanish: {titular}: {e}")
@@ -331,28 +615,94 @@ def procesar_envio_emails(conn, email_usuario, password_usuario):
 def generar_reporte_envios(resultados):
     """
     Genera un reporte de los resultados del envío de emails.
+    Incluye información sobre reportes bloqueados por importancia 'Pendiente'.
     """
     reporte = f"""
 REPORTE DE ENVÍO DE EMAILS
 ==========================
 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-ENVÍOS EXITOSOS: {len(resultados['exitosos'])}
 """
     
+    # Si el envío fue bloqueado por reportes pendientes
+    if resultados.get('bloqueado_por_pendientes', False):
+        reporte += "⚠️  ENVÍO BLOQUEADO POR REPORTES PENDIENTES ⚠️\n"
+        reporte += "=" * 50 + "\n"
+        
+        info_pendientes = resultados.get('info_pendientes')
+        if info_pendientes:
+            reporte += f"Total de reportes pendientes: {info_pendientes['total_reportes']}\n"
+            reporte += f"Titulares afectados: {info_pendientes['total_titulares']}\n\n"
+            
+            reporte += "DETALLE POR TITULAR:\n"
+            for detalle in info_pendientes['detalles']:
+                reporte += f"- {detalle['titular']}: {detalle['cantidad']} reportes\n"
+                reporte += f"  Boletines: {', '.join(detalle['boletines'][:5])}{'...' if len(detalle['boletines']) > 5 else ''}\n"
+            
+            reporte += "\n🔧 ACCIÓN REQUERIDA:\n"
+            reporte += "Por favor revise y asigne importancia (Alta/Media/Baja) a los reportes marcados como 'Pendiente'\n"
+            reporte += "antes de intentar enviar los emails nuevamente.\n\n"
+        
+        return reporte
+    
+    # Reporte normal si no hay bloqueos
+    reporte += f"ENVÍOS EXITOSOS: {len(resultados['exitosos'])}\n"
     for envio in resultados['exitosos']:
-        reporte += f"- {envio['titular']} ({envio['email']}) - {envio['cantidad_boletines']} boletines\n"
+        reporte += f"✅ {envio['titular']} ({envio['email']}) - {envio['cantidad_boletines']} boletines\n"
     
     reporte += f"\nENVÍOS FALLIDOS: {len(resultados['fallidos'])}\n"
     for fallo in resultados['fallidos']:
-        reporte += f"- {fallo['titular']} ({fallo['email']}) - Error: {fallo['error']}\n"
+        reporte += f"❌ {fallo['titular']} ({fallo['email']}) - Error: {fallo['error']}\n"
     
     reporte += f"\nCLIENTES SIN EMAIL: {len(resultados['sin_email'])}\n"
     for cliente in resultados['sin_email']:
-        reporte += f"- {cliente}\n"
+        reporte += f"📧 {cliente}\n"
     
     reporte += f"\nCLIENTES SIN ARCHIVO DE REPORTE: {len(resultados['sin_archivo'])}\n"
     for cliente in resultados['sin_archivo']:
-        reporte += f"- {cliente}\n"
+        reporte += f"📄 {cliente}\n"
+    
+    # Resumen final
+    total_procesados = len(resultados['exitosos']) + len(resultados['fallidos'])
+    if total_procesados > 0:
+        tasa_exito = (len(resultados['exitosos']) / total_procesados) * 100
+        reporte += f"\n📊 RESUMEN:\n"
+        reporte += f"Tasa de éxito: {tasa_exito:.1f}%\n"
+        reporte += f"Emails enviados exitosamente: {len(resultados['exitosos'])}\n"
+        reporte += f"Total intentos: {total_procesados}\n"
     
     return reporte
+
+def obtener_estadisticas_envios(conn):
+    """
+    Obtiene estadísticas generales sobre el estado de los envíos.
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Estadísticas generales
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_reportes,
+                COUNT(CASE WHEN reporte_generado = 1 THEN 1 END) as reportes_generados,
+                COUNT(CASE WHEN reporte_enviado = 1 THEN 1 END) as reportes_enviados,
+                COUNT(CASE WHEN importancia = 'Pendiente' AND reporte_generado = 1 THEN 1 END) as pendientes_revision,
+                COUNT(CASE WHEN reporte_generado = 1 AND reporte_enviado = 0 AND importancia IN ('Alta', 'Media', 'Baja') THEN 1 END) as listos_envio
+            FROM boletines
+        """)
+        
+        stats = cursor.fetchone()
+        
+        return {
+            'total_reportes': stats[0],
+            'reportes_generados': stats[1],
+            'reportes_enviados': stats[2],
+            'pendientes_revision': stats[3],
+            'listos_envio': stats[4]
+        }
+    
+    except sqlite3.Error as e:
+        logging.error(f"Error al obtener estadísticas: {e}")
+        return None
+    finally:
+        cursor.close()
