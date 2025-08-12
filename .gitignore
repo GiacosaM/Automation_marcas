@@ -80,6 +80,19 @@ Documentos/*.xlsx
 .coverage
 htmlcov/
 
+# Archivos de test
+test_*.py
+*_test.py
+tests/
+test/
+
+# Archivos de Excel
+*.xlsx
+*.xls
+*.csv
+Documentos/*.xlsx
+informes/*.xlsx
+
 # OS generated files
 *.pid
 *.seed
@@ -99,15 +112,8 @@ Thumbs.db
 # Credenciales o configuraciones sensibles
 *.env
 
-# Archivos JSON con credenciales
-*.json
-
-# Archivos PDF de informes
-*.pdf
-
-__pycache__/
-*.pyc
-*.log
-*.db
-
-.DS_Store
+# Google Drive
+google_drive_credentials.json
+google_drive_config.json
+token.json
+credentials.json

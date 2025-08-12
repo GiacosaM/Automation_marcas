@@ -122,17 +122,8 @@ def show_grid_data(df, key, selection_mode='single'):
     gb.configure_column('fecha_boletin', width=120, header_name="Fecha")
     gb.configure_column('numero_orden', width=120, header_name="N° Orden")
     gb.configure_column('solicitante', width=200)
-    gb.configure_column('agente', width=200)
-    gb.configure_column('numero_expediente', width=150, header_name="N° Expediente")
-    gb.configure_column('clase', width=100)
-    gb.configure_column('marca_custodia', width=200, header_name="Marca Custodia")
-    gb.configure_column('marca_publicada', width=200, header_name="Marca Publicada")
-    gb.configure_column('clases_acta', width=120, header_name="Clases")
-    gb.configure_column('titular', width=300, wrapText=True, autoHeight=True)
-    gb.configure_column('reporte_enviado', width=120, header_name="Enviado")
-    gb.configure_column('reporte_generado', width=120, header_name="Generado")
     
-    # Configurar específicamente la columna 'importancia'
+    # Configurar específicamente la columna 'importancia' - MOVIDA AQUÍ
     gb.configure_column(
         'importancia',
         editable=True,
@@ -144,6 +135,18 @@ def show_grid_data(df, key, selection_mode='single'):
         cellStyle={'cursor': 'pointer'},
         header_name="Importancia"
     )
+    
+    gb.configure_column('reporte_enviado', width=120, header_name="Enviado")
+    gb.configure_column('reporte_generado', width=120, header_name="Generado")
+    
+    # Resto de las columnas
+    gb.configure_column('agente', width=200)
+    gb.configure_column('numero_expediente', width=150, header_name="N° Expediente")
+    gb.configure_column('clase', width=100)
+    gb.configure_column('marca_custodia', width=200, header_name="Marca Custodia")
+    gb.configure_column('marca_publicada', width=200, header_name="Marca Publicada")
+    gb.configure_column('clases_acta', width=120, header_name="Clases")
+    gb.configure_column('titular', width=300, wrapText=True, autoHeight=True)
     
     grid_options = gb.build()
     
@@ -180,9 +183,22 @@ def show_grid_data(df, key, selection_mode='single'):
                     # Marcar como procesado ANTES de ejecutar para evitar race conditions
                     st.session_state.cambios_procesados.add(cambio_id)
                     
+                    # Debug: mostrar información del cambio
+                    st.info(f"🔄 Procesando cambio: ID {row['id']} - {original_row['importancia']} → {row['importancia']}")
+                    
                     conn = crear_conexion()
                     if conn:
                         try:
+                            # Debug: verificar que tenemos todos los campos necesarios
+                            campos_requeridos = ['numero_boletin', 'fecha_boletin', 'numero_orden', 'solicitante', 
+                                               'agente', 'numero_expediente', 'clase', 'marca_custodia', 
+                                               'marca_publicada', 'clases_acta', 'titular']
+                            
+                            campos_faltantes = [campo for campo in campos_requeridos if campo not in row or pd.isna(row[campo])]
+                            if campos_faltantes:
+                                st.error(f"❌ Campos faltantes: {campos_faltantes}")
+                                continue
+                            
                             actualizar_registro(
                                 conn,
                                 int(row['id']),
@@ -203,16 +219,19 @@ def show_grid_data(df, key, selection_mode='single'):
                             )
                             
                             st.success(f"✅ Importancia actualizada a '{row['importancia']}'")
-                            time.sleep(0.3)
+                            time.sleep(1)
                             st.rerun()
                             
                         except Exception as e:
-                            st.error(f"Error al actualizar: {e}")
+                            st.error(f"❌ Error al actualizar: {e}")
+                            st.error(f"📋 Datos del registro: ID={row['id']}, Importancia={row['importancia']}")
                             # Remover de procesados si hubo error para permitir reintento
                             st.session_state.cambios_procesados.discard(cambio_id)
                         finally:
                             if conn:
                                 conn.close()
+                    else:
+                        st.error("❌ No se pudo conectar a la base de datos")
                     break  # Procesar solo un cambio a la vez
 
     return grid_response

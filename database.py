@@ -241,11 +241,10 @@ def obtener_datos(conn):
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                b.id, b.titular, b.marca_custodia, b.marca_publicada, b.numero_boletin, b.fecha_boletin, 
-                b.numero_orden, 
-                b.solicitante, b.agente, b.numero_expediente, b.clase, 
-                b.clases_acta, 
-                b.reporte_enviado, b.reporte_generado, b.fecha_alta, b.importancia,
+                b.id, b.numero_boletin, b.fecha_boletin, b.numero_orden, 
+                b.solicitante, b.importancia, b.reporte_enviado, b.reporte_generado, b.agente, 
+                b.numero_expediente, b.clase, b.marca_custodia, b.marca_publicada, 
+                b.clases_acta, b.titular, b.fecha_alta,
                 c.email, c.telefono, c.direccion, c.ciudad
             FROM boletines b
             LEFT JOIN clientes c ON b.titular = c.titular
