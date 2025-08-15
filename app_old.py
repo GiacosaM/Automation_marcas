@@ -84,6 +84,25 @@ def obtener_credenciales_email():
     
     return st.session_state.email_credentials
 
+def verificar_integridad_datos(df_original, df_grid):
+    """
+    Función para verificar la integridad entre los datos originales y del grid
+    """
+    try:
+        if len(df_original) != len(df_grid):
+            return False, f"Diferencia en número de filas: original={len(df_original)}, grid={len(df_grid)}"
+        
+        # Verificar que todos los IDs coincidan
+        ids_original = set(df_original['id'].astype(str))
+        ids_grid = set(df_grid['id'].astype(str))
+        
+        if ids_original != ids_grid:
+            return False, f"IDs no coinciden. Faltantes: {ids_original - ids_grid}, Extras: {ids_grid - ids_original}"
+        
+        return True, "Datos íntegros"
+    except Exception as e:
+        return False, f"Error en verificación: {e}"
+
 def show_grid_data(df, key, selection_mode='single'):
     """
     Función helper para mostrar datos usando ag-Grid
@@ -160,60 +179,109 @@ def show_grid_data(df, key, selection_mode='single'):
         height=400
     )
 
-    # Manejar cambios en la importancia
+    # Manejar cambios en la importancia - VERSIÓN MEJORADA
     if grid_response['data'] is not None and len(grid_response['data']) > 0:
         df_new = pd.DataFrame(grid_response['data'])
         
         # Verificar si hay cambios reales comparando con el DataFrame original
         for index, row in df_new.iterrows():
-            original_row = df.loc[df['id'] == row['id']].iloc[0] if not df[df['id'] == row['id']].empty else None
-            
-            if original_row is not None and row['importancia'] != original_row['importancia']:
-                # Crear identificador único para evitar procesar el mismo cambio múltiples veces
-                cambio_id = f"{row['id']}_{original_row['importancia']}_to_{row['importancia']}"
+            try:
+                # Buscar la fila original por ID
+                original_row = df[df['id'] == row['id']]
                 
-                # Usar session_state para evitar procesamiento múltiple
-                if 'cambios_procesados' not in st.session_state:
-                    st.session_state.cambios_procesados = set()
-                
-                if cambio_id not in st.session_state.cambios_procesados:
-                    # Marcar como procesado ANTES de ejecutar para evitar race conditions
-                    st.session_state.cambios_procesados.add(cambio_id)
+                if not original_row.empty:
+                    original_row = original_row.iloc[0]
                     
-                    conn = crear_conexion()
-                    if conn:
-                        try:
-                            actualizar_registro(
-                                conn,
-                                int(row['id']),
-                                row['numero_boletin'],
-                                row['fecha_boletin'],
-                                row['numero_orden'],
-                                row['solicitante'],
-                                row['agente'],
-                                row['numero_expediente'],
-                                row['clase'],
-                                row['marca_custodia'],
-                                row['marca_publicada'],
-                                row['clases_acta'],
-                                bool(row['reporte_enviado']),
-                                row['titular'],
-                                bool(row['reporte_generado']),
-                                row['importancia']
-                            )
+                    # Verificar si la importancia cambió
+                    if str(row['importancia']) != str(original_row['importancia']):
+                        # Crear identificador único basado en timestamp para evitar duplicados
+                        current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                        cambio_id = f"cambio_{row['id']}_{current_time}"
+                        
+                        # Usar session_state para evitar procesamiento múltiple solo por un breve periodo
+                        if 'cambios_recientes' not in st.session_state:
+                            st.session_state.cambios_recientes = {}
+                        
+                        # Limpiar cambios antiguos (más de 5 segundos)
+                        now = datetime.now()
+                        st.session_state.cambios_recientes = {
+                            k: v for k, v in st.session_state.cambios_recientes.items() 
+                            if (now - v).total_seconds() < 5
+                        }
+                        
+                        # Verificar si este registro fue modificado recientemente
+                        registro_modificado_recientemente = any(
+                            k.startswith(f"cambio_{row['id']}_") 
+                            for k in st.session_state.cambios_recientes.keys()
+                        )
+                        
+                        if not registro_modificado_recientemente:
+                            # Marcar como procesado
+                            st.session_state.cambios_recientes[cambio_id] = now
                             
-                            st.success(f"✅ Importancia actualizada a '{row['importancia']}'")
-                            time.sleep(0.3)
-                            st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"Error al actualizar: {e}")
-                            # Remover de procesados si hubo error para permitir reintento
-                            st.session_state.cambios_procesados.discard(cambio_id)
-                        finally:
+                            # Actualizar base de datos
+                            conn = crear_conexion()
                             if conn:
-                                conn.close()
-                    break  # Procesar solo un cambio a la vez
+                                try:
+                                    actualizar_registro(
+                                        conn,
+                                        int(row['id']),
+                                        row['numero_boletin'],
+                                        row['fecha_boletin'],
+                                        row['numero_orden'],
+                                        row['solicitante'],
+                                        row['agente'],
+                                        row['numero_expediente'],
+                                        row['clase'],
+                                        row['marca_custodia'],
+                                        row['marca_publicada'],
+                                        row['clases_acta'],
+                                        bool(row['reporte_enviado']),
+                                        row['titular'],
+                                        bool(row['reporte_generado']),
+                                        row['importancia']
+                                    )
+                                    
+                                    # Verificar que el cambio se guardó correctamente
+                                    cursor = conn.cursor()
+                                    cursor.execute("SELECT importancia FROM boletines WHERE id = ?", (int(row['id']),))
+                                    result = cursor.fetchone()
+                                    cursor.close()
+                                    
+                                    if result and result[0] == row['importancia']:
+                                        # Mostrar mensaje de éxito
+                                        st.success(f"✅ Importancia actualizada a '{row['importancia']}' para registro ID {row['id']}")
+                                        
+                                        # Actualizar los datos en session_state para reflejar el cambio
+                                        if 'db_data' in st.session_state:
+                                            mask = st.session_state.db_data['id'] == row['id']
+                                            if mask.any():
+                                                st.session_state.db_data.loc[mask, 'importancia'] = row['importancia']
+                                        
+                                        # Recargar página después de un breve delay
+                                        time.sleep(1.5)
+                                        st.rerun()
+                                    else:
+                                        importancia_guardada = result[0] if result else "No encontrado"
+                                        st.error(f"❌ Error: El cambio no se guardó correctamente. Esperado: '{row['importancia']}', Guardado: '{importancia_guardada}'")
+                                        # Limpiar cache del cambio fallido
+                                        if cambio_id in st.session_state.cambios_recientes:
+                                            del st.session_state.cambios_recientes[cambio_id]
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Error al actualizar registro ID {row['id']}: {e}")
+                                    # Remover de procesados si hubo error
+                                    if cambio_id in st.session_state.cambios_recientes:
+                                        del st.session_state.cambios_recientes[cambio_id]
+                                finally:
+                                    conn.close()
+                            
+                            # Solo procesar un cambio a la vez
+                            break
+                            
+            except Exception as e:
+                st.error(f"❌ Error al procesar cambio en registro: {e}")
+                continue
 
     return grid_response
 
@@ -1056,8 +1124,8 @@ if not handle_authentication():
 # Menú de navegación profesional con efectos hover
 tabs = option_menu(
     menu_title=None,
-    options=["Dashboard", "Cargar Datos", "Historial", "Clientes", "Informes", "Emails", "Configuración"],
-    icons=["house-fill", "cloud-upload-fill", "list-task", "people-fill", "file-earmark-text-fill", "envelope-fill", "gear-fill"],
+    options=["Dashboard", "Cargar Datos", "Historial", "Clientes", "📋 Reportes", "Configuración"],
+    icons=["house-fill", "cloud-upload-fill", "list-task", "people-fill", "gear-fill", "gear-fill"],
     menu_icon="cast",
     default_index=0,
     orientation="horizontal",
@@ -1131,74 +1199,15 @@ elif tabs == 'Clientes':
     st.session_state.show_db_section = False
     st.session_state.show_email_section = False
 
-elif tabs == 'Informes':
-    st.session_state.current_page = 'informes'
-    # Lógica para generar informes
-    conn = crear_conexion()
-    if conn:
-        try:
-            crear_tabla(conn)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0")
-            reportes_pendientes = cursor.fetchone()[0]
-            
-            # Verificar cuántos están en estado "Pendiente"
-            cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0 AND importancia = 'Pendiente'")
-            pendientes_importancia = cursor.fetchone()[0]
-            
-            cursor.close()
-            
-            if reportes_pendientes > 0:
-                # Mostrar información detallada
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("📄 Total Reportes", reportes_pendientes)
-                with col2:
-                    st.metric("⚠️ En Estado Pendiente", pendientes_importancia)
-                
-                if pendientes_importancia > 0 and pendientes_importancia == reportes_pendientes:
-                    st.warning(f"⚠️ {reportes_pendientes} registros están marcados como 'Pendiente'. Cambia la importancia para poder generar informes.")
-                elif pendientes_importancia > 0:
-                    st.info(f"💡  {pendientes_importancia} registros marcados como 'Pendiente' que no se procesarán. Solo se generarán {reportes_pendientes - pendientes_importancia} informes.")
-                
-                if st.button("🚀 Generar Todos los Informes", type="primary", use_container_width=True):
-                    with st.spinner("Generando informes..."):
-                        watermark_path = get_config("reports.watermark_path", "imagenes/marca_agua.jpg")
-                        resultado = generar_informe_pdf(conn, watermark_path)
-                    
-                    # Manejar diferentes tipos de respuesta
-                    if resultado['success']:
-                        if resultado['message'] == 'no_pending':
-                            st.success("✅ No hay informes pendientes de generación")
-                        elif resultado['message'] == 'completed':
-                            if resultado['reportes_generados'] > 0:
-                                st.success(f"✅ Se generaron {resultado['reportes_generados']} informes correctamente")
-                                if resultado.get('pendientes', 0) > 0:
-                                    st.info(f"ℹ️ {resultado['pendientes']} registros permanecen como 'Pendiente' y no fueron procesados")
-                                if resultado.get('errores', 0) > 0:
-                                    st.warning(f"⚠️ {resultado['errores']} informes tuvieron errores durante la generación")
-                            else:
-                                st.warning("⚠️ No se pudo generar ningún informe")
-                    else:
-                        if resultado['message'] == 'pending_only':
-                            st.warning(f"⚠️ No se generaron informes. Los {resultado['pendientes']} registros están marcados como 'Pendiente'")
-                            st.info("💡 Cambia la importancia de los registros en la sección 'Historial' para poder procesarlos")
-                        elif resultado['message'] == 'error':
-                            st.error(f"❌ Error al generar informes: {resultado.get('error', 'Error desconocido')}")
-                        else:
-                            st.error("❌ No se pudieron generar los informes")
-            else:
-                st.success("✅ Todos los informes están actualizados")
-        except Exception as e:
-            st.error(f"Error: {e}")
-        finally:
-            conn.close()
-
-elif tabs == 'Emails':
-    st.session_state.current_page = 'emails'
-    st.session_state.show_email_section = True
+elif tabs == '📋 Reportes':
+    st.session_state.current_page = 'reportes_unificados'
     st.session_state.show_db_section = False
     st.session_state.show_clientes_section = False
+    st.session_state.show_email_section = False
+    
+    # Importar y mostrar la gestión unificada
+    from unified_report_manager import show_unified_report_management
+    show_unified_report_management()
 
 elif tabs == 'Configuración':
     st.session_state.current_page = 'settings'
@@ -1654,6 +1663,10 @@ elif st.session_state.current_page == 'historial' and st.session_state.show_db_s
                 # Mostrar tabla con grid
                 if not filtered_df.empty:
                     st.markdown(f"📊 Mostrando {len(filtered_df)} registros de {len(st.session_state.db_data)} totales")
+                    
+                    # Mensaje informativo sobre edición
+                    st.info("💡 **Tip**: Haz clic en la columna 'Importancia' para editarla. Los cambios se guardan automáticamente.")
+                    
                     grid_response = show_grid_data(filtered_df, 'grid_boletines')
                 else:
                     st.warning("No se encontraron registros que coincidan con los filtros.")
@@ -2032,8 +2045,8 @@ elif st.session_state.current_page == 'clientes' and st.session_state.show_clien
         finally:
             conn.close()
 
-elif st.session_state.current_page == 'emails' and st.session_state.show_email_section:
-    st.title("📧 Gestión de Envío de Emails")
+elif st.session_state.current_page == 'settings':
+    show_settings_page()
     
     # Cargar estadísticas
     conn = crear_conexion()

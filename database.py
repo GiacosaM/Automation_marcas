@@ -109,11 +109,21 @@ def crear_tabla(conn):
                 telefono TEXT,
                 direccion TEXT,
                 ciudad TEXT,
+                provincia TEXT,
                 fecha_alta DATE DEFAULT (datetime('now', 'localtime')),
                 fecha_modificacion DATE,
                 CUIT integer UNIQUE
             )
         """)
+        
+        # Agregar columna provincia si no existe (para bases de datos existentes)
+        try:
+            cursor.execute("ALTER TABLE clientes ADD COLUMN provincia TEXT")
+            conn.commit()
+            critical_logger.info("Columna 'provincia' agregada a tabla clientes.")
+        except sqlite3.OperationalError:
+            # La columna ya existe, continuar
+            pass
         conn.commit()
         
         if not tabla_clientes_existe:
@@ -228,10 +238,30 @@ def insertar_datos(conn, datos_agrupados):
             critical_logger.info(f"Inserción completada: {insertados} nuevos registros, {omitidos} omitidos")
         elif omitidos > 50:  # Log solo si hay muchos registros omitidos  
             critical_logger.info(f"Procesamiento completado: {omitidos} registros ya existían")
+        
+        # Retornar resultado con información de la operación
+        return {
+            'success': True,
+            'mensaje': f"Importación completada: {insertados} registros nuevos, {omitidos} omitidos",
+            'estadisticas': {
+                'total_procesados': insertados + omitidos,
+                'insertados': insertados,
+                'omitidos': omitidos
+            }
+        }
             
     except sqlite3.Error as e:
         logging.error(f"Error al insertar datos: {e}")
-        raise Exception(f"Error al insertar datos: {e}")
+        return {
+            'success': False,
+            'mensaje': f"Error al insertar datos: {e}"
+        }
+    except Exception as e:
+        logging.error(f"Error inesperado al insertar datos: {e}")
+        return {
+            'success': False,
+            'mensaje': f"Error inesperado: {e}"
+        }
     finally:
         cursor.close()
 
@@ -241,10 +271,11 @@ def obtener_datos(conn):
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 
-                b.id, b.numero_boletin, b.fecha_boletin, b.numero_orden, 
-                b.solicitante, b.importancia, b.reporte_enviado, b.reporte_generado, b.agente, 
-                b.numero_expediente, b.clase, b.marca_custodia, b.marca_publicada, 
-                b.clases_acta, b.titular, b.fecha_alta,
+                b.id, b.titular, b.marca_custodia, b.marca_publicada, b.numero_boletin, b.fecha_boletin, 
+                b.numero_orden, 
+                b.solicitante, b.agente, b.numero_expediente, b.clase, 
+                b.clases_acta, 
+                b.reporte_enviado, b.reporte_generado, b.fecha_alta, b.importancia,
                 c.email, c.telefono, c.direccion, c.ciudad
             FROM boletines b
             LEFT JOIN clientes c ON b.titular = c.titular
@@ -372,7 +403,7 @@ def eliminar_registro(conn, id):
     finally:
         cursor.close()
 
-def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, cuit):
+def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """Inserta un nuevo cliente en la tabla 'clientes', verificando duplicados."""
     try:
         cursor = conn.cursor()
@@ -381,9 +412,9 @@ def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, cuit):
         ''', (titular,))
         if cursor.fetchone()[0] == 0:  # Si no existe, insertar
             cursor.execute('''
-                INSERT INTO clientes (titular, email, telefono, direccion, ciudad, fecha_alta, cuit)
-                VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'),?)
-            ''', (titular, email, telefono, direccion, ciudad, cuit))
+                INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'),?)
+            ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
             conn.commit()
             logging.info(f"Cliente insertado: Titular {titular}")
         else:
@@ -400,7 +431,7 @@ def obtener_clientes(conn):
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, titular, email, telefono, direccion, ciudad, cuit
+            SELECT id, titular, email, telefono, direccion, ciudad, provincia, cuit
             FROM clientes
         """)
         rows = cursor.fetchall()
@@ -413,15 +444,15 @@ def obtener_clientes(conn):
     finally:
         cursor.close()
 
-def actualizar_cliente(conn, id, titular, email, telefono, direccion, ciudad, cuit):
+def actualizar_cliente(conn, id, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """Actualiza un registro en la tabla 'clientes'."""
     try:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE clientes
-            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, fecha_modificacion = datetime('now', 'localtime'), cuit = ?
+            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, fecha_modificacion = datetime('now', 'localtime'), cuit = ?
             WHERE id = ?
-        """, (titular, email, telefono, direccion, ciudad, cuit, id))
+        """, (titular, email, telefono, direccion, ciudad, provincia, cuit, id))
         conn.commit()
         logging.info(f"Cliente actualizado: ID {id}")
     except sqlite3.Error as e:
@@ -430,7 +461,7 @@ def actualizar_cliente(conn, id, titular, email, telefono, direccion, ciudad, cu
     finally:
         cursor.close()
 
-def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ciudad, cuit):
+def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """
     Actualiza un cliente existente en la base de datos.
     
@@ -442,15 +473,16 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
         telefono: Teléfono del cliente
         direccion: Dirección del cliente
         ciudad: Ciudad del cliente
+        provincia: Provincia del cliente
         cuit: CUIT del cliente
     """
     try:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE clientes 
-            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, cuit = ?
+            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, cuit = ?
             WHERE id = ?
-        """, (titular, email, telefono, direccion, ciudad, cuit, cliente_id))
+        """, (titular, email, telefono, direccion, ciudad, provincia, cuit, cliente_id))
         
         conn.commit()
         cursor.close()
