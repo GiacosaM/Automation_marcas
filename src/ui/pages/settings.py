@@ -356,7 +356,7 @@ class SettingsPage:
         UIComponents.create_section_header(
             "⚙️ Configuración del Sistema",
             "Gestiona todas las configuraciones de la aplicación",
-            "purple-70"
+            "violet-70"
         )
         
         # Cargar configuración actual
@@ -383,7 +383,7 @@ class SettingsPage:
                     st.error("❌ Error al guardar configuración")
         
         with col2:
-            if st.button("� Restaurar por Defecto", use_container_width=True):
+            if st.button(" Restaurar por Defecto", use_container_width=True):
                 default_config = self._get_default_config()
                 if self._save_config(default_config):
                     st.success("✅ Configuración restaurada")
@@ -423,6 +423,10 @@ def show_settings_page():
     """Función de compatibilidad para mostrar la página de configuración"""
     settings_page = SettingsPage()
     settings_page.show()
+    
+    # Mostrar panel de verificación programada
+    st.markdown("---")
+    mostrar_panel_verificacion()
     
     # Footer
     st.markdown("---")

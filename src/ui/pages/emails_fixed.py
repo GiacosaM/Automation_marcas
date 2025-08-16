@@ -134,27 +134,27 @@ class EmailsPage:
         }
     
 
-    # def _show_email_types_breakdown(self, stats):
-    #     """Mostrar desglose por tipos de email"""
-    #     if stats['por_tipo']:
-    #         with st.expander("📊 Emails por Tipo (Últimos 30 días)", expanded=True):
-    #             cols = st.columns(len(stats['por_tipo']))
+    def _show_email_types_breakdown(self, stats):
+        """Mostrar desglose por tipos de email"""
+        if stats['por_tipo']:
+            with st.expander("📊 Emails por Tipo (Últimos 30 días)", expanded=True):
+                cols = st.columns(len(stats['por_tipo']))
                 
-    #             for i, (tipo, cantidad) in enumerate(stats['por_tipo']):
-    #                 with cols[i]:
-    #                     tipo_info = self.email_types.get(tipo, {
-    #                         'name': tipo.title(),
-    #                         'description': 'Tipo personalizado',
-    #                         'color': '#6c757d'
-    #                     })
+                for i, (tipo, cantidad) in enumerate(stats['por_tipo']):
+                    with cols[i]:
+                        tipo_info = self.email_types.get(tipo, {
+                            'name': tipo.title(),
+                            'description': 'Tipo personalizado',
+                            'color': '#6c757d'
+                        })
                         
-    #                     st.markdown(UIComponents.create_metric_card(
-    #                         cantidad,
-    #                         tipo_info['name'],
-    #                         tipo_info['color']
-    #                     ), unsafe_allow_html=True)
+                        st.markdown(UIComponents.create_metric_card(
+                            cantidad,
+                            tipo_info['name'],
+                            tipo_info['color']
+                        ), unsafe_allow_html=True)
                         
-    #                     st.caption(tipo_info['description'])
+                        st.caption(tipo_info['description'])
     
     
     def _send_email(self, destinatario, asunto, mensaje, tipo_email, prioridad):
@@ -216,37 +216,37 @@ class EmailsPage:
                         SessionManager.set('template_body', template['body'])
                         st.success("✅ Plantilla cargada")
     
-    # def _show_recent_emails(self, stats):
-    #     """Mostrar emails recientes"""
-    #     if stats['ultimos_emails']:
-    #         with st.expander("📮 Emails Recientes", expanded=True):
-    #             for email in stats['ultimos_emails']:
-    #                 destinatario, asunto, fecha, status, tipo = email
+    def _show_recent_emails(self, stats):
+        """Mostrar emails recientes"""
+        if stats['ultimos_emails']:
+            with st.expander("📮 Emails Recientes", expanded=True):
+                for email in stats['ultimos_emails']:
+                    destinatario, asunto, fecha, status, tipo = email
                     
-    #                 # Color según status
-    #                 status_color = {
-    #                     'enviado': '#28a745',
-    #                     'error': '#dc3545',
-    #                     'pendiente': '#ffc107'
-    #                 }.get(status, '#6c757d')
+                    # Color según status
+                    status_color = {
+                        'enviado': '#28a745',
+                        'error': '#dc3545',
+                        'pendiente': '#ffc107'
+                    }.get(status, '#6c757d')
                     
-    #                 # Icono según tipo
-    #                 tipo_info = self.email_types.get(tipo, {'name': tipo.title()})
+                    # Icono según tipo
+                    tipo_info = self.email_types.get(tipo, {'name': tipo.title()})
                     
-    #                 st.markdown(f"""
-    #                 <div style="background: #f8f9fa; padding: 0.8rem; margin: 0.3rem 0; border-radius: 6px; border-left: 3px solid {status_color}; color: #000000;">
-    #                     <div style="display: flex; justify-content: space-between; align-items: center;">
-    #                         <div>
-    #                             <strong>{asunto[:50]}{'...' if len(asunto) > 50 else ''}</strong><br>
-    #                             <small style="color: #555555;">Para: {destinatario} | {tipo_info['name']}</small>
-    #                         </div>
-    #                         <div style="text-align: right;">
-    #                             <span style="color: {status_color}; font-weight: bold;">{status.upper()}</span><br>
-    #                             <small style="color: #555555;">{fecha}</small>
-    #                         </div>
-    #                     </div>
-    #                 </div>
-    #                 """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style="background: #f8f9fa; padding: 0.8rem; margin: 0.3rem 0; border-radius: 6px; border-left: 3px solid {status_color}; color: #000000;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>{asunto[:50]}{'...' if len(asunto) > 50 else ''}</strong><br>
+                                <small style="color: #555555;">Para: {destinatario} | {tipo_info['name']}</small>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="color: {status_color}; font-weight: bold;">{status.upper()}</span><br>
+                                <small style="color: #555555;">{fecha}</small>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
     
     def _show_email_analytics(self, stats):
         """Mostrar analíticas de emails"""
@@ -712,7 +712,7 @@ class EmailsPage:
                     columns=['Titular', 'Boletín', 'Fecha Envío', 'Importancia', 'Email', 'Tipo'])
                 
                 # Formatear fecha
-                historial_df['Fecha Envío'] = pd.to_datetime(historial_df['Fecha Envío'], dayfirst=True).dt.strftime('%d/%m/%Y %H:%M')
+                historial_df['Fecha Envío'] = pd.to_datetime(historial_df['Fecha Envío']).dt.strftime('%d/%m/%Y %H:%M')
                 
                 # Filtros
                 col1, col2 = st.columns(2)
@@ -746,7 +746,7 @@ class EmailsPage:
                     st.metric("📧 Total Enviados", total_enviados)
                 with col2:
                     hoy = datetime.now().date()
-                    enviados_hoy = len(historial_df[pd.to_datetime(historial_df['Fecha Envío'], dayfirst=True).dt.date == hoy])
+                    enviados_hoy = len(historial_df[pd.to_datetime(historial_df['Fecha Envío']).dt.date == hoy])
                     st.metric("📅 Enviados Hoy", enviados_hoy)
                 with col3:
                     importancia_alta = len(historial_df[historial_df['Importancia'] == 'Alta'])
@@ -870,10 +870,10 @@ class EmailsPage:
                 stats_simple = self._get_email_stats(conn)
                 
                 # Mostrar desglose por tipos
-                # self._show_email_types_breakdown(stats_simple)
+                self._show_email_types_breakdown(stats_simple)
                 
                 # Emails recientes
-                # self._show_recent_emails(stats_simple)
+                self._show_recent_emails(stats_simple)
                 
             except Exception as e:
                 st.error(f"Error: {e}")

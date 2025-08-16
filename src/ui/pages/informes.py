@@ -159,15 +159,7 @@ class InformesPage:
                 ):
                     self._generate_all_reports()
             
-            with col2:
-                if st.button(
-                    "🎯 Generar por Importancia",
-                    type="secondary",
-                    use_container_width=True,
-                    disabled=procesables == 0
-                ):
-                    SessionManager.set('show_selective_generation', True)
-                    st.rerun()
+            
         else:
             st.success("✅ Todos los informes están actualizados")
     
@@ -227,54 +219,9 @@ class InformesPage:
             except Exception as e:
                 st.error(f"❌ Error durante la generación: {e}")
     
-    def _show_selective_generation(self, status):
-        """Mostrar opciones de generación selectiva"""
-        if SessionManager.get('show_selective_generation', False):
-            st.markdown("### 🎯 Generación Selectiva por Importancia")
-            
-            # Filtros por importancia
-            importancias_disponibles = [imp for imp, cant in status['por_importancia'] if imp != 'Pendiente']
-            
-            if importancias_disponibles:
-                selected_importance = st.selectbox(
-                    "Seleccionar importancia:",
-                    importancias_disponibles,
-                    help="Generar informes solo para registros de esta importancia"
-                )
-                
-                cantidad_selected = next(
-                    (cant for imp, cant in status['por_importancia'] if imp == selected_importance),
-                    0
-                )
-                
-                col1, col2, col3 = st.columns([1, 2, 1])
-                
-                with col2:
-                    if st.button(
-                        f"🚀 Generar {cantidad_selected} informes de importancia '{selected_importance}'",
-                        type="primary",
-                        use_container_width=True
-                    ):
-                        self._generate_by_importance(selected_importance)
-                
-                if st.button("❌ Cancelar Selección"):
-                    SessionManager.set('show_selective_generation', False)
-                    st.rerun()
     
-    def _generate_by_importance(self, importance):
-        """Generar reportes por importancia específica"""
-        with st.spinner(f"🔄 Generando informes de importancia '{importance}'..."):
-            try:
-                # Aquí iría la lógica real de generación por importancia
-                import time
-                time.sleep(1.5)
-                
-                st.success(f"✅ Informes de importancia '{importance}' generados exitosamente")
-                SessionManager.set('show_selective_generation', False)
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"❌ Error durante la generación: {e}")
+    
+    
     
     def _show_recent_reports(self, status):
         """Mostrar reportes generados recientemente con botón de descarga y nombre del titular"""
@@ -335,12 +282,14 @@ class InformesPage:
                 # Mostrar opciones de generación
                 self._show_generation_options(status)
                 
-                # Mostrar generación selectiva si está activada
-                self._show_selective_generation(status)
-                
+               
+
                 # (Eliminado) Mostrar reportes recientes
                 # Mostrar cuadrícula de últimos informes generados
                 self._show_boletines_grid()
+                
+                # Añadir sección de verificación de reportes
+                self._show_verificacion_reportes_section()
                 
             except Exception as e:
                 st.error(f"Error: {e}")
@@ -395,6 +344,88 @@ class InformesPage:
                         )
                 except Exception as e:
                     st.caption(f"No se pudo acceder al PDF: {e}")
+    
+    def _show_verificacion_reportes_section(self):
+        """Muestra la sección para verificar titulares sin reportes"""
+        with st.expander("🔍 Verificación de Titulares sin Reportes", expanded=False):
+            st.markdown("""
+            ### 🔔 Verificación de Titulares sin Reportes
+            
+            Esta herramienta verifica qué titulares no tienen reportes generados durante el mes actual 
+            y les envía un correo electrónico de notificación.
+            """)
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                # Mostrar resultado de verificación automática si existe
+                from src.utils.session_manager import SessionManager
+                resultado_verificacion = SessionManager.get('resultado_verificacion_reportes', None)
+                
+                if resultado_verificacion:
+                    estado = resultado_verificacion.get('estado', '')
+                    
+                    if estado == 'completado':
+                        st.success("✅ Verificación automática realizada")
+                        
+                        metrics = [
+                            {"value": resultado_verificacion.get('titulares_sin_reportes', 0), 
+                             "label": "Titulares sin reportes", 
+                             "color": "#ffc107"},
+                            {"value": resultado_verificacion.get('emails_enviados', 0), 
+                             "label": "Emails enviados", 
+                             "color": "#28a745"},
+                            {"value": resultado_verificacion.get('errores', 0), 
+                             "label": "Errores", 
+                             "color": "#dc3545"},
+                        ]
+                        
+                        for metric in metrics:
+                            st.markdown(f"""
+                            <div style='background:{metric["color"]};padding:1rem;border-radius:8px;text-align:center;margin-bottom:10px;'>
+                                <span style='font-size:1.5rem;font-weight:bold;color:#fff;'>{metric["value"]}</span><br>
+                                <span style='font-size:0.9rem;color:#fff;'>{metric["label"]}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        st.caption(f"Última verificación: {resultado_verificacion.get('fecha_verificacion', 'N/A')}")
+                    else:
+                        st.error(f"❌ Error en la última verificación: {resultado_verificacion.get('mensaje', 'Error desconocido')}")
+            
+            with col2:
+                st.markdown("### Verificación Manual")
+                st.info("Puedes ejecutar la verificación manualmente en cualquier momento.")
+                
+                if st.button("🚨 Verificar Titulares sin Reportes", use_container_width=True):
+                    with st.spinner("Verificando titulares sin reportes..."):
+                        try:
+                            from verificar_titulares_sin_reportes import verificar_titulares_sin_reportes
+                            from database import crear_conexion
+                            
+                            conn = crear_conexion()
+                            if conn:
+                                resultado = verificar_titulares_sin_reportes(conn)
+                                conn.close()
+                                
+                                # Guardar resultado en la sesión
+                                SessionManager.set('resultado_verificacion_reportes', resultado)
+                                
+                                if resultado['estado'] == 'completado':
+                                    st.success("✅ Verificación completada con éxito")
+                                    st.info(f"Se encontraron {resultado['titulares_sin_reportes']} titulares sin reportes")
+                                    st.success(f"Se enviaron {resultado['emails_enviados']} correos de notificación")
+                                    
+                                    if resultado['errores'] > 0:
+                                        st.warning(f"Hubo {resultado['errores']} errores durante el envío")
+                                else:
+                                    st.error(f"❌ Error: {resultado['mensaje']}")
+                                
+                                # Forzar recarga para mostrar los resultados actualizados
+                                st.rerun()
+                            else:
+                                st.error("❌ No se pudo conectar a la base de datos")
+                        except Exception as e:
+                            st.error(f"❌ Error durante la verificación: {e}")
 
 def show_informes_page():
     """Función de compatibilidad para mostrar la página de informes"""

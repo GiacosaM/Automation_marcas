@@ -118,10 +118,12 @@ class AuthManager:
 def show_login():
     """Sistema de login simple y directo"""
     st.markdown("""
-    <div style="max-width: 400px; margin: 2rem auto; padding: 2rem; 
+    <div style="max-width: 300px; margin: 2rem auto; padding: 2rem; 
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                 border-radius: 16px; color: white; text-align: center;">
-        <h2>🔐 Sistema de Gestión</h2>
+        <h5>Login</h5>
+        <img src="https://mimarca.com.ar/templates/yootheme/cache/10/logo-10f1f883.webp" alt="Logo de Mi Marca" style="max-width: 100%; height: auto; border-radius: 12px;">
+        <h2></h2>
         <p style="margin: 0; opacity: 0.9;">Estudio Contable - Marcas y Patentes</p>
     </div>
     """, unsafe_allow_html=True)
