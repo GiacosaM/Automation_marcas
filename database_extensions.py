@@ -6,6 +6,18 @@ import logging
 import sqlite3
 from datetime import datetime, timedelta
 
+# Importar funciones de compatibilidad
+try:
+    from database import usar_supabase, obtener_columnas_tabla
+except ImportError:
+    # Definir fallbacks si no se pueden importar
+    def usar_supabase():
+        return False
+    def obtener_columnas_tabla(conn, tabla):
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({tabla})")
+        return [column[1] for column in cursor.fetchall()]
+
 def obtener_emails_enviados(conn, filtro_fechas=None, filtro_titular=None, filtro_tipo_email=None, limite=None):
     """
     Obtiene lista de emails enviados con información de la tabla emails_enviados.
@@ -23,9 +35,8 @@ def obtener_emails_enviados(conn, filtro_fechas=None, filtro_titular=None, filtr
     try:
         cursor = conn.cursor()
         
-        # Primero verificamos si la tabla existe y tiene las columnas correctas
-        cursor.execute("PRAGMA table_info(emails_enviados)")
-        columns = [column[1] for column in cursor.fetchall()]
+        # Verificar estructura de tabla de forma compatible
+        columns = obtener_columnas_tabla(conn, 'emails_enviados')
         
         # Si la tabla no existe o no tiene las columnas esperadas, retornamos vacío
         if not columns:
@@ -247,15 +258,23 @@ def limpiar_logs_antiguos(conn, dias=30):
     try:
         cursor = conn.cursor()
         
-        # Verificar si existe la tabla
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='envios_log'")
-        if not cursor.fetchone():
+        # Verificar si existe la tabla de forma compatible
+        from database import tabla_existe
+        if not tabla_existe(conn, 'envios_log'):
             return 0
             
-        cursor.execute("""
-            DELETE FROM envios_log 
-            WHERE fecha_envio < datetime('now', '-{} days', 'localtime')
-        """.format(dias))
+        if usar_supabase():
+            # PostgreSQL syntax
+            cursor.execute("""
+                DELETE FROM envios_log 
+                WHERE fecha_envio < CURRENT_TIMESTAMP - INTERVAL '%s days'
+            """, (dias,))
+        else:
+            # SQLite syntax
+            cursor.execute("""
+                DELETE FROM envios_log 
+                WHERE fecha_envio < datetime('now', '-{} days', 'localtime')
+            """.format(dias))
         
         eliminados = cursor.rowcount
         conn.commit()

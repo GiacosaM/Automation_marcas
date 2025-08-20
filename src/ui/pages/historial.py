@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 
 from database import crear_conexion, obtener_datos
+from db_utils import convertir_query_boolean
 from src.services.grid_service import GridService
 
 

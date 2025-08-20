@@ -330,8 +330,14 @@ def show_clientes_page():
                                 if validate_email_format(nuevo_email):
                                     try:
                                         # Verificar si ya existe un cliente con ese titular
+                                        from database import usar_supabase
                                         cursor = conn.cursor()
-                                        cursor.execute("SELECT COUNT(*) FROM clientes WHERE titular = ?", (nuevo_titular,))
+                                        
+                                        if usar_supabase():
+                                            cursor.execute("SELECT COUNT(*) FROM clientes WHERE titular = %s", (nuevo_titular,))
+                                        else:
+                                            cursor.execute("SELECT COUNT(*) FROM clientes WHERE titular = ?", (nuevo_titular,))
+                                        
                                         existe = cursor.fetchone()[0] > 0
                                         cursor.close()
                                         

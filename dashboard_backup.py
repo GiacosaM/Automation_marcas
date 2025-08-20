@@ -12,12 +12,11 @@ from streamlit_extras.metric_cards import style_metric_cards
 # Agregar el directorio raíz al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-from database import crear_conexion, crear_tabla
+from database import crear_conexion, crear_tabla, convertir_query_boolean
 from dashboard_charts import create_status_donut_chart, create_urgency_gauge_chart
 from professional_theme import create_metric_card
 from src.ui.components import UIComponents
 from src.utils.helpers import ReportUtils, DateUtils
-from db_utils import convertir_query_boolean
 
 
 class DashboardPage:
@@ -43,170 +42,186 @@ class DashboardPage:
     
     def _get_dashboard_data(self, conn):
         """Obtiene datos para el dashboard con compatibilidad PostgreSQL nativa."""
-        from supabase_connection import usar_supabase
+        from database import usar_supabase, crear_conexion
         
+        # Crear una nueva conexión para evitar conflictos de cursor
         try:
-            # Crear una nueva conexión para evitar conflictos de cursor
-            with crear_conexion() as dashboard_conn:
-                if not dashboard_conn:
-                    st.error("No se pudo establecer conexión con la base de datos")
-                    return self._get_default_data()
-
-                with dashboard_conn.cursor() as cursor:
-                    if usar_supabase():
-                        # PostgreSQL queries
-                        cursor.execute("SELECT COUNT(*) FROM boletines")
-                        total_boletines = cursor.fetchone()[0]
-                        
-                        cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = TRUE")
-                        reportes_generados = cursor.fetchone()[0]
-                        
-                        cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_enviado = TRUE")
-                        reportes_enviados = cursor.fetchone()[0]
-                        
-                        cursor.execute("SELECT COUNT(DISTINCT titular) FROM clientes")
-                        total_clientes = cursor.fetchone()[0]
-                        
-                        cursor.execute("""
-                            SELECT fecha_alta::date as fecha, COUNT(*) as cantidad
-                            FROM boletines 
-                            WHERE fecha_alta >= CURRENT_DATE - INTERVAL '30 days'
-                            GROUP BY fecha_alta::date
-                            ORDER BY fecha
-                        """)
-                        datos_timeline = cursor.fetchall()
-                        
-                        cursor.execute("""
-                            SELECT titular, COUNT(*) as cantidad
-                            FROM boletines
-                            GROUP BY titular
-                            ORDER BY cantidad DESC
-                            LIMIT 10
-                        """)
-                        top_titulares = cursor.fetchall()
-                        
-                        # Reportes próximos a vencer (entre 23 y 30 días desde fecha del boletín)
-                        cursor.execute("""
-                            SELECT COUNT(*) FROM boletines 
-                            WHERE reporte_enviado = FALSE 
-                            AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
-                            AND LENGTH(fecha_boletin) = 10
-                            AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '23 days' <= CURRENT_DATE
-                            AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' >= CURRENT_DATE
-                        """)
-                        proximos_vencer = cursor.fetchone()[0]
-                        
-                        # Detalles de próximos a vencer
-                        cursor.execute("""
-                            SELECT numero_boletin, titular, fecha_boletin,
-                                   EXTRACT(EPOCH FROM (CURRENT_DATE - (TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '23 days')))/86400 as dias_desde_limite
-                            FROM boletines 
-                            WHERE reporte_enviado = FALSE 
-                            AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
-                            AND LENGTH(fecha_boletin) = 10
-                            AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '23 days' <= CURRENT_DATE
-                            AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' >= CURRENT_DATE
-                            ORDER BY dias_desde_limite DESC
-                            LIMIT 10
-                        """)
-                        detalles_proximos_vencer = cursor.fetchall()
-                        
-                        # Reportes vencidos (más de 30 días desde fecha del boletín)
-                        cursor.execute("""
-                            SELECT COUNT(*) FROM boletines 
-                            WHERE reporte_enviado = FALSE 
-                            AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
-                            AND LENGTH(fecha_boletin) = 10
-                            AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' < CURRENT_DATE
-                        """)
-                        reportes_vencidos = cursor.fetchone()[0]
-                        
-                        # Detalles de reportes vencidos
-                        cursor.execute("""
-                            SELECT numero_boletin, titular, fecha_boletin,
-                                   EXTRACT(EPOCH FROM (CURRENT_DATE - (TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days')))/86400 as dias_vencido
-                            FROM boletines 
-                            WHERE reporte_enviado = FALSE 
-                            AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
-                            AND LENGTH(fecha_boletin) = 10
-                            AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' < CURRENT_DATE
-                            ORDER BY dias_vencido DESC
-                            LIMIT 10
-                        """)
-                        detalles_vencidos = cursor.fetchall()
-                        
-                    else:
-                        # SQLite queries simplificadas
-                        cursor.execute("SELECT COUNT(*) FROM boletines")
-                        total_boletines = cursor.fetchone()[0]
-                        
-                        cursor.execute(convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 1"))
-                        reportes_generados = cursor.fetchone()[0]
-                        
-                        cursor.execute(convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_enviado = 1"))
-                        reportes_enviados = cursor.fetchone()[0]
-                        
-                        cursor.execute("SELECT COUNT(DISTINCT titular) FROM clientes")
-                        total_clientes = cursor.fetchone()[0]
-                        
-                        # Datos por fecha (últimos 30 días) para SQLite
-                        cursor.execute("""
-                            SELECT DATE(fecha_alta) as fecha, COUNT(*) as cantidad
-                            FROM boletines 
-                            WHERE fecha_alta >= date('now', '-30 days')
-                            GROUP BY DATE(fecha_alta)
-                            ORDER BY fecha
-                        """)
-                        datos_timeline = cursor.fetchall()
-                        
-                        # Top titulares para SQLite
-                        cursor.execute("""
-                            SELECT titular, COUNT(*) as cantidad
-                            FROM boletines
-                            GROUP BY titular
-                            ORDER BY cantidad DESC
-                            LIMIT 10
-                        """)
-                        top_titulares = cursor.fetchall()
-                        
-                        # Para SQLite, cálculos básicos de vencimientos (sin fechas complejas)
-                        cursor.execute(convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_enviado = 0"))
-                        reportes_pendientes = cursor.fetchone()[0]
-                        
-                        # Estimación básica: 20% próximos a vencer, 10% vencidos
-                        proximos_vencer = max(1, int(reportes_pendientes * 0.2)) if reportes_pendientes > 5 else 0
-                        reportes_vencidos = max(1, int(reportes_pendientes * 0.1)) if reportes_pendientes > 10 else 0
-                        detalles_proximos_vencer = []
-                        detalles_vencidos = []
-                        
-            # Cerrar conexiones
-            # cursor.close()
-            # dashboard_conn.close()
+            dashboard_conn = crear_conexion()
+            if not dashboard_conn:
+                st.error("No se pudo establecer conexión con la base de datos")
+                return self._get_default_data()
                 
-            return {
-                'total_boletines': total_boletines,
-                'reportes_generados': reportes_generados,
-                'reportes_enviados': reportes_enviados,
-                'total_clientes': total_clientes,
-                'datos_timeline': datos_timeline,
-                'top_titulares': top_titulares,
-                'proximos_vencer': proximos_vencer,
-                'reportes_vencidos': reportes_vencidos,
-                'detalles_proximos_vencer': detalles_proximos_vencer,
-                'detalles_vencidos': detalles_vencidos
-            }
+            cursor = dashboard_conn.cursor()
+            
+            if usar_supabase():
+                # Usar queries nativas de PostgreSQL para compatibilidad total
                 
+                # Estadísticas básicas
+                cursor.execute("SELECT COUNT(*) FROM boletines")
+                total_boletines = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = TRUE")
+                reportes_generados = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_enviado = TRUE")
+                reportes_enviados = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT COUNT(DISTINCT titular) FROM clientes")
+                total_clientes = cursor.fetchone()[0]
+            
+            # Datos por fecha (últimos 30 días) - PostgreSQL nativo
+            cursor.execute("""
+                SELECT fecha_alta::date as fecha, COUNT(*) as cantidad
+                FROM boletines 
+                WHERE fecha_alta >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY fecha_alta::date
+                ORDER BY fecha
+            """)
+            datos_timeline = cursor.fetchall()
+            
+            # Top titulares
+            cursor.execute("""
+                SELECT titular, COUNT(*) as cantidad
+                FROM boletines
+                GROUP BY titular
+                ORDER BY cantidad DESC
+                LIMIT 10
+            """)
+            top_titulares = cursor.fetchall()
+            
+            # Reportes próximos a vencer (entre 23 y 30 días desde fecha del boletín)
+            cursor.execute("""
+                SELECT COUNT(*) FROM boletines 
+                WHERE reporte_enviado = FALSE 
+                AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+                AND LENGTH(fecha_boletin) = 10
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '23 days' <= CURRENT_DATE
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' >= CURRENT_DATE
+            """)
+            proximos_vencer = cursor.fetchone()[0]
+            
+            # Reportes ya vencidos (más de 30 días)
+            cursor.execute("""
+                SELECT COUNT(*) FROM boletines 
+                WHERE reporte_enviado = FALSE 
+                AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+                AND LENGTH(fecha_boletin) = 10
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' < CURRENT_DATE
+            """)
+            reportes_vencidos = cursor.fetchone()[0]
+            
+            # Reportes ya vencidos (más de 30 días)
+            cursor.execute("""
+                SELECT COUNT(*) FROM boletines 
+                WHERE reporte_enviado = FALSE 
+                AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+                AND LENGTH(fecha_boletin) = 10
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' < CURRENT_DATE
+            """)
+            reportes_vencidos = cursor.fetchone()[0]
+            
+            # Detalles de reportes próximos a vencer
+            cursor.execute("""
+                SELECT numero_boletin, titular, fecha_boletin,
+                       EXTRACT(EPOCH FROM (TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' - CURRENT_DATE))/86400 as dias_restantes
+                FROM boletines 
+                WHERE reporte_enviado = FALSE 
+                AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+                AND LENGTH(fecha_boletin) = 10
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '23 days' <= CURRENT_DATE
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' >= CURRENT_DATE
+                ORDER BY dias_restantes ASC
+                LIMIT 10
+            """)
+            detalles_proximos_vencer = cursor.fetchall()
+            
+            # Detalles de reportes vencidos
+            cursor.execute("""
+                SELECT numero_boletin, titular, fecha_boletin,
+                       EXTRACT(EPOCH FROM (CURRENT_DATE - (TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days')))/86400 as dias_vencido
+                FROM boletines 
+                WHERE reporte_enviado = FALSE 
+                AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+                AND LENGTH(fecha_boletin) = 10
+                AND TO_DATE(fecha_boletin, 'DD/MM/YYYY') + INTERVAL '30 days' < CURRENT_DATE
+                ORDER BY dias_vencido DESC
+                LIMIT 10
+            """)
+            detalles_vencidos = cursor.fetchall()
+            
+        else:
+            # Usar queries de SQLite (mantener código original)
+            
+            # Estadísticas generales
+            cursor.execute("SELECT COUNT(*) FROM boletines")
+            total_boletines = cursor.fetchone()[0]
+            
+            query_generados = convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 1")
+            cursor.execute(query_generados)
+            reportes_generados = cursor.fetchone()[0]
+            
+            query_enviados = convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_enviado = 1")
+            cursor.execute(query_enviados)
+            reportes_enviados = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(DISTINCT titular) FROM clientes")
+            total_clientes = cursor.fetchone()[0]
+            
+            # Datos por fecha (últimos 30 días)
+            query_timeline = convertir_query_boolean("""
+                SELECT DATE(fecha_alta) as fecha, COUNT(*) as cantidad
+                FROM boletines 
+                WHERE fecha_alta >= date('now', '-30 days')
+                GROUP BY DATE(fecha_alta)
+                ORDER BY fecha
+            """)
+            cursor.execute(query_timeline)
+            datos_timeline = cursor.fetchall()
+            
+            # Top titulares
+            cursor.execute("""
+                SELECT titular, COUNT(*) as cantidad
+                FROM boletines
+                GROUP BY titular
+                ORDER BY cantidad DESC
+                LIMIT 10
+            """)
+            top_titulares = cursor.fetchall()
+            
+            # Para SQLite, usar cálculos aproximados para vencimientos
+            proximos_vencer = 0
+            reportes_vencidos = 0
+            detalles_proximos_vencer = []
+            detalles_vencidos = []
+        
         except Exception as e:
             try:
-                if 'cursor' in locals() and cursor:
+                if cursor:
                     cursor.close()
-                if 'dashboard_conn' in locals() and dashboard_conn:
+                if dashboard_conn:
                     dashboard_conn.close()
             except:
                 pass
             st.error(f"Error al obtener datos del dashboard: {e}")
             return self._get_default_data()
-            
+        
+        # Cerrar conexiones y retornar datos
+        cursor.close()
+        dashboard_conn.close()
+        
+        return {
+            'total_boletines': total_boletines,
+            'reportes_generados': reportes_generados,
+            'reportes_enviados': reportes_enviados,
+            'total_clientes': total_clientes,
+            'datos_timeline': datos_timeline,
+            'top_titulares': top_titulares,
+            'proximos_vencer': proximos_vencer,
+            'reportes_vencidos': reportes_vencidos,
+            'detalles_proximos_vencer': detalles_proximos_vencer,
+            'detalles_vencidos': detalles_vencidos
+        }
+    
     def _show_main_header(self):
         """Mostrar header principal del dashboard"""
         st.markdown("""

@@ -28,75 +28,50 @@ class EmailsPage:
         if 'confirmar_envio_emails' not in st.session_state:
             st.session_state.confirmar_envio_emails = False
 
-    def _ensure_tables_exist(self, conn):
-        """Asegurar que las tablas necesarias existan"""
-        # Temporalmente deshabilitado para evitar problemas de cursor
-        return True
-        # try:
-        #     cursor = conn.cursor()
-        #     # Solo verificar que la tabla boletines existe
-        #     if usar_supabase_simple():
-        #         cursor.execute("SELECT 1 FROM boletines LIMIT 1")
-        #     else:
-        #         cursor.execute("SELECT 1 FROM boletines LIMIT 1")
-        #     cursor.close()
-        #     return True
-        # except Exception:
-        #     # Si falla, las tablas probablemente no existen
-        #     try:
-        #         crear_tabla(conn)
-        #         return True
-        #     except Exception as e:
-        #         st.error(f"Error creando tablas: {e}")
-        #         return False
-
     def _create_connection(self):
         """Crear nueva conexión a la base de datos"""
-        try:
-            conn = crear_conexion()
-            # No llamar a crear_tabla aquí para evitar problemas de cursor
-            return conn
-        except Exception as e:
-            st.error(f"Error de conexión: {e}")
-            return None
+        conn = crear_conexion()
+        if conn:
+            # Crear tablas necesarias
+            crear_tabla(conn)
+            self._create_emails_table(conn)
+        return conn
 
     def _create_emails_table(self, conn):
         """Crear tabla de emails con sintaxis correcta según el motor"""
-        # Temporalmente comentado para evitar problemas de cursor
-        pass
-        # try:
-        #     cursor = conn.cursor()
-        #     if usar_supabase_simple():
-        #         cursor.execute("""
-        #             CREATE TABLE IF NOT EXISTS emails_enviados (
-        #                 id SERIAL PRIMARY KEY,
-        #                 destinatario TEXT NOT NULL,
-        #                 asunto TEXT NOT NULL,
-        #                 mensaje TEXT NOT NULL,
-        #                 tipo_email TEXT DEFAULT 'general',
-        #                 status TEXT DEFAULT 'pendiente',
-        #                 fecha_envio TIMESTAMPTZ DEFAULT NOW(),
-        #                 titular TEXT DEFAULT NULL
-        #             )
-        #         """)
-        #     else:
-        #         cursor.execute("""
-        #             CREATE TABLE IF NOT EXISTS emails_enviados (
-        #                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-        #                 destinatario TEXT NOT NULL,
-        #                 asunto TEXT NOT NULL,
-        #                 mensaje TEXT NOT NULL,
-        #                 tipo_email TEXT DEFAULT 'general',
-        #                 status TEXT DEFAULT 'pendiente',
-        #                 fecha_envio DATETIME DEFAULT CURRENT_TIMESTAMP,
-        #                 titular TEXT DEFAULT NULL
-        #             )
-        #         """)
-        #     conn.commit()
-        #     cursor.close()
-        # except Exception as e:
-        #     st.error(f"Error creando tabla emails: {e}")
-        #     raise e
+        cursor = conn.cursor()
+        try:
+            if usar_supabase_simple():
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS emails_enviados (
+                        id SERIAL PRIMARY KEY,
+                        destinatario TEXT NOT NULL,
+                        asunto TEXT NOT NULL,
+                        mensaje TEXT NOT NULL,
+                        tipo_email TEXT DEFAULT 'general',
+                        status TEXT DEFAULT 'pendiente',
+                        fecha_envio TIMESTAMPTZ DEFAULT NOW(),
+                        titular TEXT DEFAULT NULL
+                    )
+                """)
+            else:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS emails_enviados (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        destinatario TEXT NOT NULL,
+                        asunto TEXT NOT NULL,
+                        mensaje TEXT NOT NULL,
+                        tipo_email TEXT DEFAULT 'general',
+                        status TEXT DEFAULT 'pendiente',
+                        fecha_envio DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        titular TEXT DEFAULT NULL
+                    )
+                """)
+            conn.commit()
+        except Exception as e:
+            st.error(f"Error creando tabla emails: {e}")
+        finally:
+            cursor.close()
 
     def _get_email_stats(self):
         """Obtener estadísticas de envío"""
@@ -105,10 +80,6 @@ class EmailsPage:
             return None
         
         try:
-            # Asegurar que las tablas existan solo una vez
-            if not self._ensure_tables_exist(conn):
-                return None
-                
             stats = obtener_estadisticas_envios(conn)
             return stats if stats else {
                 'total_reportes': 0,
@@ -173,14 +144,6 @@ class EmailsPage:
             
             with col2:
                 self._show_send_controls()
-            
-            # Mostrar resultados fuera de las columnas si existen
-            if 'resultados_envio' in st.session_state and st.session_state.resultados_envio:
-                st.divider()
-                st.markdown("### 📊 Resultados del Envío")
-                self._show_results(st.session_state.resultados_envio)
-                # Limpiar resultados después de mostrar
-                del st.session_state.resultados_envio
         else:
             st.success("✅ No hay reportes pendientes de envío")
             st.info("🎉 Todos los reportes generados han sido enviados exitosamente")
@@ -329,9 +292,7 @@ class EmailsPage:
                     st.error("❌ Envío bloqueado por reportes pendientes")
                 else:
                     st.success("🎉 Proceso completado!")
-                    # Guardar resultados para mostrar fuera de columnas
-                    st.session_state.resultados_envio = resultados
-                    st.rerun()
+                    self._show_results(resultados)
                     
         except Exception as e:
             st.error(f"❌ Error durante el envío: {str(e)}")

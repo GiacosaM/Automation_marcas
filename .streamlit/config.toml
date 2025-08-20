@@ -1,16 +1,20 @@
-[server]
-headless = true
-enableCORS = false
-enableXsrfProtection = false
-
-[theme]
-primaryColor = "#667eea"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#fafafa"
-
 [browser]
 gatherUsageStats = false
 
+[server]
+enableStaticServing = false
+enableXsrfProtection = false
+
+[theme]
+primaryColor = "#1f77b4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+
+[client]
+showErrorDetails = false
+toolbarMode = "minimal"
+
 [global]
-suppressDeprecationWarnings = true
+developmentMode = false
+showWarningOnDirectExecution = false

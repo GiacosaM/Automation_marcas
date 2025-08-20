@@ -220,15 +220,26 @@ class ReportGenerator:
     def _fetch_pending_records(self, conn):
         """Obtiene los registros pendientes de procesamiento para generar informes."""
         try:
+            from db_utils import usar_supabase_simple
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT titular, numero_boletin, fecha_boletin, numero_orden, solicitante, agente, 
-                       numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia
-                FROM boletines
-                WHERE reporte_generado = 0 
-                AND importancia != 'Pendiente'  -- ← NUEVA CONDICIÓN
-                ORDER BY titular, importancia, fecha_boletin DESC, numero_orden
-            ''')
+            if usar_supabase_simple():
+                cursor.execute('''
+                    SELECT titular, numero_boletin, fecha_boletin, numero_orden, solicitante, agente, 
+                           numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia
+                    FROM boletines
+                    WHERE reporte_generado = FALSE 
+                      AND importancia != 'Pendiente'
+                    ORDER BY titular, importancia, fecha_boletin DESC, numero_orden
+                ''')
+            else:
+                cursor.execute('''
+                    SELECT titular, numero_boletin, fecha_boletin, numero_orden, solicitante, agente, 
+                           numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia
+                    FROM boletines
+                    WHERE reporte_generado = 0 
+                      AND importancia != 'Pendiente'
+                    ORDER BY titular, importancia, fecha_boletin DESC, numero_orden
+                ''')
             return cursor.fetchall()
         except Exception as e:
             logger.error(f"Error al consultar la base de datos: {e}")
@@ -260,18 +271,36 @@ class ReportGenerator:
     def _mark_records_as_processed(self, conn, titular: str, importancia: str, nombre_reporte: str, ruta_reporte: str):
         """Marca los registros como procesados en la base de datos."""
         try:
+            from db_utils import usar_supabase_simple, convertir_query_boolean
             cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE boletines 
-                SET reporte_generado = 1, 
-                    fecha_creacion_reporte = datetime('now', 'localtime'),
-                    nombre_reporte = ?,
-                    ruta_reporte = ? 
-                WHERE reporte_enviado = 0 
-                AND titular = ?
-                AND importancia = ?
-                AND importancia != 'Pendiente'
-            ''', (nombre_reporte, ruta_reporte, titular, importancia))
+            if usar_supabase_simple():
+                # PostgreSQL syntax
+                cursor.execute(
+                    '''
+                    UPDATE boletines 
+                    SET reporte_generado = TRUE,
+                        fecha_creacion_reporte = CURRENT_DATE,
+                        nombre_reporte = %s,
+                        ruta_reporte = %s 
+                    WHERE reporte_enviado = FALSE 
+                      AND titular = %s
+                      AND importancia = %s
+                      AND importancia != 'Pendiente'
+                    ''', (nombre_reporte, ruta_reporte, titular, importancia)
+                )
+            else:
+                # SQLite syntax
+                cursor.execute('''
+                    UPDATE boletines 
+                    SET reporte_generado = 1, 
+                        fecha_creacion_reporte = datetime('now', 'localtime'),
+                        nombre_reporte = ?,
+                        ruta_reporte = ? 
+                    WHERE reporte_enviado = 0 
+                      AND titular = ?
+                      AND importancia = ?
+                      AND importancia != 'Pendiente'
+                ''', (nombre_reporte, ruta_reporte, titular, importancia))
             conn.commit()
             logger.info(f"Registros de {titular} (Importancia: {importancia}) marcados como procesados en la base de datos")
         except Exception as e:
@@ -286,17 +315,30 @@ class ReportGenerator:
             
             # Verificar si hay registros con importancia 'Pendiente' ANTES de procesar
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT COUNT(*) FROM boletines 
-                WHERE reporte_generado = 0 AND importancia = 'Pendiente'
-            ''')
+            from db_utils import usar_supabase_simple, convertir_query_boolean
+            if usar_supabase_simple():
+                cursor.execute("""
+                    SELECT COUNT(*) FROM boletines 
+                    WHERE reporte_generado = FALSE AND importancia = 'Pendiente'
+                """)
+            else:
+                cursor.execute('''
+                    SELECT COUNT(*) FROM boletines 
+                    WHERE reporte_generado = 0 AND importancia = 'Pendiente'
+                ''')
             pendientes = cursor.fetchone()[0]
             
             # Obtener total de registros sin procesar
-            cursor.execute('''
-                SELECT COUNT(*) FROM boletines 
-                WHERE reporte_generado = 0
-            ''')
+            if usar_supabase_simple():
+                cursor.execute("""
+                    SELECT COUNT(*) FROM boletines 
+                    WHERE reporte_generado = FALSE
+                """)
+            else:
+                cursor.execute('''
+                    SELECT COUNT(*) FROM boletines 
+                    WHERE reporte_generado = 0
+                ''')
             total_sin_procesar = cursor.fetchone()[0]
             
             # Logging mejorado con más información

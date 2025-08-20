@@ -1,10 +1,3 @@
-import os
-import sqlite3
-import logging
-from datetime import datetime, date
-import streamlit as st
-from supabase_connection import crear_conexion_supabase, crear_conexion_postgres, usar_supabase
-
 # database.py - Versión modificada con campo importancia
 
 import sqlite3
@@ -39,7 +32,7 @@ def crear_conexion():
         conn = sqlite3.connect('boletines.db')
         # Solo log en caso de problemas - no en uso normal
         return conn
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al conectar con la base de datos: {e}")
         raise Exception(f"Error al conectar con la base de datos: {e}")
 
@@ -51,43 +44,90 @@ def crear_tabla(conn):
         
         # Crear tabla boletines
         # Solo log la primera creación de tablas, no verificaciones rutinarias
-        if not tabla_existe(conn, 'boletines'):
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='boletines'")
+        tabla_existe = cursor.fetchone()
+        
+        if not tabla_existe:
             critical_logger.info("Creando tabla 'boletines' por primera vez...")
         
-        # Obtener SQL dinámico según la base de datos
-        create_sql = get_create_table_sql()
-        cursor.execute(create_sql['boletines'])
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS boletines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero_boletin TEXT,
+                fecha_boletin TEXT,
+                numero_orden TEXT,
+                solicitante TEXT,
+                agente TEXT,
+                numero_expediente TEXT,
+                clase TEXT,
+                marca_custodia TEXT,
+                marca_publicada TEXT,
+                clases_acta TEXT,
+                reporte_enviado BOOLEAN DEFAULT FALSE,
+                fecha_envio_reporte DATE,
+                fecha_creacion_reporte DATE,
+                reporte_generado BOOLEAN DEFAULT FALSE,
+                nombre_reporte TEXT,    
+                ruta_reporte TEXT,
+                titular TEXT,
+                fecha_alta DATE DEFAULT (datetime('now', 'localtime')),
+                observaciones TEXT,
+                importancia TEXT DEFAULT 'Pendiente' CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
+            )
+        """)
         conn.commit()
         
         if not tabla_existe:
             critical_logger.info("Tabla 'boletines' creada exitosamente.")
 
-        # Verificar si la columna importancia existe (solo para SQLite legacy)
-        if not usar_supabase():
-            columns = obtener_columnas_tabla(conn, 'boletines')
-            
-            if 'importancia' not in columns:
-                critical_logger.info("Agregando columna 'importancia' a la tabla existente...")
-                cursor.execute("""
-                    ALTER TABLE boletines 
-                    ADD COLUMN importancia TEXT DEFAULT 'Pendiente' 
-                    CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
-                """)
-                conn.commit()
-                critical_logger.info("Columna 'importancia' agregada correctamente.")
-        # Para PostgreSQL, las tablas ya se crean con todas las columnas
+        # Verificar si la columna importancia existe, si no, agregarla
+        cursor.execute("PRAGMA table_info(boletines)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'importancia' not in columns:
+            critical_logger.info("Agregando columna 'importancia' a la tabla existente...")
+            cursor.execute("""
+                ALTER TABLE boletines 
+                ADD COLUMN importancia TEXT DEFAULT 'Pendiente' 
+                CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
+            """)
+            conn.commit()
+            critical_logger.info("Columna 'importancia' agregada correctamente.")
 
         # Crear tabla clientes
-        if not tabla_existe(conn, 'clientes'):
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='clientes'")
+        tabla_clientes_existe = cursor.fetchone()
+        
+        if not tabla_clientes_existe:
             critical_logger.info("Creando tabla 'clientes' por primera vez...")
         
-        cursor.execute(create_sql['clientes'])
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titular TEXT UNIQUE,
+                email TEXT,
+                telefono TEXT,
+                direccion TEXT,
+                ciudad TEXT,
+                provincia TEXT,
+                fecha_alta DATE DEFAULT (datetime('now', 'localtime')),
+                fecha_modificacion DATE,
+                CUIT integer UNIQUE
+            )
+        """)
         
-        # Para PostgreSQL, las tablas se crean con estructura completa
-        # No necesitamos ALTER TABLE dinámico
+        # Agregar columna provincia si no existe (para bases de datos existentes)
+        try:
+            cursor.execute("ALTER TABLE clientes ADD COLUMN provincia TEXT")
+            conn.commit()
+            critical_logger.info("Columna 'provincia' agregada a tabla clientes.")
+        except sqlite3.OperationalError:
+            # La columna ya existe, continuar
+            pass
         conn.commit()
         
-        print("✅ Tabla 'clientes' creada exitosamente.")
+        if not tabla_clientes_existe:
+            critical_logger.info("Tabla 'clientes' creada exitosamente.")
 
         # Crear índice en boletines (solo log si es necesario)
         cursor.execute('''
@@ -97,16 +137,45 @@ def crear_tabla(conn):
         conn.commit()
         
         # Crear tabla envios_log
-        if not tabla_existe(conn, 'envios_log'):
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='envios_log'")
+        tabla_envios_existe = cursor.fetchone()
+        
+        if not tabla_envios_existe:
             critical_logger.info("Creando tabla 'envios_log' por primera vez...")
         
-        cursor.execute(create_sql['envios_log'])
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS envios_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titular TEXT,
+                email TEXT,
+                fecha_envio DATETIME DEFAULT (datetime('now', 'localtime')),
+                estado TEXT,
+                error TEXT,
+                numero_boletin TEXT,
+                importancia TEXT
+            )
+        """)
         conn.commit()
         
-        print("✅ Tabla 'envios_log' creada exitosamente.")
+        if not tabla_envios_existe:
+            critical_logger.info("Tabla 'envios_log' creada exitosamente.")
         
-        # Para PostgreSQL, no necesitamos PRAGMA ni ALTER TABLE dinámico
-        # Las tablas ya se crean con la estructura completa
+        # Verificar y agregar columnas faltantes si la tabla ya existía
+        try:
+            cursor.execute("PRAGMA table_info(envios_log)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'numero_boletin' not in columns:
+                cursor.execute("ALTER TABLE envios_log ADD COLUMN numero_boletin TEXT")
+                critical_logger.info("Columna 'numero_boletin' agregada a envios_log")
+                
+            if 'importancia' not in columns:
+                cursor.execute("ALTER TABLE envios_log ADD COLUMN importancia TEXT")
+                critical_logger.info("Columna 'importancia' agregada a envios_log")
+                
+            conn.commit()
+        except Exception as e:
+            logging.warning(f"Error actualizando estructura de envios_log: {e}")
         
         # Crear índice en envios_log
         cursor.execute('''
@@ -115,7 +184,7 @@ def crear_tabla(conn):
         ''')
         conn.commit()
 
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al crear tablas o índice: {e}")
         raise Exception(f"Error al crear tablas o índice: {e}")
     finally:
@@ -131,67 +200,33 @@ def insertar_datos(conn, datos_agrupados):
         
         for titular, registros in datos_agrupados.items():
             for registro in registros:
-                # Convertir valores numéricos a tipos apropiados
-                numero_boletin = str(registro["Número de Boletín"]).strip()
-                numero_orden = int(registro["Número de Orden"]) if registro["Número de Orden"] else 0
-                
                 # Verificar si el registro ya existe
-                if usar_supabase():
-                    cursor.execute('''
-                        SELECT COUNT(*) FROM boletines
-                        WHERE numero_boletin = %s AND numero_orden::integer = %s AND titular = %s
-                    ''', (
-                        numero_boletin,
-                        numero_orden,
-                        titular
-                    ))
-                else:
-                    cursor.execute('''
-                        SELECT COUNT(*) FROM boletines
-                        WHERE numero_boletin = ? AND numero_orden = ? AND titular = ?
-                    ''', (
-                        numero_boletin,
-                        str(numero_orden),  # Para SQLite usamos string
-                        titular
-                    ))
-                    
+                cursor.execute('''
+                    SELECT COUNT(*) FROM boletines
+                    WHERE numero_boletin = ? AND numero_orden = ? AND titular = ?
+                ''', (
+                    registro["Número de Boletín"],
+                    registro["Número de Orden"],
+                    titular
+                ))
                 if cursor.fetchone()[0] == 0:  # Si no existe, insertar
-                    if usar_supabase():
-                        cursor.execute('''
-                            INSERT INTO boletines (numero_boletin, titular, fecha_boletin, numero_orden, solicitante, agente, numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ''', (
-                            numero_boletin,
-                            titular,
-                            registro["Fecha de Boletín"],
-                            str(numero_orden),  # Convertir a string para PostgreSQL TEXT
-                            registro["Solicitante"],
-                            registro["Agente"],
-                            registro["Expediente"],
-                            registro["Clase"],
-                            registro["Marca en Custodia"],
-                            registro["Marca Publicada"],
-                            registro["Clases/Acta"],
-                            'Pendiente'  # Valor por defecto para importancia
-                        ))
-                    else:
-                        cursor.execute('''
-                            INSERT INTO boletines (numero_boletin, titular, fecha_boletin, numero_orden, solicitante, agente, numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            numero_boletin,
-                            titular,
-                            registro["Fecha de Boletín"],
-                            str(numero_orden),  # Para SQLite también usamos string
-                            registro["Solicitante"],
-                            registro["Agente"],
-                            registro["Expediente"],
-                            registro["Clase"],
-                            registro["Marca en Custodia"],
-                            registro["Marca Publicada"],
-                            registro["Clases/Acta"],
-                            'Pendiente'  # Valor por defecto para importancia
-                        ))
+                    cursor.execute('''
+                        INSERT INTO boletines (numero_boletin, titular, fecha_boletin, numero_orden, solicitante, agente, numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        registro["Número de Boletín"],
+                        titular,
+                        registro["Fecha de Boletín"],
+                        registro["Número de Orden"],
+                        registro["Solicitante"],
+                        registro["Agente"],
+                        registro["Expediente"],
+                        registro["Clase"],
+                        registro["Marca en Custodia"],
+                        registro["Marca Publicada"],
+                        registro["Clases/Acta"],
+                        'Pendiente'  # Valor por defecto para importancia
+                    ))
                     insertados += 1
                 else:
                     omitidos += 1
@@ -215,7 +250,7 @@ def insertar_datos(conn, datos_agrupados):
             }
         }
             
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al insertar datos: {e}")
         return {
             'success': False,
@@ -234,9 +269,7 @@ def obtener_datos(conn):
     """Obtiene todos los registros de boletines con datos de clientes mediante LEFT JOIN."""
     try:
         cursor = conn.cursor()
-        # La consulta es un simple SELECT sin comparaciones booleanas,
-        # pero si se agregan filtros en el futuro, habría que usar convertir_query_boolean
-        query = """
+        cursor.execute("""
             SELECT 
                 b.id, b.titular, b.marca_custodia, b.marca_publicada, b.numero_boletin, b.fecha_boletin, 
                 b.numero_orden, 
@@ -246,13 +279,12 @@ def obtener_datos(conn):
                 c.email, c.telefono, c.direccion, c.ciudad
             FROM boletines b
             LEFT JOIN clientes c ON b.titular = c.titular
-        """
-        cursor.execute(convertir_query_boolean(query))
+        """)
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description]
         # Eliminado logging rutinario - solo registrar errores
         return rows, columns
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al consultar datos: {e}")
         raise Exception(f"Error al consultar datos: {e}")
     finally:
@@ -264,69 +296,39 @@ def actualizar_registro(conn, id, numero_boletin, fecha_boletin, numero_orden, s
     """Actualiza un registro en la tabla boletines."""
     try:
         cursor = conn.cursor()
-        if usar_supabase():
-            if importancia is not None:
-                cursor.execute("""
-                    UPDATE boletines
-                    SET numero_boletin = %s, fecha_boletin = %s, numero_orden = %s, 
-                        solicitante = %s, agente = %s, numero_expediente = %s, 
-                        clase = %s, marca_custodia = %s, marca_publicada = %s, 
-                        clases_acta = %s, reporte_enviado = %s, titular = %s, reporte_generado = %s, importancia = %s
-                    WHERE id = %s
-                """, (
-                    numero_boletin, fecha_boletin, numero_orden, solicitante,
-                    agente, numero_expediente, clase, marca_custodia,
-                    marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
-                    importancia, id
-                ))
-            else:
-                cursor.execute("""
-                    UPDATE boletines
-                    SET numero_boletin = %s, fecha_boletin = %s, numero_orden = %s, 
-                        solicitante = %s, agente = %s, numero_expediente = %s, 
-                        clase = %s, marca_custodia = %s, marca_publicada = %s, 
-                        clases_acta = %s, reporte_enviado = %s, titular = %s, reporte_generado = %s
-                    WHERE id = %s
-                """, (
-                    numero_boletin, fecha_boletin, numero_orden, solicitante,
-                    agente, numero_expediente, clase, marca_custodia,
-                    marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
-                    id
-                ))
+        if importancia is not None:
+            cursor.execute("""
+                UPDATE boletines
+                SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
+                    solicitante = ?, agente = ?, numero_expediente = ?, 
+                    clase = ?, marca_custodia = ?, marca_publicada = ?, 
+                    clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?, importancia = ?
+                WHERE id = ?
+            """, (
+                numero_boletin, fecha_boletin, numero_orden, solicitante,
+                agente, numero_expediente, clase, marca_custodia,
+                marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
+                importancia, id
+            ))
         else:
-            if importancia is not None:
-                cursor.execute("""
-                    UPDATE boletines
-                    SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
-                        solicitante = ?, agente = ?, numero_expediente = ?, 
-                        clase = ?, marca_custodia = ?, marca_publicada = ?, 
-                        clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?, importancia = ?
-                    WHERE id = ?
-                """, (
-                    numero_boletin, fecha_boletin, numero_orden, solicitante,
-                    agente, numero_expediente, clase, marca_custodia,
-                    marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
-                    importancia, id
-                ))
-            else:
-                cursor.execute("""
-                    UPDATE boletines
-                    SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
-                        solicitante = ?, agente = ?, numero_expediente = ?, 
-                        clase = ?, marca_custodia = ?, marca_publicada = ?, 
-                        clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?
-                    WHERE id = ?
-                """, (
-                    numero_boletin, fecha_boletin, numero_orden, solicitante,
-                    agente, numero_expediente, clase, marca_custodia,
-                    marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
-                    id
-                ))
+            cursor.execute("""
+                UPDATE boletines
+                SET numero_boletin = ?, fecha_boletin = ?, numero_orden = ?, 
+                    solicitante = ?, agente = ?, numero_expediente = ?, 
+                    clase = ?, marca_custodia = ?, marca_publicada = ?, 
+                    clases_acta = ?, reporte_enviado = ?, titular = ?, reporte_generado = ?
+                WHERE id = ?
+            """, (
+                numero_boletin, fecha_boletin, numero_orden, solicitante,
+                agente, numero_expediente, clase, marca_custodia,
+                marca_publicada, clases_acta, reporte_enviado, titular, reporte_generado,
+                id
+            ))
         conn.commit()
         # Solo log actualizaciones importantes (cambios de estado o importancia)
         if importancia is not None or reporte_enviado or reporte_generado:
             critical_logger.info(f"Registro actualizado (crítico): ID {id} - Importancia: {importancia}, Enviado: {reporte_enviado}, Generado: {reporte_generado}")
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al actualizar: {e}")
         raise Exception(f"Error al actualizar: {e}")
     finally:
@@ -336,20 +338,12 @@ def actualizar_importancia_boletin(conn, boletin_id, importancia):
     """Actualiza específicamente la importancia de un boletín."""
     try:
         cursor = conn.cursor()
-        if usar_supabase():
-            cursor.execute("""
-                UPDATE boletines 
-                SET importancia = %s
-                WHERE id = %s AND reporte_enviado = FALSE
-            """, (importancia, boletin_id))
-        else:
-            query = """
-                UPDATE boletines 
-                SET importancia = ?
-                WHERE id = ? AND reporte_enviado = 0
-            """
-            cursor.execute(convertir_query_boolean(query), (importancia, boletin_id))
-
+        cursor.execute("""
+            UPDATE boletines 
+            SET importancia = ?
+            WHERE id = ? AND reporte_enviado = 0
+        """, (importancia, boletin_id))
+        
         if cursor.rowcount > 0:
             conn.commit()
             # Solo log cambios de importancia significativos
@@ -359,7 +353,7 @@ def actualizar_importancia_boletin(conn, boletin_id, importancia):
         else:
             logging.warning(f"No se pudo actualizar importancia para boletín ID {boletin_id} (posiblemente ya enviado)")
             return False
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al actualizar importancia: {e}")
         raise Exception(f"Error al actualizar importancia: {e}")
     finally:
@@ -369,7 +363,7 @@ def obtener_boletines_para_clasificar(conn):
     """Obtiene boletines con reporte generado pero no enviado para clasificar."""
     try:
         cursor = conn.cursor()
-        query = """
+        cursor.execute("""
             SELECT 
                 b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
                 b.numero_orden, b.solicitante, b.marca_custodia, 
@@ -379,12 +373,11 @@ def obtener_boletines_para_clasificar(conn):
             LEFT JOIN clientes c ON b.titular = c.titular
             WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0
             ORDER BY b.titular, b.numero_boletin, b.numero_orden
-        """
-        cursor.execute(convertir_query_boolean(query))
+        """)
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description]
         return rows, columns
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al consultar boletines para clasificar: {e}")
         raise Exception(f"Error al consultar boletines para clasificar: {e}")
     finally:
@@ -395,21 +388,16 @@ def eliminar_registro(conn, id):
     try:
         cursor = conn.cursor()
         # Obtener información del registro antes de eliminarlo
-        if usar_supabase():
-            cursor.execute("SELECT titular, numero_boletin, numero_orden FROM boletines WHERE id = %s", (id,))
-            registro_info = cursor.fetchone()
-            cursor.execute("DELETE FROM boletines WHERE id = %s", (id,))
-        else:
-            cursor.execute("SELECT titular, numero_boletin, numero_orden FROM boletines WHERE id = ?", (id,))
-            registro_info = cursor.fetchone()
-            cursor.execute("DELETE FROM boletines WHERE id = ?", (id,))
+        cursor.execute("SELECT titular, numero_boletin, numero_orden FROM boletines WHERE id = ?", (id,))
+        registro_info = cursor.fetchone()
         
+        cursor.execute("DELETE FROM boletines WHERE id = ?", (id,))
         conn.commit()
         
         # Log solo eliminaciones importantes
         if registro_info:
             critical_logger.info(f"Registro eliminado: ID {id} - {registro_info[0]} (Boletín: {registro_info[1]}, Orden: {registro_info[2]})")
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al eliminar: {e}")
         raise Exception(f"Error al eliminar: {e}")
     finally:
@@ -419,63 +407,27 @@ def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provinci
     """Inserta un nuevo cliente en la tabla 'clientes', verificando duplicados."""
     try:
         cursor = conn.cursor()
-        
-        if usar_supabase():
-            # PostgreSQL usa %s como placeholder
+        cursor.execute('''
+            SELECT COUNT(*) FROM clientes WHERE titular = ?
+        ''', (titular,))
+        if cursor.fetchone()[0] == 0:  # Si no existe, insertar
             cursor.execute('''
-                SELECT COUNT(*) FROM clientes WHERE titular = %s
-            ''', (titular,))
-            if cursor.fetchone()[0] == 0:  # Si no existe, insertar
-                cursor.execute('''
-                    INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
-                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
-                ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
-                conn.commit()
-                logging.info(f"Cliente insertado: Titular {titular}")
-                return {
-                    'success': True,
-                    'mensaje': f"Cliente '{titular}' agregado exitosamente."
-                }
-            else:
-                logging.info(f"Cliente omitido (ya existe): Titular {titular}")
-                return {
-                    'success': False,
-                    'mensaje': f"Cliente con titular '{titular}' ya existe."
-                }
+                INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'),?)
+            ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
+            conn.commit()
+            logging.info(f"Cliente insertado: Titular {titular}")
         else:
-            # SQLite usa ? como placeholder
-            cursor.execute('''
-                SELECT COUNT(*) FROM clientes WHERE titular = ?
-            ''', (titular,))
-            if cursor.fetchone()[0] == 0:  # Si no existe, insertar
-                cursor.execute('''
-                    INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
-                    VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
-                ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
-                conn.commit()
-                logging.info(f"Cliente insertado: Titular {titular}")
-                return {
-                    'success': True,
-                    'mensaje': f"Cliente '{titular}' agregado exitosamente."
-                }
-            else:
-                logging.info(f"Cliente omitido (ya existe): Titular {titular}")
-                return {
-                    'success': False,
-                    'mensaje': f"Cliente con titular '{titular}' ya existe."
-                }
-    except Exception as e:
+            logging.info(f"Cliente omitido (ya existe): Titular {titular}")
+            raise Exception(f"Cliente con titular '{titular}' ya existe.")
+    except sqlite3.Error as e:
         logging.error(f"Error al insertar cliente: {e}")
-        return {
-            'success': False,
-            'mensaje': f"Error al insertar cliente: {e}"
-        }
+        raise Exception(f"Error al insertar cliente: {e}")
     finally:
         cursor.close()
 
 def obtener_clientes(conn):
     """Obtiene todos los registros de la tabla 'clientes'."""
-    cursor = None
     try:
         cursor = conn.cursor()
         cursor.execute("""
@@ -486,49 +438,70 @@ def obtener_clientes(conn):
         columns = [description[0] for description in cursor.description]
         logging.info("Datos de clientes obtenidos correctamente.")
         return rows, columns
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al consultar clientes: {e}")
         raise Exception(f"Error al consultar clientes: {e}")
     finally:
-        if cursor:
-            cursor.close()
+        cursor.close()
 
 def actualizar_cliente(conn, id, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """Actualiza un registro en la tabla 'clientes'."""
     try:
         cursor = conn.cursor()
-        if usar_supabase():
-            cursor.execute("""
-                UPDATE clientes
-                SET titular = %s, email = %s, telefono = %s, direccion = %s, ciudad = %s, provincia = %s, fecha_modificacion = CURRENT_TIMESTAMP, cuit = %s
-                WHERE id = %s
-            """, (titular, email, telefono, direccion, ciudad, provincia, cuit, id))
-        else:
-            cursor.execute("""
-                UPDATE clientes
-                SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, fecha_modificacion = datetime('now', 'localtime'), cuit = ?
-                WHERE id = ?
-            """, (titular, email, telefono, direccion, ciudad, provincia, cuit, id))
+        cursor.execute("""
+            UPDATE clientes
+            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, fecha_modificacion = datetime('now', 'localtime'), cuit = ?
+            WHERE id = ?
+        """, (titular, email, telefono, direccion, ciudad, provincia, cuit, id))
         conn.commit()
         logging.info(f"Cliente actualizado: ID {id}")
-        return True
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al actualizar cliente: {e}")
-        return False
+        raise Exception(f"Error al actualizar cliente: {e}")
     finally:
         cursor.close()
+
+def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ciudad, provincia, cuit):
+    """
+    Actualiza un cliente existente en la base de datos.
+    
+    Args:
+        conn: Conexión a la base de datos
+        cliente_id: ID del cliente a actualizar
+        titular: Nombre del titular
+        email: Email del cliente
+        telefono: Teléfono del cliente
+        direccion: Dirección del cliente
+        ciudad: Ciudad del cliente
+        provincia: Provincia del cliente
+        cuit: CUIT del cliente
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE clientes 
+            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, cuit = ?
+            WHERE id = ?
+        """, (titular, email, telefono, direccion, ciudad, provincia, cuit, cliente_id))
+        
+        conn.commit()
+        cursor.close()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error al actualizar cliente: {e}")
+        conn.rollback()
+        return False
 
 def eliminar_cliente(conn, id):
     """Elimina un registro de la tabla 'clientes'."""
     try:
         cursor = conn.cursor()
-        if usar_supabase():
-            cursor.execute("DELETE FROM clientes WHERE id = %s", (id,))
-        else:
-            cursor.execute("DELETE FROM clientes WHERE id = ?", (id,))
+        cursor.execute("DELETE FROM clientes WHERE id = ?", (id,))
         conn.commit()
         logging.info(f"Cliente eliminado: ID {id}")
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al eliminar cliente: {e}")
         raise Exception(f"Error al eliminar cliente: {e}")
     finally:
@@ -568,7 +541,7 @@ def insertar_log_envio(conn, titular, email, estado, error=None, numero_boletin=
         elif estado in ['sin_email', 'sin_archivo']:
             critical_logger.warning(f"⚠️ EMAIL OMITIDO: {titular} - {estado.replace('_', ' ').title()}")
         
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al insertar log de envío: {e}")
         raise Exception(f"Error al insertar log de envío: {e}")
     finally:
@@ -614,7 +587,7 @@ def obtener_logs_envios(conn, limite=100, filtro_estado=None, filtro_titular=Non
         
         return rows, columns
         
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al obtener logs de envíos: {e}")
         raise Exception(f"Error al obtener logs de envíos: {e}")
     finally:
@@ -678,7 +651,7 @@ def obtener_estadisticas_logs(conn):
             'tasa_exito': (exitosos / total_envios * 100) if total_envios > 0 else 0
         }
         
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al obtener estadísticas de logs: {e}")
         raise Exception(f"Error al obtener estadísticas de logs: {e}")
     finally:
@@ -706,7 +679,7 @@ def limpiar_logs_antiguos(conn, dias=30):
         logging.info(f"Logs antiguos eliminados: {eliminados} registros")
         return eliminados
         
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al limpiar logs antiguos: {e}")
         raise Exception(f"Error al limpiar logs antiguos: {e}")
     finally:
@@ -790,7 +763,7 @@ def obtener_emails_enviados(conn, filtro_fechas=None, filtro_titular=None, limit
         logging.info(f"Obtenidos {len(emails_enviados)} emails enviados")
         return emails_enviados
         
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al obtener emails enviados: {e}")
         raise Exception(f"Error al obtener emails enviados: {e}")
     finally:
@@ -887,7 +860,7 @@ def limpiar_logs_antiguos(conn, dias=30):
         else:
             return 0
             
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.error(f"Error al limpiar logs antiguos: {e}")
         raise Exception(f"Error al limpiar logs antiguos: {e}")
     finally:
@@ -1049,287 +1022,3 @@ def configurar_limpieza_logs():
         config['ultima_limpieza'] = 'Nunca'
     
     return config
-
-
-# Funciones de compatibilidad para migración a Supabase
-# Importamos la función de db_utils para evitar dependencia circular
-from db_utils import usar_supabase_simple
-
-def crear_conexion():
-    """Crear conexión a la base de datos (Supabase o SQLite según configuración)"""
-    if usar_supabase_simple():
-        return crear_conexion_postgres()
-    else:
-        return sqlite3.connect('boletines.db')
-
-def verificar_y_reparar_conexion(conn):
-    """Verifica si la conexión está en buen estado y la repara si es necesario"""
-    if not usar_supabase_simple():
-        return conn
-    
-    try:
-        # Test query para verificar el estado de la conexión
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.fetchone()
-        cursor.close()
-        return conn
-    except Exception:
-        try:
-            # Intentar rollback para limpiar transacción fallida
-            conn.rollback()
-            
-            # Test otra vez
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            cursor.close()
-            return conn
-        except Exception:
-            # Si aún falla, crear nueva conexión
-            try:
-                conn.close()
-            except:
-                pass
-            return crear_conexion_postgres()
-
-# La función convertir_query_boolean se ha movido a db_utils.py
-from db_utils import convertir_query_boolean as _convertir_query_boolean
-
-def convertir_query_boolean(query):
-    """
-    Convierte queries de SQLite a PostgreSQL de forma simple y confiable
-    - Solo maneja booleanos: = 0/1 a = FALSE/TRUE  
-    - Para queries complejas de fechas, se usarán versiones específicas de PostgreSQL
-    """
-    # Convertimos primero las funciones de fecha si es necesario
-    if not usar_supabase():
-        return query  # Si no es Supabase, devolver sin cambios
-    
-    # Primero aplicamos conversiones de booleanos a través de la función base
-    result = _convertir_query_boolean(query)
-    
-    # Luego aplicamos conversiones de fecha si son necesarias
-    # Para funciones de fecha complejas, dejamos que se manejen por funciones específicas
-    if 'julianday' not in result and 'substr(' not in result:
-        # Convertir funciones de fecha simples
-        result = result.replace("date('now')", "CURRENT_DATE")
-        result = result.replace("date('now', '-30 days')", "CURRENT_DATE - INTERVAL '30 days'")
-        result = result.replace("date('now', '-7 days')", "CURRENT_DATE - INTERVAL '7 days'")
-        result = result.replace("date('now', '-1 day')", "CURRENT_DATE - INTERVAL '1 day'")
-        result = result.replace("date('now', '+30 days')", "CURRENT_DATE + INTERVAL '30 days'")
-        result = result.replace("date('now', '+23 days')", "CURRENT_DATE + INTERVAL '23 days'")
-    
-    print(f"Convirtiendo query: {query[:100]} => {result[:100]}")
-    return result
-
-def ejecutar_query_compatible(query, params=None, fetch=False):
-    """Ejecutar query con conversión automática de booleanos"""
-    query_convertida = convertir_query_boolean(query)
-    return ejecutar_query(query_convertida, params, fetch)
-
-def obtener_columnas_tabla(conn, nombre_tabla):
-    """Obtener lista de columnas de una tabla (compatible con SQLite y PostgreSQL)"""
-    cursor = conn.cursor()
-    
-    if usar_supabase():
-        # PostgreSQL
-        cursor.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = %s 
-            ORDER BY ordinal_position;
-        """, (nombre_tabla,))
-        return [row[0] for row in cursor.fetchall()]
-    else:
-        # SQLite
-        cursor.execute(f"PRAGMA table_info({nombre_tabla})")
-        return [column[1] for column in cursor.fetchall()]
-
-def get_create_table_sql():
-    """Obtener SQL de creación de tablas según la base de datos"""
-    if usar_supabase():
-        # PostgreSQL syntax
-        return {
-            'boletines': """
-                CREATE TABLE IF NOT EXISTS boletines (
-                    id SERIAL PRIMARY KEY,
-                    numero_boletin TEXT,
-                    fecha_boletin TEXT,
-                    numero_orden TEXT,
-                    solicitante TEXT,
-                    agente TEXT,
-                    numero_expediente TEXT,
-                    clase TEXT,
-                    marca_custodia TEXT,
-                    marca_publicada TEXT,
-                    clases_acta TEXT,
-                    reporte_enviado BOOLEAN DEFAULT FALSE,
-                    fecha_envio_reporte DATE,
-                    fecha_creacion_reporte DATE,
-                    reporte_generado BOOLEAN DEFAULT FALSE,
-                    nombre_reporte TEXT,    
-                    ruta_reporte TEXT,
-                    titular TEXT,
-                    fecha_alta DATE DEFAULT CURRENT_DATE,
-                    observaciones TEXT,
-                    importancia TEXT DEFAULT 'Pendiente' 
-                        CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
-                )
-            """,
-            'clientes': """
-                CREATE TABLE IF NOT EXISTS clientes (
-                    id SERIAL PRIMARY KEY,
-                    titular TEXT UNIQUE,
-                    email TEXT,
-                    telefono TEXT,
-                    direccion TEXT,
-                    ciudad TEXT,
-                    fecha_alta DATE DEFAULT CURRENT_DATE,
-                    fecha_modificacion DATE,
-                    cuit BIGINT, 
-                    provincia TEXT
-                )
-            """,
-            'envios_log': """
-                CREATE TABLE IF NOT EXISTS envios_log (
-                    id SERIAL PRIMARY KEY,
-                    titular TEXT,
-                    email TEXT,
-                    fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    estado TEXT,
-                    error TEXT,
-                    numero_boletin TEXT,
-                    importancia TEXT,
-                    fecha_envio_default TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """
-        }
-    else:
-        # SQLite syntax (original)
-        return {
-            'boletines': """
-                CREATE TABLE IF NOT EXISTS boletines (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    numero_boletin TEXT,
-                    fecha_boletin TEXT,
-                    numero_orden TEXT,
-                    solicitante TEXT,
-                    agente TEXT,
-                    numero_expediente TEXT,
-                    clase TEXT,
-                    marca_custodia TEXT,
-                    marca_publicada TEXT,
-                    clases_acta TEXT,
-                    reporte_enviado BOOLEAN DEFAULT FALSE,
-                    fecha_envio_reporte DATE,
-                    fecha_creacion_reporte DATE,
-                    reporte_generado BOOLEAN DEFAULT FALSE,
-                    nombre_reporte TEXT,    
-                    ruta_reporte TEXT,
-                    titular TEXT,
-                    fecha_alta DATE DEFAULT (datetime('now', 'localtime')),
-                    observaciones TEXT,
-                    importancia TEXT DEFAULT 'Pendiente' CHECK (importancia IN ('Pendiente', 'Baja', 'Media', 'Alta'))
-                )
-            """,
-            'clientes': """
-                CREATE TABLE IF NOT EXISTS clientes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    titular TEXT UNIQUE,
-                    email TEXT,
-                    telefono TEXT,
-                    direccion TEXT,
-                    ciudad TEXT,
-                    fecha_alta DATE DEFAULT (datetime('now', 'localtime')),
-                    fecha_modificacion DATE,
-                    cuit INTEGER, 
-                    provincia TEXT
-                )
-            """,
-            'envios_log': """
-                CREATE TABLE IF NOT EXISTS envios_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    titular TEXT,
-                    email TEXT,
-                    fecha_envio DATETIME DEFAULT (datetime('now', 'localtime')),
-                    estado TEXT,
-                    error TEXT,
-                    numero_boletin TEXT,
-                    importancia TEXT,
-                    fecha_envio_default DATETIME DEFAULT (datetime('now', 'localtime'))
-                )
-            """
-        }
-
-def tabla_existe(conn, nombre_tabla):
-    """Verificar si una tabla existe (compatible con SQLite y PostgreSQL)"""
-    cursor = conn.cursor()
-    
-    if usar_supabase():
-        # PostgreSQL
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = %s
-            );
-        """, (nombre_tabla,))
-        return cursor.fetchone()[0]
-    else:
-        # SQLite
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (nombre_tabla,))
-        return cursor.fetchone() is not None
-
-def ejecutar_query(query, params=None, fetch=False):
-    """Ejecutar query en la base de datos activa"""
-    if usar_supabase():
-        conn = crear_conexion_postgres()
-        if conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute(query, params or [])
-                
-                if fetch:
-                    if fetch == 'one':
-                        result = cursor.fetchone()
-                    elif fetch == 'all':
-                        result = cursor.fetchall()
-                    else:
-                        result = cursor.fetchall()
-                else:
-                    result = None
-                
-                conn.commit()
-                cursor.close()
-                conn.close()
-                return result
-                
-            except Exception as e:
-                conn.rollback()
-                cursor.close()
-                conn.close()
-                raise e
-    else:
-        # SQLite fallback
-        conn = sqlite3.connect('boletines.db')
-        cursor = conn.cursor()
-        try:
-            cursor.execute(query, params or [])
-            
-            if fetch:
-                if fetch == 'one':
-                    result = cursor.fetchone()
-                elif fetch == 'all':
-                    result = cursor.fetchall()
-                else:
-                    result = cursor.fetchall()
-            else:
-                result = None
-            
-            conn.commit()
-            conn.close()
-            return result
-            
-        except Exception as e:
-            conn.close()
-            raise e

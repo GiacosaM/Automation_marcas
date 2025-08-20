@@ -113,3 +113,8 @@ class SessionManager:
             ],
             'changes_tracked': len(st.session_state.get('cambios_procesados', set()))
         }
+    
+    @staticmethod
+    def get_current_page() -> str:
+        """Obtener la página actual desde session_state"""
+        return st.session_state.get('current_page', 'unknown')

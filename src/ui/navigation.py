@@ -94,7 +94,8 @@ class NavigationManager:
             'Clientes': ('clientes', {'show_clientes_section': True}),
             'Informes': ('informes', {}),
             'Emails': ('emails', {'show_email_section': True}),
-            'Configuración': ('settings', {})
+            'Configuración': ('settings', {}),
+            'Supabase': ('supabase_config', {})  # Nueva opción para Supabase
         }
         
         if selected_tab in navigation_map:

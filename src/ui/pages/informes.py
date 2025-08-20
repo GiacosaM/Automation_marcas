@@ -10,6 +10,7 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
 from database import crear_conexion, crear_tabla
+from db_utils import convertir_query_boolean
 from report_generator import generar_informe_pdf
 from src.ui.components import UIComponents
 from src.utils.session_manager import SessionManager
@@ -26,35 +27,40 @@ class InformesPage:
         cursor = conn.cursor()
         
         # Estadísticas básicas
-        cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0")
+        query_pendientes = convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0")
+        cursor.execute(query_pendientes)
         reportes_pendientes = cursor.fetchone()[0]
         
-        cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0 AND importancia = 'Pendiente'")
+        query_pendientes_imp = convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 0 AND importancia = 'Pendiente'")
+        cursor.execute(query_pendientes_imp)
         pendientes_importancia = cursor.fetchone()[0]
         
-        cursor.execute("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 1")
+        query_generados = convertir_query_boolean("SELECT COUNT(*) FROM boletines WHERE reporte_generado = 1")
+        cursor.execute(query_generados)
         reportes_generados = cursor.fetchone()[0]
         
         cursor.execute("SELECT COUNT(*) FROM boletines")
         total_boletines = cursor.fetchone()[0]
         
         # Reportes por importancia
-        cursor.execute("""
+        query_importancia = convertir_query_boolean("""
             SELECT importancia, COUNT(*) 
             FROM boletines 
             WHERE reporte_generado = 0 
             GROUP BY importancia
         """)
+        cursor.execute(query_importancia)
         por_importancia = cursor.fetchall()
         
         # Últimos reportes generados
-        cursor.execute("""
+        ultimos_generados_query = convertir_query_boolean("""
             SELECT numero_boletin, titular, fecha_alta
             FROM boletines 
             WHERE reporte_generado = 1
             ORDER BY fecha_alta DESC
             LIMIT 10
         """)
+        cursor.execute(ultimos_generados_query)
         ultimos_generados = cursor.fetchall()
         
         cursor.close()
@@ -297,18 +303,17 @@ class InformesPage:
     def _show_boletines_grid(self):
         """Mostrar los últimos 10 informes generados en tarjetas con pandas y Streamlit"""
         import pandas as pd
-        import sqlite3
         import streamlit as st
-        db_path = 'boletines.db'
-        query = '''
-            SELECT id, titular, nombre_reporte, ruta_reporte
-            FROM boletines
-            WHERE reporte_generado = 1 AND ruta_reporte IS NOT NULL AND nombre_reporte IS NOT NULL
-            ORDER BY id DESC
-            LIMIT 10
-        '''
+        
         try:
-            conn = sqlite3.connect(db_path)
+            conn = crear_conexion()
+            query = convertir_query_boolean('''
+                SELECT id, titular, nombre_reporte, ruta_reporte
+                FROM boletines
+                WHERE reporte_generado = 1 AND ruta_reporte IS NOT NULL AND nombre_reporte IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 10
+            ''')
             df = pd.read_sql_query(query, conn)
             conn.close()
         except Exception as e:

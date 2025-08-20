@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
 # Importar funciones de logs desde database.py
-from database import insertar_log_envio
+from database import insertar_log_envio, convertir_query_boolean
 
 # Configuración de logging optimizado para emails
 logging.basicConfig(
@@ -107,17 +107,31 @@ def obtener_info_reportes_pendientes(conn):
     """
     try:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT 
-                titular, COUNT(*) as cantidad,
-                GROUP_CONCAT(numero_boletin) as boletines,
-                GROUP_CONCAT(marca_publicada) as marcas
-            FROM boletines 
-            WHERE reporte_generado = 1 AND reporte_enviado = 0 
-            AND importancia = 'Pendiente'
-            GROUP BY titular
-            ORDER BY titular
-        """)
+        from db_utils import usar_supabase_simple
+        if usar_supabase_simple():
+            cursor.execute("""
+                SELECT 
+                    titular, COUNT(*) as cantidad,
+                    STRING_AGG(numero_boletin, ',') as boletines,
+                    STRING_AGG(marca_publicada, ',') as marcas
+                FROM boletines 
+                WHERE reporte_generado = TRUE AND reporte_enviado = FALSE 
+                  AND importancia = 'Pendiente'
+                GROUP BY titular
+                ORDER BY titular
+            """)
+        else:
+            cursor.execute("""
+                SELECT 
+                    titular, COUNT(*) as cantidad,
+                    GROUP_CONCAT(numero_boletin) as boletines,
+                    GROUP_CONCAT(marca_publicada) as marcas
+                FROM boletines 
+                WHERE reporte_generado = 1 AND reporte_enviado = 0 
+                  AND importancia = 'Pendiente'
+                GROUP BY titular
+                ORDER BY titular
+            """)
         
         rows = cursor.fetchall()
         
@@ -157,13 +171,23 @@ def obtener_registros_pendientes_envio(conn):
         cursor = conn.cursor()
         
         # Primero verificar si hay reportes con importancia 'Pendiente'
-        cursor.execute("""
-            SELECT COUNT(*) as pendientes_count, 
-                   GROUP_CONCAT(DISTINCT titular) as titulares_pendientes
-            FROM boletines 
-            WHERE reporte_generado = 1 AND reporte_enviado = 0 
-            AND importancia = 'Pendiente'
-        """)
+        from db_utils import usar_supabase_simple
+        if usar_supabase_simple():
+            cursor.execute("""
+                SELECT COUNT(*) as pendientes_count, 
+                       STRING_AGG(DISTINCT titular, ',') as titulares_pendientes
+                FROM boletines 
+                WHERE reporte_generado = TRUE AND reporte_enviado = FALSE 
+                  AND importancia = 'Pendiente'
+            """)
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) as pendientes_count, 
+                       GROUP_CONCAT(DISTINCT titular) as titulares_pendientes
+                FROM boletines 
+                WHERE reporte_generado = 1 AND reporte_enviado = 0 
+                  AND importancia = 'Pendiente'
+            """)
         
         pendientes_result = cursor.fetchone()
         pendientes_count = pendientes_result[0] if pendientes_result else 0
@@ -176,19 +200,34 @@ def obtener_registros_pendientes_envio(conn):
             raise Exception(f"No se pueden enviar emails: hay {pendientes_count} reportes con importancia 'Pendiente' que requieren revisión manual. Titulares: {', '.join(titulares_list)}")
         
         # Si no hay pendientes, proceder con la consulta normal
-        cursor.execute("""
-            SELECT 
-                b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
-                b.numero_orden, b.solicitante, b.agente, b.numero_expediente, 
-                b.clase, b.marca_custodia, b.marca_publicada, b.clases_acta,
-                b.observaciones, b.nombre_reporte, b.ruta_reporte, b.importancia,
-                c.email, c.telefono, c.direccion, c.ciudad
-            FROM boletines b
-            LEFT JOIN clientes c ON b.titular = c.titular
-            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0 
-            AND b.importancia IN ('Baja', 'Media', 'Alta')
-            ORDER BY b.titular, b.importancia, b.numero_boletin
-        """)
+        if usar_supabase_simple():
+            cursor.execute("""
+                SELECT 
+                    b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
+                    b.numero_orden, b.solicitante, b.agente, b.numero_expediente, 
+                    b.clase, b.marca_custodia, b.marca_publicada, b.clases_acta,
+                    b.observaciones, b.nombre_reporte, b.ruta_reporte, b.importancia,
+                    c.email, c.telefono, c.direccion, c.ciudad
+                FROM boletines b
+                LEFT JOIN clientes c ON b.titular = c.titular
+                WHERE b.reporte_generado = TRUE AND b.reporte_enviado = FALSE 
+                  AND b.importancia IN ('Baja', 'Media', 'Alta')
+                ORDER BY b.titular, b.importancia, b.numero_boletin
+            """)
+        else:
+            cursor.execute("""
+                SELECT 
+                    b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
+                    b.numero_orden, b.solicitante, b.agente, b.numero_expediente, 
+                    b.clase, b.marca_custodia, b.marca_publicada, b.clases_acta,
+                    b.observaciones, b.nombre_reporte, b.ruta_reporte, b.importancia,
+                    c.email, c.telefono, c.direccion, c.ciudad
+                FROM boletines b
+                LEFT JOIN clientes c ON b.titular = c.titular
+                WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0 
+                  AND b.importancia IN ('Baja', 'Media', 'Alta')
+                ORDER BY b.titular, b.importancia, b.numero_boletin
+            """)
         
         rows = cursor.fetchall()
         
@@ -368,20 +407,36 @@ def actualizar_estado_envio(conn, boletines_ids):
     Actualiza el campo reporte_enviado a TRUE para los boletines especificados.
     """
     try:
+        from db_utils import usar_supabase_simple
         cursor = conn.cursor()
-        ids_placeholder = ','.join(['?' for _ in boletines_ids])
         
-        cursor.execute(f"""
-            UPDATE boletines 
-            SET reporte_enviado = 1, fecha_envio_reporte = datetime('now', 'localtime')
-            WHERE id IN ({ids_placeholder})
-        """, boletines_ids)
+        if usar_supabase_simple():
+            # PostgreSQL syntax: usar ANY(array) para lista de IDs
+            cursor.execute(
+                """
+                UPDATE boletines 
+                SET reporte_enviado = TRUE, fecha_envio_reporte = NOW()
+                WHERE id = ANY(%s)
+                """,
+                (boletines_ids,)
+            )
+        else:
+            # SQLite syntax
+            ids_placeholder = ','.join(['?' for _ in boletines_ids])
+            cursor.execute(f"""
+                UPDATE boletines 
+                SET reporte_enviado = 1, fecha_envio_reporte = datetime('now', 'localtime')
+                WHERE id IN ({ids_placeholder})
+            """, boletines_ids)
         
         conn.commit()
         logging.info(f"Estado de envío actualizado para {len(boletines_ids)} registros.")
-    
-    except sqlite3.Error as e:
+    except Exception as e:
         logging.error(f"Error al actualizar estado de envío: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         raise Exception(f"Error al actualizar estado de envío: {e}")
     finally:
         cursor.close()
@@ -689,17 +744,27 @@ def obtener_estadisticas_envios(conn):
     """
     try:
         cursor = conn.cursor()
-        
-        # Estadísticas generales
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total_reportes,
-                COUNT(CASE WHEN reporte_generado = 1 THEN 1 END) as reportes_generados,
-                COUNT(CASE WHEN reporte_enviado = 1 THEN 1 END) as reportes_enviados,
-                COUNT(CASE WHEN importancia = 'Pendiente' AND reporte_generado = 1 THEN 1 END) as pendientes_revision,
-                COUNT(CASE WHEN reporte_generado = 1 AND reporte_enviado = 0 AND importancia IN ('Alta', 'Media', 'Baja') THEN 1 END) as listos_envio
-            FROM boletines
-        """)
+        from db_utils import usar_supabase_simple
+        if usar_supabase_simple():
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_reportes,
+                    COUNT(CASE WHEN reporte_generado = TRUE THEN 1 END) as reportes_generados,
+                    COUNT(CASE WHEN reporte_enviado = TRUE THEN 1 END) as reportes_enviados,
+                    COUNT(CASE WHEN importancia = 'Pendiente' AND reporte_generado = TRUE THEN 1 END) as pendientes_revision,
+                    COUNT(CASE WHEN reporte_generado = TRUE AND reporte_enviado = FALSE AND importancia IN ('Alta', 'Media', 'Baja') THEN 1 END) as listos_envio
+                FROM boletines
+            """)
+        else:
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_reportes,
+                    COUNT(CASE WHEN reporte_generado = 1 THEN 1 END) as reportes_generados,
+                    COUNT(CASE WHEN reporte_enviado = 1 THEN 1 END) as reportes_enviados,
+                    COUNT(CASE WHEN importancia = 'Pendiente' AND reporte_generado = 1 THEN 1 END) as pendientes_revision,
+                    COUNT(CASE WHEN reporte_generado = 1 AND reporte_enviado = 0 AND importancia IN ('Alta', 'Media', 'Baja') THEN 1 END) as listos_envio
+                FROM boletines
+            """)
         
         stats = cursor.fetchone()
         

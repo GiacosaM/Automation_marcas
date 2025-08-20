@@ -19,6 +19,18 @@ GRID_CONFIG = {
     "clients_grid_height": 600
 }
 
+# Pestañas de navegación
+NAVIGATION_TABS = [
+    {"name": "Dashboard", "icon": "house"},
+    {"name": "Cargar Datos", "icon": "upload"},
+    {"name": "Historial", "icon": "clock-history"},
+    {"name": "Clientes", "icon": "people"},
+    {"name": "Informes", "icon": "file-earmark-text"},
+    {"name": "Emails", "icon": "envelope"},
+    {"name": "Configuración", "icon": "gear"},
+    {"name": "Supabase", "icon": "database"}  # Nueva pestaña para Supabase
+]
+
 # Columnas del grid de boletines
 BULLETIN_COLUMNS = {
     'numero_boletin': {"width": 120, "header_name": "N° Boletín"},

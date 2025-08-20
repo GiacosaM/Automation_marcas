@@ -41,6 +41,7 @@ from src.ui.pages.dashboard import show_dashboard
 from auth_manager_simple import handle_authentication
 from professional_theme import apply_professional_theme
 from database import crear_conexion, limpieza_automatica_logs
+from db_utils import convertir_query_boolean
 from verificador_programado import inicializar_verificador_en_app, mostrar_panel_verificacion
 
 
@@ -89,35 +90,76 @@ class MarcasApp:
                 SessionManager.set('sistema_inicializado', True)
     
     def _handle_navigation(self):
-        """Manejar la navegación de la aplicación"""
-        # Crear menú de navegación
-        selected_tab = NavigationManager.create_navigation_menu()
+        """Configurar navegación lateral y devolver la página seleccionada"""
+        with st.sidebar:
+            st.image("imagenes/Logo.png", width=100)
+            st.title("Sistema de Gestión")
+            
+            # Grupos de páginas
+            main_pages = {
+                "📊 Dashboard": "dashboard",
+                "📄 Informes": "informes",
+                "👥 Clientes": "clientes",
+                "📧 Emails": "emails"
+            }
+            
+            admin_pages = {
+                "⚙️ Configuración": "settings",
+                "🗄️ Base de Datos": "supabase_config",
+                "⚡ Optimización": "optimization"
+            }
+            
+            # Mostrar navegación principal
+            st.subheader("Navegación")
+            
+            for label, page in main_pages.items():
+                if st.sidebar.button(label, key=f"nav_{page}", use_container_width=True):
+                    SessionManager.set_current_page(page)
+                    st.session_state["rerun"] = True
+            
+            # Mostrar páginas administrativas
+            st.subheader("Administración")
+            
+            for label, page in admin_pages.items():
+                if st.sidebar.button(label, key=f"nav_{page}", use_container_width=True):
+                    SessionManager.set_current_page(page)
+                    st.session_state["rerun"] = True
+            
+            # Botón de cerrar sesión
+            st.sidebar.markdown("---")
+            if st.sidebar.button("🔒 Cerrar sesión", key="logout"):
+                SessionManager.logout()
+                st.session_state["rerun"] = True
         
-        # Manejar la navegación
-        NavigationManager.handle_navigation(selected_tab)
-        
-        return selected_tab
+        # Devolver página actual
+        return SessionManager.get_current_page()
     
     def _route_to_page(self):
-        """Enrutar a la página correspondiente según el estado actual"""
-        current_page = NavigationManager.get_current_page()
+        """Enruta a la página seleccionada"""
+        current_page = SessionManager.get_current_page()
+        
+        # Verificar si se necesita un reinicio
+        if st.session_state.get("rerun", False):
+            st.session_state["rerun"] = False
+            # En lugar de usar experimental_rerun, redibujamos la interfaz
+            st.experimental_set_query_params()
         
         if current_page == 'dashboard':
             self._show_dashboard()
-        elif current_page == 'upload':
-            self._show_upload_page()
-        elif current_page == 'historial' and NavigationManager.is_section_active('db'):
-            self._show_historial_page()
-        elif current_page == 'clientes' and NavigationManager.is_section_active('clientes'):
-            self._show_clientes_page()
         elif current_page == 'informes':
             self._show_informes_page()
-        elif current_page == 'emails' and NavigationManager.is_section_active('email'):
+        elif current_page == 'clientes':
+            self._show_clientes_page()
+        elif current_page == 'emails':
             self._show_emails_page()
         elif current_page == 'settings':
             self._show_settings_page()
+        elif current_page == 'supabase_config':
+            self._show_supabase_config_page()
+        elif current_page == 'optimization':
+            self._show_optimization_page()
         else:
-            # Por defecto mostrar dashboard
+            self._show_dashboard()  # Página por defecto
             self._show_dashboard()
     
     def _show_dashboard(self):
@@ -136,8 +178,23 @@ class MarcasApp:
     
     def _show_clientes_page(self):
         """Mostrar la página de clientes"""
-        from src.ui.pages.clientes import show_clientes_page
-        show_clientes_page()
+        # Verificar si debemos usar la versión optimizada
+        use_optimized = False
+        try:
+            import json
+            if os.path.exists("config.json"):
+                with open("config.json", "r") as f:
+                    config = json.load(f)
+                    use_optimized = config.get("use_optimized_pages", False)
+        except Exception:
+            pass
+            
+        if use_optimized:
+            from src.ui.pages.clientes_optimized import show_clientes_optimized_page
+            show_clientes_optimized_page()
+        else:
+            from src.ui.pages.clientes import show_clientes_page
+            show_clientes_page()
     
     def _show_informes_page(self):
         """Mostrar la página de informes"""
@@ -153,6 +210,16 @@ class MarcasApp:
         """Mostrar la página de configuración"""
         from src.ui.pages.settings import show_settings_page
         show_settings_page()
+    
+    def _show_supabase_config_page(self):
+        """Mostrar la página de configuración de Supabase"""
+        from src.ui.pages.supabase_config import show_supabase_config_page
+        show_supabase_config_page()
+        
+    def _show_optimization_page(self):
+        """Mostrar la página de optimización de rendimiento"""
+        from src.ui.pages.optimization import show_optimization_page
+        show_optimization_page()
     
     def run(self):
         """Ejecutar la aplicación principal"""

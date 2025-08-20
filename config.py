@@ -4,6 +4,10 @@ import os
 import json
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Cargar variables de entorno para Supabase
+load_dotenv()
 
 class ConfigManager:
     """Gestor de configuración centralizado."""
@@ -17,16 +21,30 @@ class ConfigManager:
                 "logo_path": "imagenes/logo.png"
             },
             "database": {
+                # Configuración SQLite (legacy)
                 "name": "boletines.db",
                 "backup_enabled": True,
-                "backup_interval_hours": 24
+                "backup_interval_hours": 24,
+                
+                # Configuración Supabase (nueva)
+                "type": "supabase",  # "sqlite" o "supabase"
+                "supabase_url": os.getenv('SUPABASE_URL'),
+                "supabase_key": os.getenv('SUPABASE_KEY'),
+                "postgres_host": os.getenv('DB_HOST'),
+                "postgres_port": os.getenv('DB_PORT', 5432),
+                "postgres_db": os.getenv('DB_NAME', 'postgres'),
+                "postgres_user": os.getenv('DB_USER', 'postgres'),
+                "postgres_password": os.getenv('DB_PASSWORD')
             },
             "email": {
                 "smtp_server": "smtp.gmail.com",
                 "smtp_port": 587,
                 "batch_size": 10,
                 "retry_attempts": 3,
-                "timeout_seconds": 30
+                "timeout_seconds": 30,
+                # Migración desde credenciales.json
+                "user": os.getenv('EMAIL_USER'),
+                "password": os.getenv('EMAIL_PASSWORD')
             },
             "reports": {
                 "output_dir": "informes",
@@ -43,6 +61,14 @@ class ConfigManager:
                 "level": "INFO",
                 "max_file_size_mb": 10,
                 "backup_count": 5
+            },
+            # Nueva sección para Supabase
+            "supabase": {
+                "enable_realtime": False,
+                "enable_auth": False,
+                "enable_storage": False,
+                "rls_enabled": True,
+                "connection_pool_size": 10
             }
         }
         self.config = self.load_config()
@@ -389,3 +415,57 @@ def show_settings_page():
         config.save_config()
         st.success("✅ Configuración restaurada a valores por defecto")
         st.rerun()
+
+
+# Funciones auxiliares para migración a Supabase
+def get_database_type():
+    """Obtener el tipo de base de datos configurado"""
+    return get_config("database.type", "sqlite")
+
+
+def is_supabase_enabled():
+    """Verificar si Supabase está habilitado"""
+    return get_database_type() == "supabase"
+
+
+def get_supabase_config():
+    """Obtener configuración de Supabase"""
+    if not is_supabase_enabled():
+        return None
+    
+    return {
+        "url": get_config("database.supabase_url"),
+        "key": get_config("database.supabase_key"),
+        "postgres_host": get_config("database.postgres_host"),
+        "postgres_port": get_config("database.postgres_port"),
+        "postgres_db": get_config("database.postgres_db"),
+        "postgres_user": get_config("database.postgres_user"),
+        "postgres_password": get_config("database.postgres_password")
+    }
+
+
+def switch_to_supabase():
+    """Cambiar configuración para usar Supabase"""
+    set_config("database.type", "supabase")
+    config.save_config()
+
+
+def switch_to_sqlite():
+    """Cambiar configuración para usar SQLite (fallback)"""
+    set_config("database.type", "sqlite")
+    config.save_config()
+
+
+def validate_supabase_config():
+    """Validar que la configuración de Supabase esté completa"""
+    supabase_config = get_supabase_config()
+    if not supabase_config:
+        return False, "Supabase no está habilitado"
+    
+    required_fields = ["url", "key", "postgres_host", "postgres_password"]
+    missing_fields = [field for field in required_fields if not supabase_config.get(field)]
+    
+    if missing_fields:
+        return False, f"Faltan campos requeridos: {', '.join(missing_fields)}"
+    
+    return True, "Configuración válida"
