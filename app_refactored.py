@@ -39,7 +39,6 @@ from src.ui.pages.dashboard import show_dashboard
 
 # Importar módulos existentes (mantenemos la funcionalidad actual)
 from auth_manager_simple import handle_authentication
-from professional_theme import apply_professional_theme
 from database import crear_conexion, limpieza_automatica_logs
 from verificador_programado import inicializar_verificador_en_app, mostrar_panel_verificacion
 
@@ -56,9 +55,6 @@ class MarcasApp:
         """Configurar la aplicación"""
         # Aplicar solo los estilos modulares (evitar conflictos)
         AppStyles.apply_all_styles()
-        
-        # Comentamos el tema profesional original para evitar conflictos CSS
-        # apply_professional_theme()
     
     def _initialize_system(self):
         """Inicializar el sistema una sola vez por sesión"""

@@ -14,7 +14,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 
 from database import crear_conexion, crear_tabla
 from dashboard_charts import create_status_donut_chart, create_urgency_gauge_chart
-from professional_theme import create_metric_card
 from src.ui.components import UIComponents
 from src.utils.helpers import ReportUtils, DateUtils
 
@@ -359,7 +358,7 @@ class DashboardPage:
                 self._show_positive_messages(data)
                 
                 # Mostrar gráficos
-                self._show_charts(data)
+                # self._show_charts(data)
                 
                 # Estilizar las métricas
                 style_metric_cards(
