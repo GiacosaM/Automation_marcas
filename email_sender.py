@@ -63,38 +63,34 @@ def obtener_mensajes_predefinidos():
     """Diccionario con mensajes predefinidos según el valor de importancia."""
     return {
         "Alta": """
-        Estimado/a cliente,
-        
-        Hemos detectado marcas de ALTA importancia publicadas en el boletín oficial que requieren su atención pronta.
-        Adjunto encontrará el reporte detallado con la información correspondiente.
-        
-        Por favor, contáctenos para cualquier aclaración o acción necesaria.
-        
+        Estimado/a,
+        En virtud del servicio de custodia oportunamente contratado sobre sus marcas, le informamos que, como resultado del control mensual comparativo de presentaciones ante el INPI, se han detectado algunas similitudes leves con sus registros.
+        Dichas coincidencias se detallan en el informe adjunto. A nuestro entender, no ameritan ejercer el derecho de oposición en esta instancia. No obstante, quedamos a su disposición para que, en caso de considerarlo necesario, pueda comunicarse con nuestros profesionales y evaluar conjuntamente los pasos a seguir.
+
         Saludos cordiales.
         """,
         "Media": """
-        Estimado/a cliente,
-        
-        Le informamos que se han encontrado marcas de importancia MEDIA en las publicaciones recientes.
-        El reporte adjunto contiene los detalles relevantes para su revisión.
-        
-        Quedamos a su disposición para cualquier consulta.
-        
+        Estimado/a,
+
+        En virtud del servicio de custodia oportunamente contratado sobre sus marcas, le informamos que, como resultado del control mensual comparativo de presentaciones ante el INPI, se han detectado algunas similitudes leves con sus registros.
+        Dichas coincidencias se detallan en el informe adjunto. A nuestro entender, no ameritan ejercer el derecho de oposición en esta instancia. No obstante, quedamos a su disposición para que, en caso de considerarlo necesario, pueda comunicarse con nuestros profesionales y evaluar conjuntamente los pasos a seguir.
+
         Saludos cordiales.
         """,
         "Baja": """
-        Estimado/a cliente,
-        
-        Le enviamos el reporte de marcas de importancia BAJA correspondientes al período actual.
-        Adjunto encontrará la información detallada para su revisión.
+        Estimado/a,
+
+        En virtud del servicio de custodia contratado sobre sus marcas, le informamos que, a partir del control mensual comparativo de presentaciones ante el INPI, se han detectado similitudes muy relevantes con sus registros, que a nuestro criterio ameritan ejercer el derecho de oposición de manera inmediata.
+        Por tal motivo, le solicitamos se comunique a la mayor brevedad con nuestras oficinas,
+        a fin de coordinar con nuestros profesionales las acciones necesarias para la protección de sus derechos marcarios.
+
         
         Saludos cordiales.
         """,
         "default": """
-        Estimado/a cliente,
+        Estimado/a,
         
-        Le enviamos el reporte de marcas correspondiente al período actual.
-        Adjunto encontrará la información detallada.
+        En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI. Como resultado, nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.
         
         Saludos cordiales.
         """

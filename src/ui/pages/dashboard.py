@@ -125,6 +125,40 @@ class DashboardPage:
         """)
         detalles_vencidos = cursor.fetchall()
         
+        # Detalles de reportes en curso (entre 0 y 30 días desde la fecha del boletín)
+        cursor.execute("""
+            SELECT numero_boletin, titular, fecha_boletin,
+                   CAST(julianday(date('now')) - 
+                        julianday(date(substr(fecha_boletin, 7, 4) || '-' || 
+                                      substr(fecha_boletin, 4, 2) || '-' || 
+                                      substr(fecha_boletin, 1, 2))) AS INTEGER) as dias_transcurridos
+            FROM boletines 
+            WHERE reporte_enviado = 0 
+            AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+            AND julianday(date('now')) - julianday(date(substr(fecha_boletin, 7, 4) || '-' || 
+                                               substr(fecha_boletin, 4, 2) || '-' || 
+                                               substr(fecha_boletin, 1, 2))) <= 30
+            AND julianday(date('now')) - julianday(date(substr(fecha_boletin, 7, 4) || '-' || 
+                                               substr(fecha_boletin, 4, 2) || '-' || 
+                                               substr(fecha_boletin, 1, 2))) >= 0
+            ORDER BY dias_transcurridos ASC
+        """)
+        detalles_en_curso = cursor.fetchall()
+        
+        # Contar total de reportes en curso
+        cursor.execute("""
+            SELECT COUNT(*) FROM boletines 
+            WHERE reporte_enviado = 0 
+            AND fecha_boletin IS NOT NULL AND fecha_boletin != ''
+            AND julianday(date('now')) - julianday(date(substr(fecha_boletin, 7, 4) || '-' || 
+                                               substr(fecha_boletin, 4, 2) || '-' || 
+                                               substr(fecha_boletin, 1, 2))) <= 30
+            AND julianday(date('now')) - julianday(date(substr(fecha_boletin, 7, 4) || '-' || 
+                                               substr(fecha_boletin, 4, 2) || '-' || 
+                                               substr(fecha_boletin, 1, 2))) >= 0
+        """)
+        reportes_en_curso = cursor.fetchone()[0]
+        
         cursor.close()
         
         return {
@@ -136,8 +170,10 @@ class DashboardPage:
             'top_titulares': top_titulares,
             'proximos_vencer': proximos_vencer,
             'reportes_vencidos': reportes_vencidos,
+            'reportes_en_curso': reportes_en_curso,
             'detalles_proximos_vencer': detalles_proximos_vencer,
-            'detalles_vencidos': detalles_vencidos
+            'detalles_vencidos': detalles_vencidos,
+            'detalles_en_curso': detalles_en_curso
         }
     
     def _show_main_header(self):
@@ -173,6 +209,11 @@ class DashboardPage:
                 'color': '#17a2b8'
             },
             {
+                'value': data['reportes_en_curso'],
+                'label': '📆 En Curso (0-30 días)',
+                'color': '#17a2b8'
+            },
+            {
                 'value': data['proximos_vencer'],
                 'label': '⏰ Próximos a Vencer',
                 'color': '#dc3545' if data['proximos_vencer'] > 0 else '#28a745'
@@ -184,7 +225,7 @@ class DashboardPage:
             }
         ]
         
-        UIComponents.create_metric_grid(metrics, columns=5)
+        UIComponents.create_metric_grid(metrics, columns=6)
     
     def _show_alerts(self, data):
         """Mostrar alertas del sistema"""
@@ -289,6 +330,37 @@ class DashboardPage:
                         </div>
                         """, unsafe_allow_html=True)
     
+    def _show_current_reports_details(self, data):
+        """Mostrar detalles de reportes en curso (entre 0 y 30 días)"""
+        if data['reportes_en_curso'] > 0:
+            with st.expander("📆 Reportes en Curso (0-30 días)", expanded=True):
+                if data['detalles_en_curso']:
+                    st.markdown("### Reportes actualmente en proceso:")
+                    for detalle in data['detalles_en_curso']:
+                        dias_transcurridos = int(detalle[3])
+                        dias_restantes = 30 - dias_transcurridos
+                        
+                        # Definir color y estilo según el tiempo transcurrido
+                        if dias_transcurridos <= 10:
+                            color = '#28a745'  # Verde - Recién comenzado
+                            icon = '🆕'
+                            texto = f'Reciente - {dias_transcurridos} días ({dias_restantes} restantes)'
+                        elif dias_transcurridos <= 20:
+                            color = '#17a2b8'  # Azul - En progreso
+                            icon = '⏱️'
+                            texto = f'En progreso - {dias_transcurridos} días ({dias_restantes} restantes)'
+                        else:
+                            color = '#ffc107'  # Amarillo - Avanzado
+                            icon = '⚠️'
+                            texto = f'Avanzado - {dias_transcurridos} días ({dias_restantes} restantes)'
+                        
+                        st.markdown(f"""
+                        <div style="background: #f8f9fa; padding: 1rem; margin: 0.5rem 0; border-radius: 8px; border-left: 4px solid {color}; color: #000000;">
+                             <strong style='color: #000000;'>Boletín {detalle[0]}</strong> - <span class='expirado-titular'>{detalle[1][:50]}...</span><br>
+                            <small style="color: #555555;">Fecha: {detalle[2]} | <span class="vencimiento-chip" style="background: {color}; color: #000000; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">{icon} {texto}</span></small>
+                        </div>
+                        """, unsafe_allow_html=True)
+    
     def _show_charts(self, data):
         """Mostrar gráficos del dashboard"""
         if data['total_boletines'] > 0:
@@ -323,7 +395,10 @@ class DashboardPage:
         """Mostrar mensajes de estado positivo"""
         if data['reportes_vencidos'] == 0 and data['proximos_vencer'] == 0:
             if data['total_boletines'] > 0:
-                st.success("✅ ¡Excelente! Todos los reportes están dentro del plazo legal y bajo control")
+                if data['reportes_en_curso'] > 0:
+                    st.success(f"✅ ¡Excelente! Hay {data['reportes_en_curso']} reportes en curso dentro del plazo legal y bajo control")
+                else:
+                    st.success("✅ ¡Excelente! Todos los reportes están dentro del plazo legal y bajo control")
         
         if data['total_boletines'] == 0:
             st.info("📂 No hay boletines cargados en el sistema. Use la sección 'Cargar Datos' para comenzar.")
@@ -353,6 +428,7 @@ class DashboardPage:
                 # Mostrar detalles expandibles
                 self._show_expired_details(data)
                 self._show_upcoming_details(data)
+                self._show_current_reports_details(data)
                 
                 # Mostrar mensajes positivos
                 self._show_positive_messages(data)

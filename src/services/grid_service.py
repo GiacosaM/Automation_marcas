@@ -258,3 +258,113 @@ class GridService:
             key=key,
             height=height
         )
+    
+    @staticmethod
+    def show_user_grid(df: pd.DataFrame, key: str) -> Dict[str, Any]:
+        """
+        Mostrar grid de usuarios con funcionalidad de edición
+
+        Args:
+            df: DataFrame con los datos de usuarios
+            key: Clave única para el grid
+
+        Returns:
+            Respuesta del grid
+        """
+        gb = GridOptionsBuilder.from_dataframe(df)
+        GridService._configure_user_grid(gb)
+        grid_options = gb.build()
+
+        # Mostrar el grid
+        grid_response = AgGrid(
+            df,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            fit_columns_on_grid_load=True,
+            theme='streamlit',
+            key=key,
+            allow_unsafe_jscode=True,
+            height=GRID_CONFIG.get("users_grid_height", 400),
+            width='100%',
+            reload_data=False
+        )
+
+        return grid_response
+
+    @staticmethod
+    def _configure_user_grid(gb: GridOptionsBuilder) -> None:
+        """Configurar grid para usuarios"""
+        gb.configure_pagination(
+            enabled=True,
+            paginationAutoPageSize=False,
+            paginationPageSize=GRID_CONFIG.get("users_pagination_page_size", 10)
+        )
+        gb.configure_selection(selection_mode='single', use_checkbox=True)
+
+        # Configuración por defecto de columnas
+        gb.configure_default_column(
+            groupable=True,
+            value=True,
+            enableRowGroup=True,
+            editable=True,
+            sorteable=True,
+            filterable=True,
+            resizable=True,
+            wrapText=True,
+            autoHeight=True,
+            minWidth=GRID_CONFIG["min_column_width"]
+        )
+        
+    @staticmethod
+    def create_grid(df: pd.DataFrame, key: str, 
+                   height: int = 400, 
+                   selection_mode: str = 'single',
+                   fit_columns: bool = False,
+                   editable: bool = False) -> Dict[str, Any]:
+        """
+        Crear un grid configurable para datos generales
+        
+        Args:
+            df: DataFrame a mostrar
+            key: Clave única para el grid
+            height: Altura del grid
+            selection_mode: Modo de selección ('single' o 'multiple')
+            fit_columns: Ajustar columnas automáticamente
+            editable: Permitir edición de celdas
+            
+        Returns:
+            Respuesta del grid
+        """
+        gb = GridOptionsBuilder.from_dataframe(df)
+        
+        # Configuración básica
+        gb.configure_pagination(
+            enabled=True, 
+            paginationAutoPageSize=False,
+            paginationPageSize=10
+        )
+        gb.configure_selection(selection_mode=selection_mode, use_checkbox=True)
+        
+        # Configuración de columnas
+        gb.configure_default_column(
+            editable=editable,
+            sorteable=True,
+            filterable=True,
+            resizable=True,
+            wrapText=True,
+            autoHeight=True
+        )
+        
+        grid_options = gb.build()
+        
+        return AgGrid(
+            df,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.MODEL_CHANGED if editable else GridUpdateMode.NO_UPDATE,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            fit_columns_on_grid_load=fit_columns,
+            theme='streamlit',
+            key=key,
+            height=height
+        )

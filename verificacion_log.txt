@@ -1,0 +1,43 @@
+2025-09-01 08:26:25,504 - INFO - ================================================================================
+2025-09-01 08:26:25,509 - INFO - INICIANDO VERIFICACIÓN AUTOMÁTICA - 2025-09-01 08:26:25
+2025-09-01 08:26:25,509 - INFO - ================================================================================
+2025-09-01 08:26:25,510 - INFO - Directorio de trabajo: /Users/martingiacosa/Desktop/Proyectos/Python/Automation
+2025-09-01 08:26:29,317 - INFO - Verificando titulares sin reportes entre 2025-09-01 y 2025-09-30
+2025-09-01 08:26:29,319 - INFO - El titular 'ALMATERRA S.A.' no tiene reportes en el mes actual
+2025-09-01 08:26:34,126 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:37,787 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:37,787 - INFO - Email de notificación enviado a martingiacosa@gmail.com (ALMATERRA S.A.)
+2025-09-01 08:26:37,788 - INFO - El titular 'MEM INGENIERIA S.A.' no tiene reportes en el mes actual
+2025-09-01 08:26:37,788 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:40,484 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:40,485 - INFO - Email de notificación enviado a martingiacosa@gmail.com (MEM INGENIERIA S.A.)
+2025-09-01 08:26:40,485 - INFO - El titular 'DEHNOS S.A.' no tiene reportes en el mes actual
+2025-09-01 08:26:40,486 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:43,298 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:43,299 - INFO - Email de notificación enviado a martin_giacosa@hotmail.com (DEHNOS S.A.)
+2025-09-01 08:26:43,299 - INFO - El titular 'IGLESIAS, RUBEN GERARDO PEDRO' no tiene reportes en el mes actual
+2025-09-01 08:26:43,300 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:47,646 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:47,646 - INFO - Email de notificación enviado a martingiacosa@gmail.com (IGLESIAS, RUBEN GERARDO PEDRO)
+2025-09-01 08:26:47,646 - INFO - El titular 'PILAY S.A.' no tiene reportes en el mes actual
+2025-09-01 08:26:47,647 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:50,814 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:50,815 - INFO - Email de notificación enviado a martingiacosa@gmail.com (PILAY S.A.)
+2025-09-01 08:26:50,816 - INFO - El titular 'TORRES, ROBERTO LUIS' no tiene reportes en el mes actual
+2025-09-01 08:26:50,817 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:53,559 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:53,560 - INFO - Email de notificación enviado a martingiacosa@gmail.com (TORRES, ROBERTO LUIS)
+2025-09-01 08:26:53,560 - INFO - El titular 'CINCOSENTIDOS S.R.L.' no tiene reportes en el mes actual
+2025-09-01 08:26:53,561 - INFO - Credenciales obtenidas desde credenciales.json
+2025-09-01 08:26:56,057 - INFO - Registro de envío guardado en la base de datos
+2025-09-01 08:26:56,057 - INFO - Email de notificación enviado a martingiacosa@gmail.com (CINCOSENTIDOS S.R.L.)
+2025-09-01 08:26:56,057 - INFO - Verificación completada: 7 titulares sin reportes, 7 emails enviados, 0 ya notificados, 0 errores
+2025-09-01 08:26:56,058 - INFO - Verificación periódica ejecutada con resultado: {'estado': 'completado', 'titulares_sin_reportes': 7, 'emails_enviados': 7, 'ya_notificados': 0, 'errores': 0, 'fecha_verificacion': '2025-09-01 08:26:56'}
+2025-09-01 08:26:56,058 - INFO - Resultado de la verificación: {'estado': 'completado', 'titulares_sin_reportes': 7, 'emails_enviados': 7, 'ya_notificados': 0, 'errores': 0, 'fecha_verificacion': '2025-09-01 08:26:56'}
+2025-09-01 08:26:56,058 - INFO - Titulares sin reportes: 7
+2025-09-01 08:26:56,058 - INFO - Emails enviados: 7
+2025-09-01 08:26:56,059 - INFO - Errores: 0
+2025-09-01 08:26:56,059 - INFO - Verificación automática completada exitosamente
+2025-09-01 08:26:56,059 - INFO - ================================================================================
+2025-09-01 08:26:56,059 - INFO - FIN DE VERIFICACIÓN AUTOMÁTICA - 2025-09-01 08:26:56
+2025-09-01 08:26:56,059 - INFO - ================================================================================

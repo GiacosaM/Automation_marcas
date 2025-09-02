@@ -1,0 +1,1 @@
+CAST(julianday(date('now')) - julianday(date(substr(fecha_boletin, 7, 4) || '-' || substr(fecha_boletin, 4, 2) || '-' || substr(fecha_boletin, 1, 2))) AS INTEGER)

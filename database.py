@@ -1022,3 +1022,66 @@ def configurar_limpieza_logs():
         config['ultima_limpieza'] = 'Nunca'
     
     return config
+
+def obtener_usuarios(conn):
+    """Recuperar todos los usuarios de la tabla 'users'."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, username, name, email, role, created_at, last_login, is_active, failed_login_attempts, locked_until
+            FROM users
+        """)
+        rows = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        return rows, columns
+    except sqlite3.Error as e:
+        logging.error(f"Error al obtener usuarios: {e}")
+        raise Exception(f"Error al obtener usuarios: {e}")
+    finally:
+        cursor.close()
+
+def insertar_usuario(conn, username, email, role, is_active):
+    """Insertar un nuevo usuario en la tabla 'users'."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (username, name, email, password_hash, role, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (username, username, email, 'default_hash', role, is_active))
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error al insertar usuario: {e}")
+        raise Exception(f"Error al insertar usuario: {e}")
+    finally:
+        cursor.close()
+
+def actualizar_usuario(conn, user_id, username, email, role, is_active):
+    """Actualizar los datos de un usuario en la tabla 'users'."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET username = ?, email = ?, role = ?, is_active = ?, last_login = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (username, email, role, is_active, user_id))
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error al actualizar usuario: {e}")
+        raise Exception(f"Error al actualizar usuario: {e}")
+    finally:
+        cursor.close()
+
+def eliminar_usuario(conn, user_id):
+    """Eliminar un usuario de la tabla 'users'."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM users
+            WHERE id = ?
+        """, (user_id,))
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error al eliminar usuario: {e}")
+        raise Exception(f"Error al eliminar usuario: {e}")
+    finally:
+        cursor.close()
