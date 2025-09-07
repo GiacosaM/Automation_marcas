@@ -116,56 +116,299 @@ class AuthManager:
             return None
 
 def show_login():
-    """Sistema de login simple y directo"""
-    st.markdown("""
-    <div style="max-width: 300px; margin: 2rem auto; padding: 2rem; 
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                border-radius: 16px; color: white; text-align: center;">
-        <h5>Login</h5>
-        <img src="https://mimarca.com.ar/templates/yootheme/cache/10/logo-10f1f883.webp" alt="Logo de Mi Marca" style="max-width: 100%; height: auto; border-radius: 12px;">
-        <h2></h2>
-        <p style="margin: 0; opacity: 0.9;">Estudio Contable - Marcas y Patentes</p>
-    </div>
-    """, unsafe_allow_html=True)
+    """Sistema de login con una interfaz profesional y centralizada."""
+
+    # Estilos globales para un look moderno y consistente (UI-only)
+    st.markdown(
+        """
+        <style>
+            /* Fondo suave con degradado */
+            html, body { background: linear-gradient(135deg, #f5f7ff 0%, #f7f2ff 100%) !important; }
+
+            /* Reducir marco/margen superior y centrar contenido */
+            .block-container { padding-top: 1.25rem !important; padding-bottom: 2rem !important; max-width: 900px; }
+            [data-testid="stHeader"] { background: transparent !important; }
+
+            /* Tipografía y colores base */
+            :root { --primary: #6b6ee8; --primary-dark: #5a5ed6; --accent: #8b5cf6; --text: #212529; --muted: #6c757d; }
+
+            /* Tarjeta visual para formularios (cards) */
+            [data-testid="stForm"] {
+                background: #000000; border: 1px solid #ececf1; border-radius: 16px;
+                box-shadow: 0 10px 24px rgba(17, 17, 26, 0.08);
+                padding: 1.25rem 1.25rem 1rem 1.25rem; margin: 0 auto 1rem auto; width: 100%; max-width: 520px;
+            }
+
+            /* Header elegante con logo */
+            .auth-header { text-align: center; margin: 0 auto 1.5rem auto; max-width: 520px; }
+            .auth-header img { width: 92px; height: auto; border-radius: 12px; margin-bottom: 0.5rem; }
+            .auth-header h1 { margin: 0; font-weight: 700; font-size: 1.6rem; background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+            .auth-header p { color: var(--muted); margin-top: 0.35rem; font-size: 0.95rem; }
+
+            /* Tabs centradas y más visibles */
+            .stTabs [data-baseweb="tab-list"] { justify-content: center; border-bottom: 2px solid #e9ecef; margin-bottom: 0.5rem; }
+            .stTabs [data-baseweb="tab"] { padding: 0.8rem 1rem; font-weight: 600; color: #6c757d; }
+            .stTabs [data-baseweb="tab"][aria-selected="true"] { border-bottom: 2px solid var(--primary); color: var(--primary); }
+
+            /* Inputs con foco elegante */
+            .stTextInput input, .stPassword input { border-radius: 12px !important; border: 1px solid #e2e8f0 !important; }
+            .stTextInput input:focus, .stPassword input:focus { outline: none !important; border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(107, 110, 232, 0.15) !important; }
+
+            /* Botones con degradado y hover (solo en el área de auth) */
+            .auth-area .stButton > button, [data-testid="stForm"] .stButton > button {
+                background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%) !important;
+                color: #fff !important; border: none !important; border-radius: 12px !important;
+                padding: 0.55rem 1rem !important; font-weight: 700 !important; letter-spacing: .2px;
+                box-shadow: 0 6px 18px rgba(107, 110, 232, .25) !important; transition: all .2s ease !important;
+            }
+            .auth-area .stButton > button:hover, [data-testid="stForm"] .stButton > button:hover {
+                transform: translateY(-1px); box-shadow: 0 8px 22px rgba(139, 92, 246, .3) !important;
+                background: linear-gradient(135deg, var(--primary-dark) 0%, var(--accent) 100%) !important;
+            }
+
+            /* Botones secundarios planos */
+            .auth-links .stButton > button { background: #f6f7ff !important; color: var(--primary) !important; border: 1px solid #e7e9ff !important; }
+            .auth-links .stButton > button:hover { background: #eef0ff !important; }
+
+            /* Responsive tweaks */
+            @media (max-width: 640px) {
+                [data-testid="stForm"] { padding: 1rem; border-radius: 12px; }
+                .auth-header h1 { font-size: 1.35rem; }
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Inicializar el estado del modo de autenticación si no existe
+    if 'auth_mode' not in st.session_state:
+        st.session_state.auth_mode = 'login'
+
+    # Contenedor principal de autenticación
+    if st.session_state.auth_mode in ['login', 'register']:
+        with st.container():
+            # Área de autenticación (para scoping de estilos)
+            st.markdown('<div class="auth-area">', unsafe_allow_html=True)
+
+            st.markdown(
+                """
+                <div class="auth-header">
+                    <img src="https://mimarca.com.ar/templates/yootheme/cache/10/logo-10f1f883.webp" alt="Logo">
+                    <h1>Mi Marca · Portal</h1>
+                    <p>Estudio Contable — Marcas y Patentes</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            login_tab, register_tab = st.tabs(["🔑 Iniciar Sesión", "📝 Crear Cuenta"])
+
+            with login_tab:
+                _show_login_form()
+
+            with register_tab:
+                _show_register_form()
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    elif st.session_state.auth_mode == 'verify':
+        _show_verify_form()
     
-    # Formulario de login
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        with st.form("login_form", clear_on_submit=True):
-            username = st.text_input("👤 Usuario", placeholder="Ingrese su usuario")
-            password = st.text_input("🔑 Contraseña", type="password", placeholder="Ingrese su contraseña")
-            
-            # Checkbox para recordar sesión
-            remember_me = st.checkbox("🔄 Mantener sesión activa", value=False, 
-                                    help="Extiende el tiempo de sesión a 8 horas")
-            
-            if st.form_submit_button("🚀 Iniciar Sesión", use_container_width=True, type="primary"):
-                if username and password:
-                    # Verificar credenciales
+    elif st.session_state.auth_mode == 'resend':
+        _show_resend_form()
+
+def _show_login_form():
+    """Mostrar formulario de login con campos de entrada de ancho ajustado."""
+    with st.form("login_form", clear_on_submit=True):
+        # Centrar y limitar ancho de inputs
+        c1, c2, c3 = st.columns([1, 5, 1])
+        with c2:
+            username = st.text_input("👤 Usuario", placeholder="Ingrese su usuario", key="login_username")
+            password = st.text_input("🔑 Contraseña", type="password", placeholder="Ingrese su contraseña", key="login_password")
+            remember_me = st.checkbox("🔄 Mantener sesión activa", value=False, help="Extiende el tiempo de sesión a 8 horas")
+
+        # Botón principal ancho completo dentro del form (mejor UX)
+        if st.form_submit_button("🚀 Iniciar Sesión", use_container_width=True, type="primary"):
+            if username and password:
+                # ... (resto del código de login sin cambios)
+                from email_verification_system import EmailVerificationSystem
+                email_auth = EmailVerificationSystem()
+                result = email_auth.login_user(username, password)
+                
+                if result['success']:
+                    user_data = result['user_data']
+                    st.session_state['authenticated'] = True
+                    st.session_state['user_info'] = {
+                        'username': user_data['username'],
+                        'name': user_data.get('name', user_data['username']),
+                        'email': user_data['email'],
+                        'role': user_data['role']
+                    }
+                    st.session_state['last_activity'] = datetime.now()
+                    st.session_state['extended_session'] = remember_me
+                    st.success("✅ Login exitoso!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
                     auth_manager = AuthManager()
-                    
                     if auth_manager.verify_user(username, password):
-                        # Obtener información del usuario
                         user_info = auth_manager.get_user_info(username)
-                        
                         if user_info:
-                            # Establecer session state
                             st.session_state['authenticated'] = True
                             st.session_state['user_info'] = user_info
                             st.session_state['last_activity'] = datetime.now()
-                            
-                            # Si seleccionó "mantener sesión", extender timeout
-                            if remember_me:
-                                st.session_state['extended_session'] = True
-                            
-                            st.success(f"✅ ¡Bienvenido {user_info['name']}!")
+                            st.session_state['extended_session'] = remember_me
+                            st.success("✅ Login exitoso!")
+                            time.sleep(1)
                             st.rerun()
                         else:
                             st.error("❌ Error obteniendo información del usuario")
                     else:
                         st.error("❌ Usuario o contraseña incorrectos")
+            else:
+                st.warning("⚠️ Por favor complete todos los campos")
+
+    # Acciones secundarias bajo el form con estilo consistente
+    st.markdown('<div class="auth-links">', unsafe_allow_html=True)
+    l1, l2 = st.columns(2)
+    with l1:
+        if st.button("🛡️ Verificar Cuenta", use_container_width=True, key="verify_account_btn"):
+            st.session_state.auth_mode = 'verify'
+            st.rerun()
+    with l2:
+        if st.button("� Reenviar Código", use_container_width=True, key="resend_code_btn"):
+            st.session_state.auth_mode = 'resend'
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def _show_register_form():
+    """Mostrar formulario de registro con verificación por email"""
+    st.info("💡 Recibirás un código de verificación en tu email para activar tu cuenta.")
+    
+    with st.form("register_form", clear_on_submit=False):
+        c1, c2, c3 = st.columns([1, 5, 1])
+        with c2:
+            username = st.text_input("👤 Nombre de Usuario", placeholder="Elige un nombre de usuario único", key="register_username")
+            name = st.text_input("📝 Nombre Completo", placeholder="Tu nombre completo", key="register_name")
+            email = st.text_input("📧 Email", placeholder="tu@email.com", key="register_email")
+            password = st.text_input("🔒 Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="register_password")
+            confirm_password = st.text_input("🔒 Confirmar Contraseña", type="password", placeholder="Repite tu contraseña", key="register_confirm_password")
+        
+        if st.form_submit_button("📝 Registrarse", use_container_width=True, type="primary"):
+            if username and name and email and password and confirm_password:
+                if password != confirm_password:
+                    st.error("❌ Las contraseñas no coinciden")
+                elif len(password) < 6:
+                    st.error("❌ La contraseña debe tener al menos 6 caracteres")
+                elif "@" not in email or "." not in email:
+                    st.error("❌ Ingresa un email válido")
                 else:
-                    st.error("⚠️ Por favor completa todos los campos")
+                    with st.spinner("Registrando usuario..."):
+                        from email_verification_system import EmailVerificationSystem
+                        email_auth = EmailVerificationSystem()
+                        result = email_auth.register_user(username, email, password, name)
+                    
+                    if result['success']:
+                        st.success("✅ " + result['message'])
+                        st.info("📧 Revisa tu email para activar tu cuenta.")
+                        if 'activation_code' in result:
+                            with st.expander("🔧 Código para Testing (Solo Desarrollo)", expanded=False):
+                                st.code(f"Código de activación: {result['activation_code']}")
+                        time.sleep(2)
+                        st.session_state.auth_mode = 'verify'
+                        st.rerun()
+                    else:
+                        st.error("❌ " + result['message'])
+            else:
+                st.warning("⚠️ Por favor completa todos los campos")
+
+def _show_verify_form():
+    """Mostrar un formulario de verificación de cuenta limpio y centrado."""
+    with st.container():
+        st.markdown('<div class="auth-container">', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="auth-header">
+            <h1>✅ Verificar Cuenta</h1>
+            <p>Ingresa el código de 6 dígitos que recibiste en tu email.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("verify_form", clear_on_submit=False):
+            c1, c2, c3 = st.columns([1, 5, 1])
+            with c2:
+                email = st.text_input("📧 Email", placeholder="Email usado en el registro", key="verify_email")
+                activation_code = st.text_input("🔢 Código de Activación", placeholder="Código de 6 dígitos", max_chars=6, key="verify_code")
+            
+            if st.form_submit_button("✅ Verificar", type="primary", use_container_width=True):
+                if email and activation_code:
+                    if len(activation_code) != 6 or not activation_code.isdigit():
+                        st.error("❌ El código debe tener exactamente 6 dígitos.")
+                    else:
+                        with st.spinner("Verificando código..."):
+                            from email_verification_system import EmailVerificationSystem
+                            email_auth = EmailVerificationSystem()
+                            result = email_auth.verify_activation_code(email, activation_code)
+                        
+                        if result['success']:
+                            st.success("✅ " + result['message'])
+                            st.info("🔑 Ahora puedes iniciar sesión.")
+                            time.sleep(2)
+                            st.session_state.auth_mode = 'login'
+                            st.rerun()
+                        else:
+                            st.error("❌ " + result['message'])
+                else:
+                    st.warning("⚠️ Por favor completa todos los campos.")
+        
+        st.markdown("---")
+        st.warning("⏰ **Importante**: Los códigos expiran en 15 minutos.")
+        st.info("📧 **¿No recibes el email?** Revisa tu spam o solicita un nuevo código.")
+
+        if st.button("← Volver al Login", use_container_width=True, key="verify_back_btn"):
+            st.session_state.auth_mode = 'login'
+            st.rerun()
+            
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def _show_resend_form():
+    """Mostrar un formulario para reenviar código de verificación."""
+    with st.container():
+        st.markdown('<div class="auth-container">', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="auth-header">
+            <h1>🔄 Reenviar Código</h1>
+            <p>Ingresa tu email para recibir un nuevo código de activación.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("resend_form", clear_on_submit=False):
+            c1, c2, c3 = st.columns([1, 5, 1])
+            with c2:
+                email = st.text_input("📧 Email", placeholder="Email usado en el registro", key="resend_email_input")
+            
+            if st.form_submit_button("📤 Reenviar Código", type="primary", use_container_width=True):
+                if email:
+                    with st.spinner("Enviando nuevo código..."):
+                        from email_verification_system import EmailVerificationSystem
+                        email_auth = EmailVerificationSystem()
+                        result = email_auth.resend_activation_code(email)
+                    
+                    if result['success']:
+                        st.success("✅ " + result['message'])
+                        st.info("📧 Revisa tu email para el nuevo código.")
+                        time.sleep(2)
+                        st.session_state.auth_mode = 'verify'
+                        st.rerun()
+                    else:
+                        st.error("❌ " + result['message'])
+                else:
+                    st.warning("⚠️ Ingresa tu email para reenviar el código.")
+        
+        if st.button("← Volver al Login", use_container_width=True, key="resend_back_btn"):
+            st.session_state.auth_mode = 'login'
+            st.rerun()
+            
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def check_authentication():
     """Verificar si el usuario está autenticado"""
