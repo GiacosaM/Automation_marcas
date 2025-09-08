@@ -28,7 +28,7 @@ from datetime import datetime
 import pandas as pd
 
 # Importar módulos refactorizados
-from src.config.settings import app_settings
+# from src.config.settings import app_settings
 from src.ui.styles import AppStyles
 from src.ui.navigation import NavigationManager
 from src.ui.components import UIComponents
@@ -110,8 +110,8 @@ class MarcasApp:
             self._show_informes_page()
         elif current_page == 'emails' and NavigationManager.is_section_active('email'):
             self._show_emails_page()
-        elif current_page == 'settings':
-            self._show_settings_page()
+        # elif current_page == 'settings':
+        #     self._show_settings_page()
         else:
             # Por defecto mostrar dashboard
             self._show_dashboard()
@@ -145,10 +145,10 @@ class MarcasApp:
         from src.ui.pages.emails import show_emails_page
         show_emails_page()
     
-    def _show_settings_page(self):
-        """Mostrar la página de configuración"""
-        from src.ui.pages.settings import show_settings_page
-        show_settings_page()
+    # def _show_settings_page(self):
+    #     """Mostrar la página de configuración"""
+    #     from src.ui.pages.settings import show_settings_page
+    #     show_settings_page()
     
     def run(self):
         """Ejecutar la aplicación principal"""

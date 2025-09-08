@@ -124,11 +124,12 @@ def _apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         
         # Crear el select_slider
         filtro_importancia_slider = st.select_slider(
-            "",
+            "Nivel de Importancia",
             options=["Todas", "Baja", "Media", "Alta", "Pendiente"],
             value="Todas",
             key="importance_slider",
-            help="Desliza para seleccionar el nivel de importancia"
+            help="Desliza para seleccionar el nivel de importancia",
+            label_visibility="collapsed"
         )
         
         # Mostrar badge con color según la selección
