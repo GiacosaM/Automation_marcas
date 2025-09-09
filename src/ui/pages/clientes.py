@@ -21,16 +21,34 @@ def validate_email_format(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
+def validate_cuit_format(cuit):
+    """Validar formato de CUIT/CUIL (11 dígitos sin guiones)"""
+    # Eliminar espacios y guiones para la validación
+    cuit_clean = cuit.replace('-', '').replace(' ', '')
+    # Verificar que tenga exactamente 11 dígitos y sean todos números
+    return cuit_clean.isdigit() and len(cuit_clean) == 11
+
+def format_cuit_for_display(cuit):
+    """Formatea el CUIT para mostrar"""
+    if not cuit:
+        return ""
+    # Eliminar cualquier guión o espacio existente
+    cuit_clean = cuit.replace('-', '').replace(' ', '')
+    if len(cuit_clean) == 11:
+        return cuit_clean
+    return cuit
+
 
 def show_clientes_page():
     """Mostrar la página de clientes"""
     st.title("👥 Gestión de Clientes")
     
-    # Cargar datos de clientes
+    # Cargar datos de clientes - forzar datos frescos
     conn = crear_conexion()
     if conn:
         try:
-            rows, columns = obtener_clientes(conn)
+            # Siempre obtener datos actualizados (force_refresh=True)
+            rows, columns = obtener_clientes(conn, force_refresh=True)
             
             if rows:
                 df_clientes = pd.DataFrame(rows, columns=columns)
@@ -108,8 +126,27 @@ def show_clientes_page():
                 </style>
                 """, unsafe_allow_html=True)
                 
-                # Solo dos pestañas: Lista Editable y Agregar Cliente
-                tab1, tab2 = st.tabs(["📋 Lista de Clientes (Editable)", "➕ Agregar Cliente"])
+                # Inicializar el índice de la pestaña activa si no existe
+                if 'active_tab_index' not in st.session_state:
+                    st.session_state.active_tab_index = 0  # Por defecto, la primera pestaña (lista)
+                
+                # Verificar si hay una solicitud para cambiar de pestaña
+                if 'switch_to_list' in st.session_state and st.session_state.switch_to_list:
+                    st.session_state.active_tab_index = 0  # Cambiar a la pestaña de lista
+                    st.session_state.switch_to_list = False  # Limpiar el flag
+                    
+                    # Forzar limpieza de caché de datos para mostrar información actualizada
+                    if 'clientes_data' in st.session_state:
+                        del st.session_state['clientes_data']
+                
+                # Si viene de agregar un cliente y pidió agregar otro
+                if 'switch_to_add' in st.session_state and st.session_state.switch_to_add:
+                    st.session_state.active_tab_index = 1  # Cambiar a la pestaña de agregar
+                    st.session_state.switch_to_add = False  # Limpiar el flag
+                
+                # Solo dos pestañas: Lista Editable y Agregar Cliente (usando el índice guardado)
+                tab_names = ["📋 Lista de Clientes (Editable)", "➕ Agregar Cliente"]
+                tab1, tab2 = st.tabs(tab_names)
                 
                 with tab1:
                     st.subheader("📋 Lista Completa de Clientes")
@@ -127,6 +164,13 @@ def show_clientes_page():
                         with col3:
                             filtro_provincia_cliente = st.text_input("🗺️ Provincia", placeholder="Provincia...")
                             filtro_cuit_cliente = st.text_input("🆔 CUIT", placeholder="CUIT...")
+                            # Filtro para clientes con/sin marcas
+                            filtro_marcas = st.selectbox(
+                                "🏷️ Marcas",
+                                options=["Todos", "Con marcas", "Sin marcas"],
+                                index=0,
+                                help="Filtrar clientes con o sin marcas vinculadas"
+                            )
                         with col4:
                             st.markdown("##### 🎯 Acciones")
                             st.markdown("<br>", unsafe_allow_html=True)
@@ -135,9 +179,25 @@ def show_clientes_page():
                                        key="refresh_clientes",
                                        use_container_width=True,
                                        help="Recargar la lista de clientes desde la base de datos"):
-                                # Limpiar cache y recargar
+                                # Crear un contenedor para el mensaje
+                                mensaje_container = st.empty()
+                                
+                                with mensaje_container.container():
+                                    st.info("⏳ Actualizando datos de clientes desde la base de datos...")
+                                
+                                # Limpiar cache y recargar - más intensivo
                                 if 'clientes_data' in st.session_state:
                                     del st.session_state['clientes_data']
+                                    
+                                # Limpiar cualquier otro cache relacionado
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith('grid_clientes_'):
+                                        del st.session_state[key]
+                                
+                                # Pequeña pausa para asegurar la limpieza del caché
+                                time.sleep(0.8)
+                                
+                                # Recargar la página para mostrar datos frescos
                                 st.rerun()
                     
                     # Aplicar filtros
@@ -157,6 +217,13 @@ def show_clientes_page():
                         filtered_clientes = filtered_clientes[mask_provincia]
                     if filtro_cuit_cliente:
                         filtered_clientes = filtered_clientes[filtered_clientes['cuit'].astype(str).str.contains(filtro_cuit_cliente, case=False, na=False)]
+                    
+                    # Aplicar filtro de marcas
+                    if filtro_marcas != "Todos":
+                        if filtro_marcas == "Con marcas":
+                            filtered_clientes = filtered_clientes[filtered_clientes['tiene_marcas'] == 1]
+                        else:  # "Sin marcas"
+                            filtered_clientes = filtered_clientes[filtered_clientes['tiene_marcas'] == 0]
                     
                     # Mostrar resultados - TABLA EDITABLE
                     if not filtered_clientes.empty:
@@ -191,7 +258,22 @@ def show_clientes_page():
                                     if cambios:
                                         # Actualizar en la base de datos
                                         try:
-                                            actualizar_cliente(
+                                            # Verificar si se está modificando el CUIT (posible vinculación de marcas)
+                                            cuit_modificado = 'cuit' in campos_cambiados
+                                            
+                                            # Crear un contenedor para los mensajes
+                                            mensaje_container = st.empty()
+                                            
+                                            # Si se modificó el CUIT, mostrar un mensaje especial
+                                            if cuit_modificado:
+                                                with mensaje_container.container():
+                                                    st.info("⏳ Actualizando CUIT y vinculaciones de marcas...")
+                                            else:
+                                                with mensaje_container.container():
+                                                    st.info(f"⏳ Actualizando cliente '{row['titular']}'...")
+                                            
+                                            # Aplicar la actualización en la base de datos
+                                            resultado = actualizar_cliente(
                                                 conn, 
                                                 row['id'], 
                                                 row['titular'] if pd.notna(row['titular']) else "", 
@@ -202,9 +284,28 @@ def show_clientes_page():
                                                 row['provincia'] if pd.notna(row['provincia']) else "", 
                                                 row['cuit'] if pd.notna(row['cuit']) else ""
                                             )
-                                            st.success(f"✅ Cliente '{row['titular']}' actualizado: {', '.join(campos_cambiados)}")
-                                            time.sleep(0.5)
-                                            st.rerun()  # Recargar para mostrar cambios
+                                            
+                                            mensaje = f"✅ Cliente '{row['titular']}' actualizado: {', '.join(campos_cambiados)}"
+                                            
+                                            # Mensaje especial si se modificó el CUIT (posible vinculación)
+                                            if cuit_modificado:
+                                                mensaje += "\n\n⚠️ Se actualizaron las vinculaciones de marcas"
+                                                # Forzar limpieza del caché de datos
+                                                if 'clientes_data' in st.session_state:
+                                                    del st.session_state['clientes_data']
+                                            
+                                            # Mostrar mensaje de éxito y dar tiempo para que el usuario lo vea
+                                            with mensaje_container.container():
+                                                st.success(mensaje)
+                                                # Limpiar otros cachés relacionados
+                                                for key in list(st.session_state.keys()):
+                                                    if key.startswith('grid_clientes_'):
+                                                        del st.session_state[key]
+                                                # Dar tiempo para que el usuario vea el mensaje
+                                                time.sleep(1.5)
+                                                
+                                            # Forzar recarga completa para mostrar cambios
+                                            st.rerun()
                                         except Exception as e:
                                             st.error(f"❌ Error al actualizar '{row['titular']}': {e}")
                         
@@ -230,13 +331,47 @@ def show_clientes_page():
                                     if st.button("🗑️ Eliminar Cliente", type="secondary", use_container_width=True):
                                         # Confirmar eliminación
                                         if st.button("⚠️ Confirmar Eliminación", type="primary"):
+                                            # Crear un contenedor para los mensajes
+                                            mensaje_container = st.empty()
+                                            
+                                            with mensaje_container.container():
+                                                st.info(f"⏳ Eliminando cliente '{selected_client['titular']}' y desvinculando marcas asociadas...")
+                                            
                                             try:
-                                                eliminar_cliente(conn, selected_client['id'])
-                                                st.success(f"✅ Cliente '{selected_client['titular']}' eliminado")
-                                                time.sleep(1)
-                                                st.rerun()
+                                                resultado = eliminar_cliente(conn, selected_client['id'])
+                                                
+                                                if resultado["success"]:
+                                                    cliente = resultado["cliente"]
+                                                    marcas = resultado["marcas_desvinculadas"]
+                                                    
+                                                    mensaje = f"✅ Cliente '{cliente}' eliminado correctamente"
+                                                    if marcas > 0:
+                                                        mensaje += f"\n\n🏷️ {marcas} marcas han sido desvinculadas"
+                                                    
+                                                    # Mostrar el mensaje de éxito
+                                                    with mensaje_container.container():
+                                                        st.success(mensaje)
+                                                    
+                                                    # Forzar limpieza completa del caché
+                                                    if 'clientes_data' in st.session_state:
+                                                        del st.session_state['clientes_data']
+                                                    
+                                                    # Limpiar cualquier otro cache relacionado
+                                                    for key in list(st.session_state.keys()):
+                                                        if key.startswith('grid_clientes_'):
+                                                            del st.session_state[key]
+                                                    
+                                                    # Dar tiempo para que el usuario vea el mensaje
+                                                    time.sleep(1.5)
+                                                    
+                                                    # Recargar la página para mostrar los cambios
+                                                    st.rerun()
+                                                else:
+                                                    with mensaje_container.container():
+                                                        st.error(f"❌ Error: {resultado.get('error', 'Error desconocido')}")
                                             except Exception as e:
-                                                st.error(f"❌ Error al eliminar: {e}")
+                                                with mensaje_container.container():
+                                                    st.error(f"❌ Error al eliminar: {e}")
                     else:
                         st.warning("🔍 No se encontraron clientes que coincidan con los filtros aplicados.")
                 
@@ -260,24 +395,28 @@ def show_clientes_page():
                     if 'form_direccion' not in st.session_state:
                         st.session_state.form_direccion = ""
                     
-                    with st.form("form_nuevo_cliente", clear_on_submit=False):
+                    with st.form("form_nuevo_cliente", clear_on_submit=True):
                         # Información básica
-                        st.markdown("##### � Información Básica")
+                        st.markdown("##### 📄 Información Básica")
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             nuevo_titular = st.text_input("🏢 Titular *", 
+                                                        key="input_titular",
                                                         value=st.session_state.form_titular,
                                                         placeholder="Nombre o razón social")
                             nuevo_email = st.text_input("📧 Email *", 
+                                                       key="input_email",
                                                        value=st.session_state.form_email,
                                                        placeholder="cliente@ejemplo.com")
                         with col2:
                             nuevo_telefono = st.text_input("📞 Teléfono", 
+                                                          key="input_telefono",
                                                           value=st.session_state.form_telefono,
                                                           placeholder="+54 9 11 1234-5678")
-                            nuevo_cuit = st.text_input("🆔 CUIT/CUIL", 
+                            nuevo_cuit = st.text_input("🆔 CUIT/CUIL *", 
+                                                      key="input_cuit",
                                                       value=st.session_state.form_cuit,
-                                                      placeholder="20-12345678-9")
+                                                      placeholder="30712353569")
                         with col3:
                             nueva_ciudad = st.text_input("🏙️ Ciudad", 
                                                         value=st.session_state.form_ciudad,
@@ -316,6 +455,20 @@ def show_clientes_page():
                             )
                         
                         if submitted:
+                            # Crear contenedor para los mensajes de estado
+                            status_container = st.empty()
+                            
+                            # Guardar los valores actuales para referencias
+                            current_values = {
+                                'titular': nuevo_titular,
+                                'email': nuevo_email,
+                                'telefono': nuevo_telefono,
+                                'cuit': nuevo_cuit,
+                                'ciudad': nueva_ciudad,
+                                'provincia': nueva_provincia,
+                                'direccion': nueva_direccion
+                            }
+                            
                             # Actualizar session_state con los valores actuales
                             st.session_state.form_titular = nuevo_titular
                             st.session_state.form_email = nuevo_email
@@ -325,10 +478,26 @@ def show_clientes_page():
                             st.session_state.form_provincia = nueva_provincia
                             st.session_state.form_direccion = nueva_direccion
                             
-                            if nuevo_titular and nuevo_email:
-                                # Validar formato de email
-                                if validate_email_format(nuevo_email):
+                            if nuevo_titular and nuevo_email and nuevo_cuit:
+                                # Validar formato de email y CUIT
+                                email_valido = validate_email_format(nuevo_email)
+                                cuit_valido = validate_cuit_format(nuevo_cuit)
+                                
+                                if not email_valido:
+                                    with status_container.container():
+                                        st.error("⚠️ El formato del email no es válido. Por favor, ingrese un email correcto.")
+                                elif not cuit_valido:
+                                    with status_container.container():
+                                        st.error("⚠️ El formato del CUIT no es válido. Debe contener 11 dígitos sin guiones (ej: 30712353569).")
+                                else:
                                     try:
+                                        # Mostrar mensaje de procesamiento
+                                        with status_container.container():
+                                            st.info("⏳ Procesando el nuevo cliente...")
+                                        
+                                        # Formatear el CUIT (eliminar guiones y espacios)
+                                        cuit_formateado = format_cuit_for_display(nuevo_cuit)
+                                        
                                         # Verificar si ya existe un cliente con ese titular
                                         cursor = conn.cursor()
                                         cursor.execute("SELECT COUNT(*) FROM clientes WHERE titular = ?", (nuevo_titular,))
@@ -336,13 +505,28 @@ def show_clientes_page():
                                         cursor.close()
                                         
                                         if existe:
-                                            st.error("⚠️ Ya existe un cliente con ese titular. Use un nombre diferente.")
+                                            with status_container.container():
+                                                st.error("⚠️ Ya existe un cliente con ese titular. Use un nombre diferente.")
                                         else:
-                                            insertar_cliente(conn, nuevo_titular, nuevo_email, nuevo_telefono, 
-                                                           nueva_direccion, nueva_ciudad, nueva_provincia, nuevo_cuit)
-                                            st.success("✅ Cliente agregado correctamente")
+                                            # Insertar el nuevo cliente con el CUIT formateado
+                                            nuevo_cliente_id = insertar_cliente(
+                                                conn, nuevo_titular, nuevo_email, nuevo_telefono, 
+                                                nueva_direccion, nueva_ciudad, nueva_provincia, cuit_formateado
+                                            )
                                             
-                                            # Limpiar formulario solo después del éxito
+                                            # Mostrar mensaje de éxito con detalles
+                                            with status_container.container():
+                                                st.success(f"""
+                                                ✅ **¡Cliente agregado correctamente!**
+                                                
+                                                **Titular:** {nuevo_titular}  
+                                                **Email:** {nuevo_email}  
+                                                **CUIT:** {nuevo_cuit if nuevo_cuit else "No especificado"}
+                                                
+                                                *Se ha añadido a la lista de clientes con ID #{nuevo_cliente_id}*
+                                                """)
+                                            
+                                            # Limpiar todos los campos del formulario
                                             st.session_state.form_titular = ""
                                             st.session_state.form_email = ""
                                             st.session_state.form_telefono = ""
@@ -351,23 +535,81 @@ def show_clientes_page():
                                             st.session_state.form_provincia = ""
                                             st.session_state.form_direccion = ""
                                             
-                                            time.sleep(1)
-                                            # Forzar recarga de datos
+                                            # Configurar los flags y limpiar cache para la siguiente acción
+                                            # Limpiar caché de datos para actualizarlos
                                             if 'clientes_data' in st.session_state:
                                                 del st.session_state['clientes_data']
-                                            st.rerun()
+                                                
+                                            # Mostrar mensaje informativo sobre los botones de acción fuera del formulario
+                                            st.info("✅ **Cliente agregado con éxito.** Puedes agregar otro cliente o ver la lista de todos los clientes usando los botones abajo.")
+                                            
+                                            # Guardar un flag para indicar que debemos cambiar de pestaña en la próxima ejecución
+                                            st.session_state.cliente_recien_agregado = True
+                                            
+                                            # Limpiar caché de datos para actualizarlos en segundo plano
+                                            if 'clientes_data' in st.session_state:
+                                                del st.session_state['clientes_data']
+                                    
                                     except Exception as e:
-                                        st.error(f"❌ Error al agregar el cliente: {e}")
-                                else:
-                                    st.error("⚠️ El formato del email no es válido. Por favor, ingrese un email correcto.")
+                                        with status_container.container():
+                                            st.error(f"❌ Error al agregar el cliente: {e}")
+                                            st.exception(e)
+                                    else:
+                                        with status_container.container():
+                                            st.error("⚠️ El formato del email no es válido. Por favor, ingrese un email correcto.")
                             else:
+                                errors = []
                                 if not nuevo_titular:
-                                    st.error("⚠️ El campo Titular es obligatorio")
+                                    errors.append("⚠️ El campo **Titular** es obligatorio")
                                 if not nuevo_email:
-                                    st.error("⚠️ El campo Email es obligatorio")
+                                    errors.append("⚠️ El campo **Email** es obligatorio")
+                                if not nuevo_cuit:
+                                    errors.append("⚠️ El campo **CUIT/CUIL** es obligatorio")
+                                
+                                with status_container.container():
+                                    for error in errors:
+                                        st.error(error)
+                    
+                    # Mostrar botones de acción fuera del formulario cuando se haya agregado un cliente
+                    if 'cliente_recien_agregado' in st.session_state and st.session_state.cliente_recien_agregado:
+                        st.session_state.cliente_recien_agregado = False  # Resetear flag
+                        
+                        st.markdown("---")
+                        st.markdown("### ¿Qué deseas hacer ahora?")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        # Botón para ver lista de clientes con estilo mejorado
+                        with col1:
+                            if st.button("📋 Ver lista de clientes", key="btn_ver_lista", use_container_width=True, type="primary"):
+                                # Este es el punto clave: configuramos el flag y forzamos rerun
+                                st.session_state.switch_to_list = True
+                                
+                                # Limpiar cualquier caché para asegurar datos frescos
+                                if 'clientes_data' in st.session_state:
+                                    del st.session_state['clientes_data']
+                                
+                                # Pequeña pausa para asegurar que los cambios se apliquen
+                                time.sleep(0.1)
+                                st.rerun()
+                                
+                        # Botón para agregar otro cliente
+                        with col2:
+                            if st.button("➕ Agregar otro cliente", key="btn_otro_cliente", use_container_width=True):
+                                # Limpiar los campos del formulario para un nuevo cliente
+                                st.session_state.form_titular = ""
+                                st.session_state.form_email = ""
+                                st.session_state.form_telefono = ""
+                                st.session_state.form_cuit = ""
+                                st.session_state.form_ciudad = ""
+                                st.session_state.form_provincia = ""
+                                st.session_state.form_direccion = ""
+                                
+                                # Recargar la página para mostrar el formulario limpio
+                                st.rerun()
             
             else:
-                st.info("� No hay clientes registrados en el sistema")
+                st.info("No hay clientes registrados en el sistema")
                 
                 # Botón para agregar el primer cliente
                 st.markdown("---")

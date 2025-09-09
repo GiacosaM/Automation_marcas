@@ -75,7 +75,26 @@ CLIENT_COLUMNS = {
     'direccion': {"width": 250, "header_name": "📍 Dirección", "wrapText": True, "flex": 3},
     'ciudad': {"width": 120, "header_name": "🏙️ Ciudad", "flex": 1},
     'provincia': {"width": 130, "header_name": "🗺️ Provincia", "flex": 1},
-    'cuit': {"width": 130, "header_name": "🆔 CUIT", "flex": 1}
+    'cuit': {"width": 130, "header_name": "🆔 CUIT", "flex": 1},
+    'tiene_marcas': {
+        "width": 100, 
+        "header_name": "🏷️ Marcas", 
+        "flex": 1, 
+        "editable": False,
+        "cellStyle": {
+            'textAlign': 'center',
+            'fontSize': '20px'
+        },
+        "cellRenderer": """
+        function(params) {
+            if (params.value == 1) {
+                return '<span title="Cliente con marcas vinculadas">✅</span>';
+            } else {
+                return '<span title="Cliente sin marcas vinculadas">❌</span>';
+            }
+        }
+        """
+    }
 }
 
 # Opciones de importancia

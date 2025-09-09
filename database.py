@@ -30,6 +30,8 @@ def crear_conexion():
     """Crea y devuelve una conexión a la base de datos SQLite."""
     try:
         conn = sqlite3.connect('boletines.db')
+        # Habilitar soporte de foreign keys
+        conn.execute("PRAGMA foreign_keys = ON")
         # Solo log en caso de problemas - no en uso normal
         return conn
     except sqlite3.Error as e:
@@ -404,66 +406,178 @@ def eliminar_registro(conn, id):
         cursor.close()
 
 def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provincia, cuit):
-    """Inserta un nuevo cliente en la tabla 'clientes', verificando duplicados."""
+    """
+    Inserta un nuevo cliente en la tabla 'clientes', verificando duplicados.
+    Además, vincula automáticamente todas las marcas con el mismo CUIT.
+    
+    Args:
+        conn: Conexión a la base de datos
+        titular: Nombre del titular
+        email: Email del cliente
+        telefono: Teléfono del cliente
+        direccion: Dirección del cliente
+        ciudad: Ciudad del cliente
+        provincia: Provincia del cliente
+        cuit: CUIT del cliente
+        
+    Returns:
+        int: ID del cliente insertado o None si ocurre un error
+    """
     try:
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT COUNT(*) FROM clientes WHERE titular = ?
-        ''', (titular,))
-        if cursor.fetchone()[0] == 0:  # Si no existe, insertar
-            cursor.execute('''
-                INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'),?)
-            ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
-            conn.commit()
-            logging.info(f"Cliente insertado: Titular {titular}")
-        else:
+        
+        # Verificar si ya existe un cliente con el mismo titular
+        cursor.execute('SELECT COUNT(*) FROM clientes WHERE titular = ?', (titular,))
+        if cursor.fetchone()[0] > 0:
             logging.info(f"Cliente omitido (ya existe): Titular {titular}")
             raise Exception(f"Cliente con titular '{titular}' ya existe.")
+            
+        # Insertar el nuevo cliente
+        cursor.execute('''
+            INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
+        ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
+        
+        conn.commit()
+        
+        # Obtener el ID del cliente recién insertado
+        cursor.execute("SELECT last_insert_rowid()")
+        cliente_id = cursor.fetchone()[0]
+        
+        logging.info(f"Cliente insertado: ID {cliente_id}, Titular {titular}")
+        
+        # Vincular marcas existentes con este CUIT
+        if cuit:
+            _vincular_marcas_con_cliente(conn, cliente_id, cuit)
+            
+        return cliente_id
+        
     except sqlite3.Error as e:
         logging.error(f"Error al insertar cliente: {e}")
+        if conn:
+            conn.rollback()
         raise Exception(f"Error al insertar cliente: {e}")
     finally:
-        cursor.close()
+        if 'cursor' in locals():
+            cursor.close()
 
-def obtener_clientes(conn):
-    """Obtiene todos los registros de la tabla 'clientes'."""
+def cliente_tiene_marcas(conn, cliente_id=None, cuit=None):
+    """
+    Verifica si un cliente tiene marcas asociadas, ya sea por su ID o su CUIT.
+    
+    Args:
+        conn: Conexión a la base de datos
+        cliente_id: ID del cliente (opcional)
+        cuit: CUIT del cliente (opcional)
+        
+    Returns:
+        bool: True si el cliente tiene marcas asociadas, False en caso contrario
+    """
+    try:
+        if not cliente_id and not cuit:
+            return False
+            
+        cursor = conn.cursor()
+        has_marcas = False
+        
+        # Primero verificamos por cliente_id (relación directa)
+        if cliente_id:
+            cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cliente_id = ?", (cliente_id,))
+            count_by_id = cursor.fetchone()[0]
+            has_marcas = count_by_id > 0
+        
+        # Si no hay marcas por ID y tenemos CUIT, verificamos por CUIT
+        if not has_marcas and cuit:
+            # Manejar casos donde CUIT puede ser string o int
+            cuit_str = str(cuit) if not isinstance(cuit, str) else cuit
+            cuit_int = int(cuit_str) if cuit_str.isdigit() else None
+            
+            if cuit_int is not None:
+                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ? OR cuit = ?", (cuit_str, cuit_int))
+            else:
+                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ?", (cuit_str,))
+            
+            count_by_cuit = cursor.fetchone()[0]
+            has_marcas = count_by_cuit > 0
+        
+        return has_marcas
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error al verificar marcas del cliente: {e}")
+        return False
+    finally:
+        if cursor:
+            cursor.close()
+
+
+def obtener_clientes(conn, force_refresh=True):
+    """
+    Obtiene todos los registros de la tabla 'clientes' incluyendo un indicador 
+    de si tienen marcas asociadas.
+    
+    Args:
+        conn: Conexión a la base de datos
+        force_refresh: Si es True, fuerza un PRAGMA query_only=0 para asegurar datos actualizados
+        
+    Returns:
+        tuple: (list de filas, list de nombres de columnas)
+    """
     try:
         cursor = conn.cursor()
+        
+        # Asegurar que no se use una versión en caché de la base de datos
+        if force_refresh:
+            cursor.execute("PRAGMA query_only=0")
+            
         cursor.execute("""
             SELECT id, titular, email, telefono, direccion, ciudad, provincia, cuit
             FROM clientes
+            ORDER BY titular ASC
         """)
         rows = cursor.fetchall()
-        columns = [description[0] for description in cursor.description]
-        logging.info("Datos de clientes obtenidos correctamente.")
-        return rows, columns
+        columns = [description[0] for description in cursor.description] + ["tiene_marcas"]
+        
+        # Añadir indicador de si el cliente tiene marcas
+        result = []
+        for row in rows:
+            cliente_id = row[0]
+            cuit = row[7]  # Índice 7 corresponde a cuit en la consulta
+            
+            # Verificamos primero por cliente_id (relación directa) - esto es más preciso
+            cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cliente_id = ?", (cliente_id,))
+            count_by_id = cursor.fetchone()[0]
+            tiene_marcas_id = count_by_id > 0
+            
+            # También verificamos por coincidencia de CUIT (para detección de potenciales vinculaciones)
+            # y lo almacenamos como dato separado para uso en la interfaz
+            cuit_str = str(cuit) if cuit is not None else ""
+            cuit_int = int(cuit_str) if cuit_str.isdigit() else None
+            
+            count_by_cuit = 0
+            if cuit_int is not None:
+                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ? OR cuit = ?", 
+                               (cuit_str, cuit_int))
+                count_by_cuit = cursor.fetchone()[0]
+            elif cuit_str:
+                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ?", (cuit_str,))
+                count_by_cuit = cursor.fetchone()[0]
+            
+            # Crear una nueva fila con todos los datos originales más los indicadores
+            new_row = list(row) + [1 if tiene_marcas_id else 0]  # 1=Tiene marcas asignadas, 0=No tiene
+            result.append(new_row)
+        
+        logging.info("Datos de clientes obtenidos correctamente con indicador de marcas.")
+        return result, columns
     except sqlite3.Error as e:
         logging.error(f"Error al consultar clientes: {e}")
         raise Exception(f"Error al consultar clientes: {e}")
     finally:
-        cursor.close()
-
-def actualizar_cliente(conn, id, titular, email, telefono, direccion, ciudad, provincia, cuit):
-    """Actualiza un registro en la tabla 'clientes'."""
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE clientes
-            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, fecha_modificacion = datetime('now', 'localtime'), cuit = ?
-            WHERE id = ?
-        """, (titular, email, telefono, direccion, ciudad, provincia, cuit, id))
-        conn.commit()
-        logging.info(f"Cliente actualizado: ID {id}")
-    except sqlite3.Error as e:
-        logging.error(f"Error al actualizar cliente: {e}")
-        raise Exception(f"Error al actualizar cliente: {e}")
-    finally:
-        cursor.close()
+        if cursor:
+            cursor.close()
 
 def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """
-    Actualiza un cliente existente en la base de datos.
+    Actualiza un cliente existente en la base de datos y vincula marcas con el mismo CUIT.
     
     Args:
         conn: Conexión a la base de datos
@@ -475,37 +589,166 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
         ciudad: Ciudad del cliente
         provincia: Provincia del cliente
         cuit: CUIT del cliente
+        
+    Returns:
+        bool: True si la actualización fue exitosa, False en caso contrario
     """
     try:
         cursor = conn.cursor()
+        
+        # Obtener el CUIT antiguo para comparar si cambió
+        cursor.execute("SELECT cuit FROM clientes WHERE id = ?", (cliente_id,))
+        resultado = cursor.fetchone()
+        if not resultado:
+            logging.warning(f"Cliente con ID {cliente_id} no existe")
+            return False
+            
+        cuit_antiguo = resultado[0]
+        
+        # Actualizar el cliente
         cursor.execute("""
             UPDATE clientes 
-            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, cuit = ?
+            SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, 
+                cuit = ?, fecha_modificacion = datetime('now', 'localtime')
             WHERE id = ?
         """, (titular, email, telefono, direccion, ciudad, provincia, cuit, cliente_id))
         
         conn.commit()
-        cursor.close()
+        logging.info(f"Cliente actualizado: ID {cliente_id}, Titular: {titular}")
         
+        # Si el CUIT cambió o existe, debemos vincular marcas que coincidan con ese CUIT
+        if cuit:
+            # Convertir el CUIT a string y a int para manejar ambos tipos
+            cuit_str = str(cuit) if not isinstance(cuit, str) else cuit
+            cuit_int = int(cuit_str) if cuit_str.isdigit() else None
+            
+            cuit_cambio = (cuit != cuit_antiguo)
+            logging.info(f"{'Cambio de CUIT' if cuit_cambio else 'Verificando vinculaciones'} para cliente {titular} (ID: {cliente_id})")
+            logging.info(f"CUIT actual: {cuit} (tipo {type(cuit).__name__})")
+            
+            # Buscar marcas no vinculadas con el CUIT (tanto en formato string como entero)
+            if cuit_int is not None:
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM Marcas 
+                    WHERE (cuit = ? OR cuit = ?) AND cliente_id IS NULL
+                """, (cuit_str, cuit_int))
+            else:
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM Marcas 
+                    WHERE cuit = ? AND cliente_id IS NULL
+                """, (cuit_str,))
+            
+            marcas_sin_vincular = cursor.fetchone()[0]
+            
+            if marcas_sin_vincular > 0:
+                # Vincular SOLO las marcas con el CUIT (en cualquier formato) que NO están vinculadas a ningún cliente
+                if cuit_int is not None:
+                    cursor.execute("""
+                        UPDATE Marcas 
+                        SET cliente_id = ?
+                        WHERE (cuit = ? OR cuit = ?) AND cliente_id IS NULL
+                    """, (cliente_id, cuit_str, cuit_int))
+                else:
+                    cursor.execute("""
+                        UPDATE Marcas 
+                        SET cliente_id = ?
+                        WHERE cuit = ? AND cliente_id IS NULL
+                    """, (cliente_id, cuit_str))
+                
+                marcas_vinculadas = cursor.rowcount
+                logging.info(f"Vinculadas {marcas_vinculadas} marcas sin asignar con CUIT {cuit} al cliente {titular}")
+                
+                # Obtener detalles de las marcas vinculadas para el log
+                if cuit_int is not None:
+                    cursor.execute("""
+                        SELECT id, marca, cuit
+                        FROM Marcas
+                        WHERE cliente_id = ? AND (cuit = ? OR cuit = ?)
+                        LIMIT 5  -- Limitamos a 5 para no sobrecargar el log
+                    """, (cliente_id, cuit_str, cuit_int))
+                else:
+                    cursor.execute("""
+                        SELECT id, marca, cuit
+                        FROM Marcas
+                        WHERE cliente_id = ? AND cuit = ?
+                        LIMIT 5  -- Limitamos a 5 para no sobrecargar el log
+                    """, (cliente_id, cuit_str))
+                
+                for marca in cursor.fetchall():
+                    logging.info(f"  - Marca '{marca[1]}' (ID: {marca[0]}, CUIT: {marca[2]}) vinculada al cliente {titular}")
+            else:
+                logging.info(f"No se encontraron marcas sin vincular con CUIT {cuit} (en ningún formato)")
+        
+        conn.commit()
         return True
         
-    except Exception as e:
-        print(f"Error al actualizar cliente: {e}")
+    except sqlite3.Error as e:
+        logging.error(f"Error al actualizar cliente: {e}")
         conn.rollback()
         return False
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
 
 def eliminar_cliente(conn, id):
-    """Elimina un registro de la tabla 'clientes'."""
+    """
+    Elimina un registro de la tabla 'clientes' y desvincula sus marcas asociadas.
+    
+    Args:
+        conn: Conexión a la base de datos
+        id: ID del cliente a eliminar
+        
+    Returns:
+        dict: Resultado de la operación con información sobre marcas desvinculadas
+    """
     try:
         cursor = conn.cursor()
+        
+        # 1. Obtener información del cliente antes de eliminarlo (para log)
+        cursor.execute("SELECT titular, cuit FROM clientes WHERE id = ?", (id,))
+        cliente = cursor.fetchone()
+        
+        if not cliente:
+            logging.warning(f"No se encontró cliente con ID {id} para eliminar")
+            return {"success": False, "error": f"No se encontró cliente con ID {id}"}
+            
+        titular, cuit = cliente
+        
+        # 2. Identificar las marcas vinculadas a este cliente
+        cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cliente_id = ?", (id,))
+        marcas_count = cursor.fetchone()[0]
+        
+        # 3. Desvincular las marcas asociadas (NO eliminar las marcas)
+        if marcas_count > 0:
+            cursor.execute("""
+                UPDATE Marcas 
+                SET cliente_id = NULL 
+                WHERE cliente_id = ?
+            """, (id,))
+            
+            logging.info(f"Se desvincularon {marcas_count} marcas del cliente '{titular}' (ID: {id})")
+        
+        # 4. Eliminar el cliente
         cursor.execute("DELETE FROM clientes WHERE id = ?", (id,))
         conn.commit()
-        logging.info(f"Cliente eliminado: ID {id}")
+        
+        logging.info(f"Cliente eliminado: '{titular}' (ID: {id}) con {marcas_count} marcas desvinculadas")
+        
+        return {
+            "success": True, 
+            "marcas_desvinculadas": marcas_count,
+            "cliente": titular
+        }
+        
     except sqlite3.Error as e:
         logging.error(f"Error al eliminar cliente: {e}")
+        conn.rollback()
         raise Exception(f"Error al eliminar cliente: {e}")
     finally:
-        cursor.close()
+        if 'cursor' in locals():
+            cursor.close()
 
 # ================================
 # FUNCIONES PARA TABLA ENVIOS_LOG
@@ -1085,3 +1328,361 @@ def eliminar_usuario(conn, user_id):
         raise Exception(f"Error al eliminar usuario: {e}")
     finally:
         cursor.close()
+        
+# ================================
+# FUNCIONES PARA TABLA MARCAS
+# ================================
+
+def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
+    """
+    Vincula todas las marcas con un determinado CUIT con el cliente_id.
+    Esta es una función auxiliar privada usada por insertar_cliente y actualizar_cliente.
+    
+    Args:
+        conn: Conexión a la base de datos
+        cliente_id: ID del cliente a vincular
+        cuit: CUIT para buscar marcas relacionadas
+        
+    Returns:
+        int: Número de marcas vinculadas
+    """
+    try:
+        if not cuit or not cliente_id:
+            return 0
+            
+        cursor = conn.cursor()
+        
+        # Asegurar compatibilidad entre string e int para CUIT
+        cuit_str = str(cuit) if isinstance(cuit, (int, float)) else cuit
+        cuit_int = int(cuit) if isinstance(cuit, str) and cuit.isdigit() else None
+        
+        # Verificar que el cliente existe
+        cursor.execute("SELECT COUNT(*) FROM clientes WHERE id = ?", (cliente_id,))
+        if cursor.fetchone()[0] == 0:
+            logging.warning(f"No se puede vincular marcas: Cliente con ID {cliente_id} no existe")
+            return 0
+        
+        # Obtener el nombre del titular para el log
+        cursor.execute("SELECT titular FROM clientes WHERE id = ?", (cliente_id,))
+        titular_result = cursor.fetchone()
+        titular = titular_result[0] if titular_result else "Desconocido"
+        
+        # Vincular todas las marcas que tengan el mismo CUIT (como string o int)
+        # IMPORTANTE: Solo vincular marcas que no tienen cliente asignado
+        if cuit_int is not None:
+            cursor.execute("""
+                UPDATE Marcas 
+                SET cliente_id = ?
+                WHERE (cuit = ? OR cuit = ?) AND cliente_id IS NULL
+            """, (cliente_id, cuit_str, cuit_int))
+        else:
+            cursor.execute("""
+                UPDATE Marcas 
+                SET cliente_id = ?
+                WHERE cuit = ? AND cliente_id IS NULL
+            """, (cliente_id, cuit_str))
+        
+        filas_afectadas = cursor.rowcount
+        conn.commit()
+        
+        if filas_afectadas > 0:
+            logging.info(f"Se vincularon {filas_afectadas} marcas al cliente '{titular}' (ID: {cliente_id}) con CUIT {cuit}")
+            
+        return filas_afectadas
+            
+    except sqlite3.Error as e:
+        logging.error(f"Error al vincular marcas con cliente: {e}")
+        conn.rollback()
+        return 0
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+
+def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None):
+    """
+    Inserta una nueva marca en la tabla 'marcas'.
+    Si existe un cliente con el mismo CUIT, establece automáticamente la relación.
+    
+    Args:
+        conn: Conexión a la base de datos
+        marca: Nombre de la marca
+        codigo_marca: Código de la marca
+        clase: Clase de la marca
+        acta: Número de acta
+        custodia: Indicador de custodia
+        cuit: CUIT del titular
+        titular: Nombre del titular
+        
+    Returns:
+        int: ID de la marca insertada o None si ocurre un error
+    """
+    try:
+        cursor = conn.cursor()
+        cliente_id = None
+        cliente_nombre = None
+        
+        # Si se proporciona un CUIT, buscar el cliente correspondiente
+        if cuit:
+            # Asegurar compatibilidad entre string e int para CUIT
+            cuit_str = str(cuit) if isinstance(cuit, (int, float)) else cuit
+            cuit_int = int(cuit) if isinstance(cuit, str) and cuit.isdigit() else None
+            
+            # Intentar buscar el cliente con CUIT como string y como int
+            # Ordenar por id DESC para tomar el cliente más reciente con ese CUIT
+            if cuit_int is not None:
+                cursor.execute("SELECT id, titular, cuit FROM clientes WHERE cuit = ? OR cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str, cuit_int))
+            else:
+                cursor.execute("SELECT id, titular, cuit FROM clientes WHERE cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str,))
+                
+            cliente_result = cursor.fetchone()
+            if cliente_result:
+                cliente_id = cliente_result[0]
+                cliente_nombre = cliente_result[1]
+                cliente_cuit = cliente_result[2]
+                logging.info(f"Vinculando marca '{marca}' con cliente '{cliente_nombre}' (ID: {cliente_id}, CUIT: {cliente_cuit})")
+            else:
+                logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca '{marca}'")
+        
+        # Insertar la nueva marca
+        cursor.execute("""
+            INSERT INTO Marcas (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular))
+        
+        # Obtener el ID de la marca recién insertada
+        cursor.execute("SELECT last_insert_rowid()")
+        marca_id = cursor.fetchone()[0]
+        
+        conn.commit()
+        
+        # Después de insertar la marca, verificamos de nuevo si existe un cliente con el mismo CUIT
+        # Este paso es necesario en caso de que el cliente haya sido insertado entre nuestra verificación y nuestra inserción
+        if cuit:
+            # Asegurar compatibilidad entre string e int para CUIT
+            cuit_str = str(cuit) if isinstance(cuit, (int, float)) else cuit
+            cuit_int = int(cuit) if isinstance(cuit, str) and cuit.isdigit() else None
+            
+            # Intentar buscar el cliente más reciente (mayor ID) con CUIT como string y como int
+            if cuit_int is not None:
+                cursor.execute("SELECT id FROM clientes WHERE cuit = ? OR cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str, cuit_int))
+            else:
+                cursor.execute("SELECT id FROM clientes WHERE cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str,))
+                
+            cliente_result = cursor.fetchone()
+            if cliente_result and cliente_result[0]:
+                cliente_id_reciente = cliente_result[0]
+                
+                # Actualizar la marca recién insertada con el cliente_id más reciente
+                cursor.execute("""
+                    UPDATE Marcas SET cliente_id = ? WHERE id = ?
+                """, (cliente_id_reciente, marca_id))
+                conn.commit()
+                logging.info(f"Marca ID {marca_id} vinculada automáticamente con cliente ID {cliente_id_reciente} (el más reciente)")
+            else:
+                logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca ID {marca_id}")
+        
+        if cliente_id:
+            logging.info(f"Marca insertada y vinculada: '{marca}' (ID: {marca_id}) con cliente '{cliente_nombre}' (ID: {cliente_id})")
+        else:
+            logging.info(f"Marca insertada sin vincular: '{marca}' (ID: {marca_id})")
+        
+        return marca_id
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error al insertar marca: {e}")
+        conn.rollback()
+        return None
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+
+def actualizar_marca(conn, marca_id, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None):
+    """
+    Actualiza una marca existente en la tabla 'marcas'.
+    Si el CUIT cambia, verifica y actualiza la relación con el cliente correspondiente.
+    
+    Args:
+        conn: Conexión a la base de datos
+        marca_id: ID de la marca a actualizar
+        marca: Nombre de la marca
+        codigo_marca: Código de la marca
+        clase: Clase de la marca
+        acta: Número de acta
+        custodia: Indicador de custodia
+        cuit: CUIT del titular
+        titular: Nombre del titular
+        
+    Returns:
+        bool: True si la actualización fue exitosa, False en caso contrario
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Obtener el CUIT actual para ver si cambió
+        cursor.execute("SELECT cuit FROM Marcas WHERE id = ?", (marca_id,))
+        result = cursor.fetchone()
+        if not result:
+            logging.warning(f"Marca con ID {marca_id} no encontrada")
+            return False
+            
+        cuit_antiguo = result[0]
+        cliente_id = None
+        
+        # Si se proporciona un CUIT (nuevo o existente), intentar vincular con cliente
+        if cuit:
+            cursor.execute("SELECT id FROM clientes WHERE cuit = ?", (cuit,))
+            cliente_result = cursor.fetchone()
+            if cliente_result:
+                cliente_id = cliente_result[0]
+                logging.info(f"Actualizando vinculación de marca ID {marca_id} con cliente ID {cliente_id}")
+            else:
+                logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca ID {marca_id}")
+        
+        # Actualizar la marca
+        if cliente_id is not None:
+            # Actualizar con nuevo cliente_id
+            cursor.execute("""
+                UPDATE Marcas
+                SET marca = ?, codigo_marca = ?, clase = ?, 
+                    acta = ?, custodia = ?, cuit = ?, cliente_id = ?, titular = ?
+                WHERE id = ?
+            """, (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular, marca_id))
+        else:
+            # Actualizar manteniendo el cliente_id actual
+            cursor.execute("""
+                UPDATE Marcas
+                SET marca = ?, codigo_marca = ?, clase = ?, 
+                    acta = ?, custodia = ?, cuit = ?, titular = ?
+                WHERE id = ?
+            """, (marca, codigo_marca, clase, acta, custodia, cuit, titular, marca_id))
+        
+        conn.commit()
+        logging.info(f"Marca ID {marca_id} actualizada")
+        
+        return True
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error al actualizar marca: {e}")
+        conn.rollback()
+        return False
+    finally:
+        if cursor:
+            cursor.close()
+
+def obtener_marcas(conn, filtro_cuit=None, filtro_cliente_id=None):
+    """
+    Obtiene las marcas de la base de datos, con filtros opcionales.
+    
+    Args:
+        conn: Conexión a la base de datos
+        filtro_cuit: Filtrar marcas por CUIT específico
+        filtro_cliente_id: Filtrar marcas por ID de cliente
+        
+    Returns:
+        tuple: (filas, columnas) con los datos y nombres de columnas
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Construir consulta con JOIN para obtener datos del cliente relacionado
+        query = """
+            SELECT m.id, m.marca, m.codigo_marca, m.clase, m.acta, m.custodia,
+                   m.cuit, m.cliente_id, m.titular,
+                   c.titular as cliente_nombre
+            FROM Marcas m
+            LEFT JOIN clientes c ON m.cliente_id = c.id
+            WHERE 1=1
+        """
+        params = []
+        
+        # Agregar filtros si se especifican
+        if filtro_cuit:
+            query += " AND m.cuit = ?"
+            params.append(filtro_cuit)
+            
+        if filtro_cliente_id:
+            query += " AND m.cliente_id = ?"
+            params.append(filtro_cliente_id)
+            
+        query += " ORDER BY m.id DESC"
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        columns = [description[0] for description in cursor.description]
+        
+        return rows, columns
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error al consultar marcas: {e}")
+        raise Exception(f"Error al consultar marcas: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+
+
+def obtener_marcas_por_cliente(conn, cliente_id):
+    """
+    Obtiene todas las marcas vinculadas a un cliente específico.
+    
+    Args:
+        conn: Conexión a la base de datos
+        cliente_id: ID del cliente
+        
+    Returns:
+        list: Lista de diccionarios con la información de las marcas
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, marca, codigo_marca, clase, acta, custodia, cuit, titular
+            FROM Marcas
+            WHERE cliente_id = ?
+            ORDER BY marca
+        """, (cliente_id,))
+        
+        columns = [desc[0] for desc in cursor.description]
+        results = []
+        
+        for row in cursor.fetchall():
+            # Convertir cada fila a un diccionario
+            marca_dict = {columns[i]: row[i] for i in range(len(columns))}
+            results.append(marca_dict)
+            
+        return results
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error al obtener marcas por cliente: {e}")
+        return []
+
+
+def eliminar_marca(conn, marca_id):
+    """
+    Elimina una marca de la base de datos.
+    
+    Args:
+        conn: Conexión a la base de datos
+        marca_id: ID de la marca a eliminar
+        
+    Returns:
+        bool: True si la eliminación fue exitosa, False en caso contrario
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM marcas WHERE id = ?", (marca_id,))
+        conn.commit()
+        
+        filas_afectadas = cursor.rowcount
+        if filas_afectadas > 0:
+            logging.info(f"Marca ID {marca_id} eliminada")
+            return True
+        else:
+            logging.warning(f"No se encontró marca con ID {marca_id}")
+            return False
+            
+    except sqlite3.Error as e:
+        logging.error(f"Error al eliminar marca: {e}")
+        conn.rollback()
+        return False
+    finally:
+        if cursor:
+            cursor.close()
