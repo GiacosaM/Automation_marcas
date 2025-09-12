@@ -408,7 +408,9 @@ def eliminar_registro(conn, id):
 def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """
     Inserta un nuevo cliente en la tabla 'clientes', verificando duplicados.
-    Además, vincula automáticamente todas las marcas con el mismo CUIT.
+    Además, verifica si el CUIT ya existe en la tabla Marcas y compara el titular.
+    Si los titulares no coinciden, usa el titular de la tabla Marcas.
+    Luego vincula automáticamente todas las marcas con el mismo CUIT.
     
     Args:
         conn: Conexión a la base de datos
@@ -431,12 +433,28 @@ def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provinci
         if cursor.fetchone()[0] > 0:
             logging.info(f"Cliente omitido (ya existe): Titular {titular}")
             raise Exception(f"Cliente con titular '{titular}' ya existe.")
+        
+        # Nombre del titular para insertar (puede ser actualizado si se encuentra en la tabla Marcas)
+        nombre_titular_final = titular
+        
+        # Si hay un CUIT, verificar si existe en la tabla Marcas y comparar el nombre del titular
+        if cuit:
+            cursor.execute('SELECT titular FROM Marcas WHERE cuit = ? LIMIT 1', (cuit,))
+            resultado_marca = cursor.fetchone()
             
-        # Insertar el nuevo cliente
+            if resultado_marca and resultado_marca[0]:
+                titular_en_marcas = resultado_marca[0]
+                
+                # Si los nombres no coinciden, usar el de la tabla Marcas
+                if titular_en_marcas.strip() != titular.strip():
+                    logging.info(f"Actualizando nombre del cliente de '{titular}' a '{titular_en_marcas}' según tabla Marcas")
+                    nombre_titular_final = titular_en_marcas
+        
+        # Insertar el nuevo cliente con el nombre correcto
         cursor.execute('''
             INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
             VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
-        ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
+        ''', (nombre_titular_final, email, telefono, direccion, ciudad, provincia, cuit))
         
         conn.commit()
         
@@ -444,7 +462,7 @@ def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provinci
         cursor.execute("SELECT last_insert_rowid()")
         cliente_id = cursor.fetchone()[0]
         
-        logging.info(f"Cliente insertado: ID {cliente_id}, Titular {titular}")
+        logging.info(f"Cliente insertado: ID {cliente_id}, Titular {nombre_titular_final}")
         
         # Vincular marcas existentes con este CUIT
         if cuit:
@@ -578,6 +596,7 @@ def obtener_clientes(conn, force_refresh=True):
 def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """
     Actualiza un cliente existente en la base de datos y vincula marcas con el mismo CUIT.
+    Si el CUIT coincide con marcas existentes, verifica si el titular coincide y usa el de la tabla Marcas.
     
     Args:
         conn: Conexión a la base de datos
@@ -605,16 +624,32 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
             
         cuit_antiguo = resultado[0]
         
-        # Actualizar el cliente
+        # Nombre del titular para actualizar (puede ser actualizado si se encuentra en la tabla Marcas)
+        nombre_titular_final = titular
+        
+        # Si hay un CUIT y ha cambiado, verificar si existe en la tabla Marcas y comparar el nombre del titular
+        if cuit and cuit != cuit_antiguo:
+            cursor.execute('SELECT titular FROM Marcas WHERE cuit = ? LIMIT 1', (cuit,))
+            resultado_marca = cursor.fetchone()
+            
+            if resultado_marca and resultado_marca[0]:
+                titular_en_marcas = resultado_marca[0]
+                
+                # Si los nombres no coinciden, usar el de la tabla Marcas
+                if titular_en_marcas.strip() != titular.strip():
+                    logging.info(f"Actualizando nombre del cliente de '{titular}' a '{titular_en_marcas}' según tabla Marcas")
+                    nombre_titular_final = titular_en_marcas
+        
+        # Actualizar el cliente con el nombre correcto
         cursor.execute("""
             UPDATE clientes 
             SET titular = ?, email = ?, telefono = ?, direccion = ?, ciudad = ?, provincia = ?, 
                 cuit = ?, fecha_modificacion = datetime('now', 'localtime')
             WHERE id = ?
-        """, (titular, email, telefono, direccion, ciudad, provincia, cuit, cliente_id))
+        """, (nombre_titular_final, email, telefono, direccion, ciudad, provincia, cuit, cliente_id))
         
         conn.commit()
-        logging.info(f"Cliente actualizado: ID {cliente_id}, Titular: {titular}")
+        logging.info(f"Cliente actualizado: ID {cliente_id}, Titular: {nombre_titular_final}")
         
         # Si el CUIT cambió o existe, debemos vincular marcas que coincidan con ese CUIT
         if cuit:
