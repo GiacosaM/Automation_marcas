@@ -480,9 +480,11 @@ def show_clientes_page():
                             
                             if nuevo_titular and nuevo_email and nuevo_cuit:
                                 # Validar formato de email y CUIT
-                                email_valido = validate_email_format(nuevo_email)
+                                email_limpio = nuevo_email.strip()
+                                #st.info(f"Email a validar: '{email_limpio}'")  # DEBUG
+                                email_valido = validate_email_format(email_limpio)
                                 cuit_valido = validate_cuit_format(nuevo_cuit)
-                                
+
                                 if not email_valido:
                                     with status_container.container():
                                         st.error("⚠️ El formato del email no es válido. Por favor, ingrese un email correcto.")
@@ -494,38 +496,38 @@ def show_clientes_page():
                                         # Mostrar mensaje de procesamiento
                                         with status_container.container():
                                             st.info("⏳ Procesando el nuevo cliente...")
-                                        
+
                                         # Formatear el CUIT (eliminar guiones y espacios)
                                         cuit_formateado = format_cuit_for_display(nuevo_cuit)
-                                        
+
                                         # Verificar si ya existe un cliente con ese titular
                                         cursor = conn.cursor()
                                         cursor.execute("SELECT COUNT(*) FROM clientes WHERE titular = ?", (nuevo_titular,))
                                         existe = cursor.fetchone()[0] > 0
                                         cursor.close()
-                                        
+
                                         if existe:
                                             with status_container.container():
                                                 st.error("⚠️ Ya existe un cliente con ese titular. Use un nombre diferente.")
                                         else:
-                                            # Insertar el nuevo cliente con el CUIT formateado
+                                            # Insertar el nuevo cliente con el CUIT formateado y email limpio
                                             nuevo_cliente_id = insertar_cliente(
-                                                conn, nuevo_titular, nuevo_email, nuevo_telefono, 
+                                                conn, nuevo_titular, email_limpio, nuevo_telefono,
                                                 nueva_direccion, nueva_ciudad, nueva_provincia, cuit_formateado
                                             )
-                                            
+
                                             # Mostrar mensaje de éxito con detalles
-                                            with status_container.container():
-                                                st.success(f"""
-                                                ✅ **¡Cliente agregado correctamente!**
-                                                
-                                                **Titular:** {nuevo_titular}  
-                                                **Email:** {nuevo_email}  
-                                                **CUIT:** {nuevo_cuit if nuevo_cuit else "No especificado"}
-                                                
-                                                *Se ha añadido a la lista de clientes con ID #{nuevo_cliente_id}*
-                                                """)
-                                            
+                                            # with status_container.container():
+                                            #     st.success(f"""
+                                            #     ✅ **¡Cliente agregado correctamente!**
+
+                                            #     **Titular:** {nuevo_titular}  
+                                            #     **Email:** {email_limpio}  
+                                            #     **CUIT:** {nuevo_cuit if nuevo_cuit else "No especificado"}
+
+                                            #     *Se ha añadido a la lista de clientes con ID #{nuevo_cliente_id}*
+                                            #     """)
+
                                             # Limpiar todos los campos del formulario
                                             st.session_state.form_titular = ""
                                             st.session_state.form_email = ""
@@ -534,29 +536,26 @@ def show_clientes_page():
                                             st.session_state.form_ciudad = ""
                                             st.session_state.form_provincia = ""
                                             st.session_state.form_direccion = ""
-                                            
+
                                             # Configurar los flags y limpiar cache para la siguiente acción
                                             # Limpiar caché de datos para actualizarlos
                                             if 'clientes_data' in st.session_state:
                                                 del st.session_state['clientes_data']
-                                                
+
                                             # Mostrar mensaje informativo sobre los botones de acción fuera del formulario
                                             st.info("✅ **Cliente agregado con éxito.** Puedes agregar otro cliente o ver la lista de todos los clientes usando los botones abajo.")
-                                            
+
                                             # Guardar un flag para indicar que debemos cambiar de pestaña en la próxima ejecución
                                             st.session_state.cliente_recien_agregado = True
-                                            
+
                                             # Limpiar caché de datos para actualizarlos en segundo plano
                                             if 'clientes_data' in st.session_state:
                                                 del st.session_state['clientes_data']
-                                    
+
                                     except Exception as e:
                                         with status_container.container():
                                             st.error(f"❌ Error al agregar el cliente: {e}")
                                             st.exception(e)
-                                    else:
-                                        with status_container.container():
-                                            st.error("⚠️ El formato del email no es válido. Por favor, ingrese un email correcto.")
                             else:
                                 errors = []
                                 if not nuevo_titular:

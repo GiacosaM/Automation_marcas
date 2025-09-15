@@ -203,6 +203,10 @@ class GridService:
         grid_options = gb.build()
         
         # Mostrar el grid
+        # Asegurar que tiene_marcas sea un entero
+        if 'tiene_marcas' in df.columns:
+            df['tiene_marcas'] = df['tiene_marcas'].apply(lambda x: '✅' if x == 1 else '❌')
+        
         grid_response = AgGrid(
             df,
             gridOptions=grid_options,
@@ -213,8 +217,7 @@ class GridService:
             key=key,
             allow_unsafe_jscode=True,
             height=GRID_CONFIG["clients_grid_height"],
-            width='100%',
-            reload_data=False
+            width='100%'
         )
         
         return grid_response
@@ -321,7 +324,8 @@ class GridService:
                    height: int = 400, 
                    selection_mode: str = 'single',
                    fit_columns: bool = False,
-                   editable: bool = False) -> Dict[str, Any]:
+                   editable: bool = False,
+                   custom_column_defs: list = None) -> Dict[str, Any]:
         """
         Crear un grid configurable para datos generales
         
@@ -332,6 +336,7 @@ class GridService:
             selection_mode: Modo de selección ('single' o 'multiple')
             fit_columns: Ajustar columnas automáticamente
             editable: Permitir edición de celdas
+            custom_column_defs: Lista de definiciones personalizadas para columnas
             
         Returns:
             Respuesta del grid
@@ -355,6 +360,13 @@ class GridService:
             wrapText=True,
             autoHeight=True
         )
+        
+        # Aplicar configuraciones personalizadas de columnas si existen
+        if custom_column_defs:
+            for col_def in custom_column_defs:
+                field_name = col_def.pop("field")
+                header_name = col_def.pop("headerName", field_name)
+                gb.configure_column(field_name, headerName=header_name, **col_def)
         
         grid_options = gb.build()
         

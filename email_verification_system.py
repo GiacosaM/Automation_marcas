@@ -203,7 +203,7 @@ class EmailVerificationSystem:
 
     def send_activation_code(self, email, username, activation_code):
         """
-        Enviar código de activación por email
+        Enviar código de activación por email usando formato HTML profesional
         
         Returns:
             bool: True si se envió exitosamente, False en caso contrario
@@ -213,35 +213,59 @@ class EmailVerificationSystem:
                 logger.warning("Credenciales de email no configuradas")
                 return False
             
-            # Crear mensaje usando codificación UTF-8
-            subject = "Codigo de Verificacion - Sistema de Marcas"
+            # Importar plantillas HTML
+            from email_templates import get_html_template, get_verification_email_html
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
+            from email.mime.image import MIMEImage
+            import os
             
-            body = f"""Hola {username},
+            # Crear mensaje usando MIMEMultipart para soporte HTML
+            msg = MIMEMultipart('alternative')
+            msg['From'] = f"{self.sender_name} <{self.email_user}>"
+            msg['To'] = email
+            msg['Subject'] = "Código de Verificación - Sistema de Marcas"
+            
+            # Crear versión texto plano como fallback
+            text_body = f"""Hola {username},
 
 Gracias por registrarte en nuestro sistema.
 
-Tu codigo de verificacion es: {activation_code}
+Tu código de verificación es: {activation_code}
 
-Este codigo es valido por 15 minutos.
+Este código es válido por 15 minutos.
 
 Si no solicitaste este registro, ignora este email.
 
 Saludos,
-Sistema de Verificacion - Estudio Contable"""
+Sistema de Verificación - Estudio Contable"""
             
-            # Crear mensaje completo con headers apropiados
-            message = f"""From: {self.sender_name} <{self.email_user}>
-To: {email}
-Subject: {subject}
-Content-Type: text/plain; charset=utf-8
-
-{body}"""
+            # Obtener plantilla HTML y reemplazar el contenido
+            html_template = get_html_template()
+            verification_content = get_verification_email_html(username, activation_code)
+            html_content = html_template.replace('<!-- El contenido del mensaje se insertará aquí -->', verification_content)
+            
+            # Adjuntar partes al mensaje
+            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+            
+            # Agregar logo si existe
+            logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png')
+            if os.path.exists(logo_path):
+                try:
+                    with open(logo_path, 'rb') as img_file:
+                        img = MIMEImage(img_file.read())
+                        img.add_header('Content-ID', '<logo>')
+                        img.add_header('Content-Disposition', 'inline')
+                        msg.attach(img)
+                except Exception as e:
+                    logger.warning(f"Error al adjuntar logo: {e}")
             
             # Enviar email
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
             server.starttls()
             server.login(self.email_user, self.email_password)
-            server.sendmail(self.email_user, [email], message.encode('utf-8'))
+            server.sendmail(self.email_user, [email], msg.as_string())
             server.quit()
             
             logger.info(f"Código de activación enviado a {email}")

@@ -312,7 +312,7 @@ class UIComponents:
                 <span style="font-size: 1.2rem; margin-right: 0.5rem;">{style_config['icon']}</span>
                 <h3 style="color: #000000 !important; margin: 0;">{title}</h3>
             </div>
-            <div style="color: #000000;">{content}</div>
+            <div style="color: #000000 !important;">{content}</div>
         </div>
         """
     

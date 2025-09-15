@@ -653,47 +653,57 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
         
         # Si el CUIT cambió o existe, debemos vincular marcas que coincidan con ese CUIT
         if cuit:
-            # Convertir el CUIT a string y a int para manejar ambos tipos
-            cuit_str = str(cuit) if not isinstance(cuit, str) else cuit
-            cuit_int = int(cuit_str) if cuit_str.isdigit() else None
+            # Limpiamos y estandarizamos el CUIT para evitar problemas de formato
+            cuit_clean = str(cuit).replace('-', '').replace(' ', '').strip()
+            cuit_antiguo_clean = str(cuit_antiguo).replace('-', '').replace(' ', '').strip() if cuit_antiguo else ""
             
-            cuit_cambio = (cuit != cuit_antiguo)
+            cuit_cambio = (cuit_clean != cuit_antiguo_clean)
             logging.info(f"{'Cambio de CUIT' if cuit_cambio else 'Verificando vinculaciones'} para cliente {titular} (ID: {cliente_id})")
-            logging.info(f"CUIT actual: {cuit} (tipo {type(cuit).__name__})")
+            logging.info(f"CUIT actual: {cuit} (limpio: {cuit_clean})")
             
-            # Buscar marcas no vinculadas con el CUIT (tanto en formato string como entero)
-            if cuit_int is not None:
+            # Realizar la vinculación manual
+            cursor.execute("""
+                SELECT id, marca, cuit FROM Marcas WHERE cliente_id IS NULL
+            """)
+            
+            marcas_sin_asignar = cursor.fetchall()
+            marcas_vinculadas = 0
+            
+            # Mostrar marcas disponibles antes de vincular
+            logging.info(f"Buscando marcas para vincular con CUIT {cuit_clean}")
+            
+            for marca_id, marca_nombre, marca_cuit in marcas_sin_asignar:
+                if marca_cuit:
+                    # Limpiar el CUIT de la marca para comparación estricta
+                    marca_cuit_clean = str(marca_cuit).replace('-', '').replace(' ', '').strip()
+                    logging.info(f"Comparando marca ID {marca_id} con CUIT {marca_cuit} (limpio: {marca_cuit_clean})")
+                    
+                    # Compara CUITs limpios como strings
+                    if marca_cuit_clean == cuit_clean:
+                        # Vincula la marca al cliente
+                        cursor.execute("""
+                            UPDATE Marcas SET cliente_id = ? WHERE id = ?
+                        """, (cliente_id, marca_id))
+                        
+                        logging.info(f"✅ Vinculada marca ID {marca_id} '{marca_nombre}' con CUIT {marca_cuit} al cliente {cliente_id}")
+                        marcas_vinculadas += 1
+            
+            conn.commit()
+            logging.info(f"Total: Se vincularon {marcas_vinculadas} marcas al cliente '{titular}' (ID: {cliente_id}) con CUIT {cuit}")
+            
+            # Verificar que las vinculaciones funcionaron
+            cursor.execute("""
+                SELECT COUNT(*) FROM Marcas WHERE cliente_id = ?
+            """, (cliente_id,))
+            
+            total_vinculadas = cursor.fetchone()[0]
+            logging.info(f"Total de marcas vinculadas al cliente {cliente_id}: {total_vinculadas}")
+            
+            # Forzar el refresco de datos en UI
+            if marcas_vinculadas > 0:
                 cursor.execute("""
-                    SELECT COUNT(*)
-                    FROM Marcas 
-                    WHERE (cuit = ? OR cuit = ?) AND cliente_id IS NULL
-                """, (cuit_str, cuit_int))
-            else:
-                cursor.execute("""
-                    SELECT COUNT(*)
-                    FROM Marcas 
-                    WHERE cuit = ? AND cliente_id IS NULL
-                """, (cuit_str,))
-            
-            marcas_sin_vincular = cursor.fetchone()[0]
-            
-            if marcas_sin_vincular > 0:
-                # Vincular SOLO las marcas con el CUIT (en cualquier formato) que NO están vinculadas a ningún cliente
-                if cuit_int is not None:
-                    cursor.execute("""
-                        UPDATE Marcas 
-                        SET cliente_id = ?
-                        WHERE (cuit = ? OR cuit = ?) AND cliente_id IS NULL
-                    """, (cliente_id, cuit_str, cuit_int))
-                else:
-                    cursor.execute("""
-                        UPDATE Marcas 
-                        SET cliente_id = ?
-                        WHERE cuit = ? AND cliente_id IS NULL
-                    """, (cliente_id, cuit_str))
-                
-                marcas_vinculadas = cursor.rowcount
-                logging.info(f"Vinculadas {marcas_vinculadas} marcas sin asignar con CUIT {cuit} al cliente {titular}")
+                    UPDATE clientes SET fecha_modificacion = datetime('now', 'localtime') WHERE id = ?
+                """, (cliente_id,))
                 
                 # Obtener detalles de las marcas vinculadas para el log
                 if cuit_int is not None:
@@ -1387,9 +1397,15 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
             
         cursor = conn.cursor()
         
+        # Limpiar y estandarizar el CUIT (eliminar guiones y espacios)
+        cuit_clean = str(cuit).replace('-', '').replace(' ', '').strip()
+        
         # Asegurar compatibilidad entre string e int para CUIT
-        cuit_str = str(cuit) if isinstance(cuit, (int, float)) else cuit
-        cuit_int = int(cuit) if isinstance(cuit, str) and cuit.isdigit() else None
+        cuit_str = cuit_clean
+        cuit_int = int(cuit_clean) if cuit_clean.isdigit() else None
+        
+        # Registrar información de depuración
+        logging.info(f"Vinculando marcas para el CUIT: {cuit_clean} (original: {cuit})")
         
         # Verificar que el cliente existe
         cursor.execute("SELECT COUNT(*) FROM clientes WHERE id = ?", (cliente_id,))
@@ -1402,20 +1418,40 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
         titular_result = cursor.fetchone()
         titular = titular_result[0] if titular_result else "Desconocido"
         
-        # Vincular todas las marcas que tengan el mismo CUIT (como string o int)
-        # IMPORTANTE: Solo vincular marcas que no tienen cliente asignado
-        if cuit_int is not None:
-            cursor.execute("""
-                UPDATE Marcas 
-                SET cliente_id = ?
-                WHERE (cuit = ? OR cuit = ?) AND cliente_id IS NULL
-            """, (cliente_id, cuit_str, cuit_int))
-        else:
-            cursor.execute("""
-                UPDATE Marcas 
-                SET cliente_id = ?
-                WHERE cuit = ? AND cliente_id IS NULL
-            """, (cliente_id, cuit_str))
+        # Ejecutar vinculación manual por CUIT con conversión de tipos
+        # Esta vinculación es mucho más directa y compatible con las diferencias entre INTEGER y TEXT
+        cursor.execute("""
+            SELECT id, marca, cuit FROM Marcas WHERE cliente_id IS NULL
+        """)
+        
+        marcas_sin_asignar = cursor.fetchall()
+        marcas_vinculadas = 0
+        
+        for marca_id, marca_nombre, marca_cuit in marcas_sin_asignar:
+            if marca_cuit:
+                # Limpiar el CUIT de la marca para comparación estricta
+                marca_cuit_clean = str(marca_cuit).replace('-', '').replace(' ', '').strip()
+                
+                # Compara CUITs limpios como strings
+                if marca_cuit_clean == cuit_clean:
+                    # Vincula la marca al cliente
+                    cursor.execute("""
+                        UPDATE Marcas SET cliente_id = ? WHERE id = ?
+                    """, (cliente_id, marca_id))
+                    
+                    logging.info(f"✅ Vinculada marca ID {marca_id} '{marca_nombre}' con CUIT {marca_cuit} al cliente {cliente_id}")
+                    marcas_vinculadas += 1
+        
+        conn.commit()
+        logging.info(f"Total: Se vincularon {marcas_vinculadas} marcas al cliente '{titular}' (ID: {cliente_id}) con CUIT {cuit}")
+        
+        # Verificar que las vinculaciones funcionaron
+        cursor.execute("""
+            SELECT COUNT(*) FROM Marcas WHERE cliente_id = ? AND REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ?
+        """, (cliente_id, cuit_clean))
+        
+        total_vinculadas = cursor.fetchone()[0]
+        logging.info(f"Total de marcas vinculadas al cliente {cliente_id} con CUIT {cuit_clean}: {total_vinculadas}")
         
         filas_afectadas = cursor.rowcount
         conn.commit()
@@ -1433,7 +1469,7 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
         if 'cursor' in locals():
             cursor.close()
 
-def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None):
+def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None, nrocon=None, email=None, cliente_id=None):
     """
     Inserta una nueva marca en la tabla 'marcas'.
     Si existe un cliente con el mismo CUIT, establece automáticamente la relación.
@@ -1480,9 +1516,9 @@ def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, c
         
         # Insertar la nueva marca
         cursor.execute("""
-            INSERT INTO Marcas (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular))
+            INSERT INTO Marcas (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular, nrocon, email)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular, nrocon, email))
         
         # Obtener el ID de la marca recién insertada
         cursor.execute("SELECT last_insert_rowid()")
@@ -1531,7 +1567,7 @@ def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, c
         if 'cursor' in locals():
             cursor.close()
 
-def actualizar_marca(conn, marca_id, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None):
+def actualizar_marca(conn, marca_id, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None, nrocon=None, email=None, cliente_id=None):
     """
     Actualiza una marca existente en la tabla 'marcas'.
     Si el CUIT cambia, verifica y actualiza la relación con el cliente correspondiente.
@@ -1574,22 +1610,15 @@ def actualizar_marca(conn, marca_id, marca, codigo_marca, clase, acta=None, cust
                 logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca ID {marca_id}")
         
         # Actualizar la marca
-        if cliente_id is not None:
-            # Actualizar con nuevo cliente_id
-            cursor.execute("""
-                UPDATE Marcas
-                SET marca = ?, codigo_marca = ?, clase = ?, 
-                    acta = ?, custodia = ?, cuit = ?, cliente_id = ?, titular = ?
-                WHERE id = ?
-            """, (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular, marca_id))
-        else:
-            # Actualizar manteniendo el cliente_id actual
-            cursor.execute("""
-                UPDATE Marcas
-                SET marca = ?, codigo_marca = ?, clase = ?, 
-                    acta = ?, custodia = ?, cuit = ?, titular = ?
-                WHERE id = ?
-            """, (marca, codigo_marca, clase, acta, custodia, cuit, titular, marca_id))
+        # Actualizar la marca con todos los campos
+        cursor.execute("""
+            UPDATE Marcas
+            SET marca = ?, codigo_marca = ?, clase = ?, 
+                acta = ?, custodia = ?, cuit = ?, titular = ?,
+                nrocon = ?, email = ?, cliente_id = ?
+            WHERE id = ?
+        """, (marca, codigo_marca, clase, acta, custodia, cuit, titular, 
+              nrocon, email, cliente_id, marca_id))
         
         conn.commit()
         logging.info(f"Marca ID {marca_id} actualizada")
@@ -1622,7 +1651,7 @@ def obtener_marcas(conn, filtro_cuit=None, filtro_cliente_id=None):
         # Construir consulta con JOIN para obtener datos del cliente relacionado
         query = """
             SELECT m.id, m.marca, m.codigo_marca, m.clase, m.acta, m.custodia,
-                   m.cuit, m.cliente_id, m.titular,
+                   m.cuit, m.cliente_id, m.titular, m.nrocon, m.email,
                    c.titular as cliente_nombre
             FROM Marcas m
             LEFT JOIN clientes c ON m.cliente_id = c.id
@@ -1669,7 +1698,7 @@ def obtener_marcas_por_cliente(conn, cliente_id):
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, marca, codigo_marca, clase, acta, custodia, cuit, titular
+            SELECT id, marca, codigo_marca, clase, acta, custodia, cuit, titular, nrocon, email
             FROM Marcas
             WHERE cliente_id = ?
             ORDER BY marca
@@ -1703,7 +1732,7 @@ def eliminar_marca(conn, marca_id):
     """
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM marcas WHERE id = ?", (marca_id,))
+        cursor.execute("DELETE FROM Marcas WHERE id = ?", (marca_id,))
         conn.commit()
         
         filas_afectadas = cursor.rowcount

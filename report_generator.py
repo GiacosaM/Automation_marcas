@@ -6,6 +6,7 @@ from fpdf import FPDF
 from datetime import datetime
 from collections import defaultdict
 from typing import List, Tuple, Optional
+from professional_theme import ProfessionalTheme
 
 # Configurar logging
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,138 +21,261 @@ report_logger.propagate = False
 logger = logging.getLogger(__name__)
 
 class ProfessionalReportPDF(FPDF):
+    """Clase PDF mejorada con diseño profesional y elegante"""
     
-    
-    def __init__(self, watermark_image: str = None, company_name: str = "Estudio Contable"):
+    def __init__(self, watermark_image: str = None, company_name: str = "Estudio Contable Professional"):
         super().__init__()
         self.watermark_image = watermark_image
         self.company_name = company_name
-        self.page_count = 0
+        self.theme = ProfessionalTheme()
+        
+        # Configurar márgenes más amplios
+        self.set_auto_page_break(auto=True, margin=self.theme.get_layout('margin_bottom'))
+        self.set_margins(
+            left=self.theme.get_layout('margin_left'),
+            top=self.theme.get_layout('margin_top'),
+            right=self.theme.get_layout('margin_right')
+        )
         
     def header(self):
-        """Configura el encabezado de cada página."""
-        # Marca de agua en margen superior izquierdo
+        """Encabezado profesional con logo, nombre del estudio y fecha"""
+        # Marca de agua / Logo
         self._add_watermark()
         
-        # Encabezado principal (con margen ajustado para no solaparse con la imagen)
-        self.set_font('Arial', 'B', 12)
-        self.set_text_color(70, 70, 70)
-        # Posicionar el texto más a la derecha para evitar solapamiento
-        self.set_x(90)  # Empezar desde 60mm para dejar espacio a la imagen
-        self.cell(0, 8, self.company_name, 0, 1, 'L')
+        # Nombre del Estudio Contable
+        font_config = self.theme.get_font('header_company')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        self.set_text_color(*self.theme.get_color('primary_blue'))
+        self.set_y(22)
+        self.cell(0, 10, self.company_name.upper(), 0, 1, 'C')
         
-        # Línea separadora (también con margen ajustado)
-        self.set_draw_color(200, 200, 200)
-        self.line(20, 25, 190, 25)
-        self.ln(5)
+        # Fecha actual
+        fecha_actual = datetime.now().strftime("%d de %B de %Y")
+        meses = {
+            'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril',
+            'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto',
+            'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
+        }
+        for eng, esp in meses.items():
+            fecha_actual = fecha_actual.replace(eng, esp)
+            
+        font_config = self.theme.get_font('header_info')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        self.set_text_color(*self.theme.get_color('medium_gray'))
+        self.cell(0, 6, fecha_actual, 0, 1, 'C')
+        
+        # Línea inferior decorativa
+        self.set_draw_color(*self.theme.get_color('border_color'))
+        self.set_line_width(0.5)
+        self.line(self.theme.get_layout('margin_left'), self.get_y() + 3, 
+                 self.w - self.theme.get_layout('margin_right'), self.get_y() + 3)
+        
+        self.ln(10)
     
     def footer(self):
-        """Configura el pie de página."""
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.set_text_color(128, 128, 128)
+        """Pie de página profesional con numeración y texto confidencial"""
+        self.set_y(-self.theme.get_layout('footer_height'))
         
-        # Número de página
-        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+        # Línea superior del pie
+        self.set_draw_color(*self.theme.get_color('border_color'))
+        self.set_line_width(0.5)
+        self.line(self.theme.get_layout('margin_left'), self.get_y(), 
+                 self.w - self.theme.get_layout('margin_right'), self.get_y())
         
-        # Fecha de generación
-        fecha_generacion = datetime.now().strftime("%d/%m/%Y %H:%M")
-        self.set_y(-15)
-        self.cell(0, 10, f'Generado el: {fecha_generacion}', 0, 0, 'R')
+        self.ln(3)
+        
+        # Texto confidencial (izquierda)
+        font_config = self.theme.get_font('footer_text')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        self.set_text_color(*self.theme.get_color('confidential_text'))
+        self.cell(0, 5, 'CONFIDENCIAL - Uso exclusivo del cliente', 0, 0, 'L')
+        
+        # Número de página (derecha)
+        self.cell(0, 5, f'Página {self.page_no()}', 0, 0, 'R')
     
     def _add_watermark(self):
-        """Agrega la marca de agua en el margen superior izquierdo."""
+        """Agrega marca de agua / logo en esquina superior izquierda"""
         if self.watermark_image and os.path.exists(self.watermark_image):
             try:
-                # Tamaño reducido de la marca de agua (15% del ancho de página)
-                img_width = self.w * 0.15
-                
-                # Posición en margen superior izquierdo
-                x = 15  # Margen izquierdo de 15mm
-                y = 0  # Margen superior de 10mm
-                
-                # Agregar imagen
+                img_width = self.w * (self.theme.get_layout('watermark_size') / 100)
+                x = self.theme.get_layout('margin_left') - 10
+                y = 5
                 self.image(self.watermark_image, x=x, y=y, w=img_width)
-                
             except Exception as e:
                 logger.warning(f"No se pudo agregar la marca de agua: {e}")
     
-    def add_title_section(self, title: str, subtitle: str = None):
-        """Agrega una sección de título profesional."""
-        self.ln(10)
+    def add_main_title(self, title: str, subtitle: str = None):
+        """Agrega título principal con estilo profesional"""
+        self.ln(5)
         
         # Título principal
-        self.set_font('Arial', 'B', 18)
-        self.set_text_color(30, 30, 30)
-        self.cell(0, 12, title, 0, 1, 'C')
+        font_config = self.theme.get_font('main_title')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        self.set_text_color(*self.theme.get_color('primary_blue'))
+        self.cell(0, 15, title, 0, 1, 'C')
         
         if subtitle:
-            self.ln(5)
-            self.set_font('Arial', 'B', 14)
-            self.set_text_color(60, 60, 60)
+            self.ln(3)
+            font_config = self.theme.get_font('subtitle')
+            self.set_font(font_config['family'], font_config['style'], font_config['size'])
+            self.set_text_color(*self.theme.get_color('secondary_blue'))
             self.cell(0, 10, subtitle, 0, 1, 'C')
         
         self.ln(10)
     
-    def add_info_box(self, titular: str, fecha_reporte: str, total_registros: int):
-        """Agrega un cuadro de información general."""
-        # Fondo del cuadro
-        self.set_fill_color(240, 248, 255)
-        self.rect(20, self.get_y(), 170, 25, 'F')
+    def add_info_section(self, titular: str, fecha_reporte: str, total_registros: int):
+        """Agrega sección de información general con diseño elegante"""
+        # Fondo azul claro
+        self.set_fill_color(*self.theme.get_color('light_blue'))
+        box_height = 28
+        self.rect(self.theme.get_layout('margin_left'), self.get_y(), 
+                 self.w - self.theme.get_layout('margin_left') - self.theme.get_layout('margin_right'), 
+                 box_height, 'F')
         
-        # Borde del cuadro
-        self.set_draw_color(100, 149, 237)
-        self.rect(20, self.get_y(), 170, 25)
+        # Borde azul
+        self.set_draw_color(*self.theme.get_color('primary_blue'))
+        self.set_line_width(0.8)
+        self.rect(self.theme.get_layout('margin_left'), self.get_y(), 
+                 self.w - self.theme.get_layout('margin_left') - self.theme.get_layout('margin_right'), 
+                 box_height)
         
-        # Contenido del cuadro
         y_start = self.get_y()
-        self.set_font('Arial', 'B', 11)
-        self.set_text_color(30, 30, 30)
         
-        self.set_xy(25, y_start + 5)
-        self.cell(0, 6, f"Titular: {titular}", 0, 1, 'L')
+        # Contenido
+        font_config = self.theme.get_font('normal_text')
+        self.set_font(font_config['family'], 'B', font_config['size'])
+        self.set_text_color(*self.theme.get_color('dark_gray'))
         
-        self.set_xy(25, y_start + 12)
-        self.cell(80, 6, f"Período del reporte: {fecha_reporte}", 0, 0, 'L')
-        self.set_xy(25, y_start + 18)
-        self.cell(0, 6, f"Total de registros: {total_registros}", 0, 1, 'L')
+        # Titular
+        self.set_xy(self.theme.get_layout('margin_left') + 5, y_start + 6)
+        self.cell(0, 6, f"TITULAR: {titular}", 0, 1, 'L')
         
-        self.ln(20)
+        # Período y total
+        self.set_xy(self.theme.get_layout('margin_left') + 5, y_start + 14)
+        self.cell(90, 6, f"PERÍODO: {fecha_reporte}", 0, 0, 'L')
+        self.set_x(self.theme.get_layout('margin_left') + 100)
+        self.cell(0, 6, f"TOTAL DE REGISTROS: {total_registros}", 0, 1, 'L')
+        
+        self.set_y(y_start + box_height)
+        self.ln(10)
     
-    def add_section_divider(self, text: str = ""):
-        """Agrega un separador de sección."""
+    def add_section_separator(self, title: str = ""):
+        """Agrega separador de sección elegante"""
         self.ln(5)
-        self.set_draw_color(180, 180, 180)
-        self.line(20, self.get_y(), 190, self.get_y())
         
-        if text:
-            self.ln(5)
-            self.set_font('Arial', 'B', 12)
-            self.set_text_color(80, 80, 80)
-            self.cell(0, 8, text, 0, 1, 'C')
+        if title:
+            # Título de sección
+            font_config = self.theme.get_font('section_title')
+            self.set_font(font_config['family'], font_config['style'], font_config['size'])
+            self.set_text_color(*self.theme.get_color('primary_blue'))
+            self.cell(0, 8, title, 0, 1, 'L')
+            self.ln(2)
         
-        self.ln(5)
+        # Línea separadora
+        self.set_draw_color(*self.theme.get_color('primary_blue'))
+        self.set_line_width(0.8)
+        self.line(self.theme.get_layout('margin_left'), self.get_y(), 
+                 self.w - self.theme.get_layout('margin_right'), self.get_y())
+        
+        self.ln(8)
     
-    def add_record_entry(self, record_data: dict, record_number: int):
-        """Agrega una entrada de registro con formato profesional."""
-        # Verificar espacio disponible
-        if self.get_y() > 250:
+    def add_table_header(self, headers: List[str], col_widths: List[int]):
+        """Agrega encabezado de tabla con estilo profesional"""
+        # Fondo oscuro para encabezados
+        self.set_fill_color(*self.theme.get_color('table_header'))
+        self.set_text_color(*self.theme.get_color('white'))
+        self.set_draw_color(*self.theme.get_color('border_color'))
+        self.set_line_width(self.theme.TABLE['border_width'])
+        
+        font_config = self.theme.get_font('table_header')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        
+        for i, (header, width) in enumerate(zip(headers, col_widths)):
+            self.cell(width, self.theme.TABLE['header_height'], header, 1, 0, 'C', True)
+        self.ln()
+    
+    def add_table_row(self, data: List[str], col_widths: List[int], is_alternate: bool = False):
+        """Agrega fila de tabla con estilo zebra"""
+        # Color de fondo alternado
+        if is_alternate:
+            self.set_fill_color(*self.theme.get_color('table_row_alt'))
+        else:
+            self.set_fill_color(*self.theme.get_color('white'))
+        
+        self.set_text_color(*self.theme.get_color('dark_gray'))
+        self.set_draw_color(*self.theme.get_color('border_color'))
+        
+        font_config = self.theme.get_font('table_content')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        
+        for i, (cell_data, width) in enumerate(zip(data, col_widths)):
+            # Truncar texto si es muy largo
+            text = str(cell_data) if cell_data else ""
+            if len(text) > 25:
+                text = text[:22] + "..."
+            
+            self.cell(width, self.theme.TABLE['row_height'], text, 1, 0, 'L', True)
+        self.ln()
+    
+    def add_records_table(self, records_data: List[dict]):
+        """Agrega tabla completa de registros con diseño profesional"""
+        if not records_data:
+            return
+        
+        # Verificar espacio para tabla
+        if self.get_y() > 240:
+            self.add_page()
+        
+        # Definir columnas y anchos
+        headers = ["Nº", "Boletín", "Orden", "Solicitante", "Marca Publicada", "Clase"]
+        col_widths = [15, 35, 20, 45, 45, 20]  # Total: 180mm (aprox.)
+        
+        # Agregar encabezado
+        self.add_table_header(headers, col_widths)
+        
+        # Agregar filas
+        for i, record in enumerate(records_data):
+            # Verificar espacio para nueva fila
+            if self.get_y() > 260:
+                self.add_page()
+                self.add_table_header(headers, col_widths)
+            
+            # Preparar datos de la fila
+            row_data = [
+                str(i + 1),
+                record.get('boletin_corto', ''),
+                record.get('numero_orden', ''),
+                record.get('solicitante', ''),
+                record.get('marca_publicada', ''),
+                record.get('clase', '')
+            ]
+            
+            # Agregar fila con estilo zebra
+            self.add_table_row(row_data, col_widths, is_alternate=(i % 2 == 1))
+        
+        self.ln(10)
+    
+    def add_detailed_record(self, record_data: dict, record_number: int):
+        """Agrega registro detallado con formato profesional"""
+        # Verificar espacio
+        if self.get_y() > 240:
             self.add_page()
         
         # Encabezado del registro
-        self.set_font('Arial', 'B', 11)
-        self.set_text_color(25, 25, 112)
-        self.cell(0, 8, f"REGISTRO #{record_number:03d}", 0, 1, 'L')
+        font_config = self.theme.get_font('section_title')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        self.set_text_color(*self.theme.get_color('primary_blue'))
         
-        # Línea bajo el encabezado
-        self.set_draw_color(25, 25, 112)
-        self.line(20, self.get_y(), 100, self.get_y())
-        self.ln(3)
+        # Fondo claro para el encabezado
+        self.set_fill_color(*self.theme.get_color('light_gray'))
+        self.cell(0, 8, f"REGISTRO Nº {record_number:03d}", 1, 1, 'L', True)
         
-        # Campos del registro
-        self.set_font('Arial', '', 10)
-        self.set_text_color(40, 40, 40)
+        # Contenido del registro
+        font_config = self.theme.get_font('normal_text')
+        self.set_font(font_config['family'], font_config['style'], font_config['size'])
+        self.set_text_color(*self.theme.get_color('dark_gray'))
         
+        # Campos principales
         fields = [
             ("Boletín", record_data.get('boletin', '')),
             ("Número de Orden", record_data.get('numero_orden', '')),
@@ -165,21 +289,30 @@ class ProfessionalReportPDF(FPDF):
         ]
         
         for label, value in fields:
-            if value:  # Solo mostrar campos con valor
+            if value:
+                # Etiqueta en negrita
                 self.set_font('Arial', 'B', 9)
-                self.set_text_color(70, 70, 70)
+                self.set_text_color(*self.theme.get_color('medium_gray'))
                 self.cell(50, 6, f"{label}:", 0, 0, 'L')
                 
+                # Valor
                 self.set_font('Arial', '', 9)
-                self.set_text_color(30, 30, 30)
+                self.set_text_color(*self.theme.get_color('dark_gray'))
                 
                 # Manejar texto largo
-                if len(str(value)) > 60:
-                    self.cell(0, 6, str(value)[:60] + "...", 0, 1, 'L')
+                value_str = str(value)
+                if len(value_str) > 70:
+                    self.cell(0, 6, value_str[:67] + "...", 0, 1, 'L')
                 else:
-                    self.cell(0, 6, str(value), 0, 1, 'L')
+                    self.cell(0, 6, value_str, 0, 1, 'L')
         
-        self.ln(5)
+        # Separador sutil
+        self.ln(3)
+        self.set_draw_color(*self.theme.get_color('light_gray'))
+        self.set_line_width(0.3)
+        self.line(self.theme.get_layout('margin_left'), self.get_y(), 
+                 self.w - self.theme.get_layout('margin_right'), self.get_y())
+        self.ln(8)
 
 
 class ReportGenerator:
@@ -237,11 +370,14 @@ class ReportGenerator:
     def _format_record_data(self, record: Tuple) -> dict:
         """Formatea los datos del registro para el PDF."""
         boletin_texto = ""
+        boletin_corto = ""
         if record[1] and record[2]:  # numero_boletin y fecha_boletin
             boletin_texto = f"BOLETÍN NRO. {record[1]} DEL {record[2]}"
+            boletin_corto = f"Nº {record[1]}"
         
         return {
             'boletin': boletin_texto,
+            'boletin_corto': boletin_corto,
             'numero_orden': record[3],
             'solicitante': record[4],
             'agente': record[5],
@@ -250,7 +386,7 @@ class ReportGenerator:
             'marca_custodia': record[8],
             'marca_publicada': record[9],
             'clases_acta': record[10],
-            'importancia': record[11]  # Agregar importancia
+            'importancia': record[11]
         }
     
     def _clean_filename(self, filename: str) -> str:
@@ -414,32 +550,41 @@ class ReportGenerator:
                               mes_ano: str, mes_ano_archivo: str, importancia: str) -> Tuple[str, str]:
         """Genera un informe individual para un titular con una importancia específica."""
         try:
-            # Crear PDF
+            # Crear PDF con tema profesional
             watermark = self.watermark_path if self._validate_watermark() else None
-            pdf = ProfessionalReportPDF(watermark)
+            pdf = ProfessionalReportPDF(watermark, "ESTUDIO CONTABLE")
             pdf.add_page()
             
             # Título principal con importancia
-            titulo_importancia = f"INFORME DE MARCAS PUBLICADAS - IMPORTANCIA {importancia.upper()}"
-            pdf.add_title_section(
-                titulo_importancia,
-                f"Período: {mes_ano}"
-            )
+            titulo_principal = f"INFORME DE MARCAS PUBLICADAS"
+            subtitulo = f"Clasificacion: {importancia.upper()} - Periodo: {mes_ano}"
+            pdf.add_main_title(titulo_principal, subtitulo)
             
-            # Cuadro de información
-            pdf.add_info_box(titular, mes_ano, len(registros))
+            # Sección de información general
+            pdf.add_info_section(titular, mes_ano, len(registros))
             
-            # Separador con información de importancia
-            pdf.add_section_divider(f"DETALLE DE REGISTROS - IMPORTANCIA {importancia.upper()}")
+            # Separador para tabla de resumen
+            pdf.add_section_separator("RESUMEN DE REGISTROS")
             
-            # Agregar cada registro
+            # Formatear datos para la tabla
+            records_data = []
+            for registro in registros:
+                record_data = self._format_record_data(registro)
+                records_data.append(record_data)
+            
+            # Agregar tabla de registros
+            pdf.add_records_table(records_data)
+            
+            # Separador para detalles
+            pdf.add_section_separator("DETALLE COMPLETO DE REGISTROS")
+            
+            # Agregar registros detallados
             for i, registro in enumerate(registros, 1):
                 record_data = self._format_record_data(registro)
-                pdf.add_record_entry(record_data, i)
+                pdf.add_detailed_record(record_data, i)
             
             # Guardar PDF con nombre que incluya importancia
             titular_limpio = self._clean_filename(titular)
-           
             digitos_random = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
             nombre_archivo = f"{mes_ano_archivo} - Informe {titular_limpio} - {importancia} - {digitos_random}.pdf"
             
@@ -447,7 +592,6 @@ class ReportGenerator:
             pdf.output(ruta_archivo)
             logger.info(f"Informe generado: {ruta_archivo}")
             
-            # Retornar el nombre y la ruta del archivo
             return nombre_archivo, ruta_archivo
             
         except Exception as e:

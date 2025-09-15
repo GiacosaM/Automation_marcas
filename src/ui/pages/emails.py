@@ -340,7 +340,7 @@ class EmailsPage:
                 self._show_credentials_panel()
         else:
             st.success("✅ No hay reportes pendientes de envío")
-            st.info("🎉 Todos los reportes generados han sido enviados exitosamente")
+            #st.info("🎉 Todos los reportes generados han sido enviados exitosamente")
     
     def _show_credentials_panel(self):
         """Mostrar panel de credenciales y botón de envío"""

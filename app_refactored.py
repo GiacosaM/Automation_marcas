@@ -36,6 +36,7 @@ from src.utils.session_manager import SessionManager
 
 # Importar páginas
 from src.ui.pages.dashboard import show_dashboard
+from src.ui.pages.marcas import show_marcas_page
 
 # Importar módulos existentes (mantenemos la funcionalidad actual)
 from auth_manager_simple import handle_authentication
@@ -108,6 +109,8 @@ class MarcasApp:
             self._show_clientes_page()
         elif current_page == 'informes':
             self._show_informes_page()
+        elif current_page == 'marcas' and NavigationManager.is_section_active('marcas'):
+            self._show_marcas_page()
         elif current_page == 'emails' and NavigationManager.is_section_active('email'):
             self._show_emails_page()
         # elif current_page == 'settings':
@@ -144,6 +147,10 @@ class MarcasApp:
         """Mostrar la página de emails"""
         from src.ui.pages.emails import show_emails_page
         show_emails_page()
+    
+    def _show_marcas_page(self):
+        """Mostrar la página de marcas"""
+        show_marcas_page()
     
     # def _show_settings_page(self):
     #     """Mostrar la página de configuración"""

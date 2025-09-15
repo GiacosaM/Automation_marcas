@@ -92,6 +92,7 @@ class NavigationManager:
             'Cargar Datos': ('upload', {}),
             'Historial': ('historial', {'show_db_section': True}),
             'Clientes': ('clientes', {'show_clientes_section': True}),
+            'Marcas': ('marcas', {'show_marcas_section': True}),
             'Informes': ('informes', {}),
             'Emails': ('emails', {'show_email_section': True}),
             # 'Configuración': ('settings', {})
@@ -126,6 +127,7 @@ class NavigationManager:
         section_map = {
             'db': 'show_db_section',
             'clientes': 'show_clientes_section',
+            'marcas': 'show_marcas_section',
             'email': 'show_email_section'
         }
         
@@ -144,7 +146,8 @@ class NavigationManager:
         """
         section_map = {
             'db': 'show_db_section',
-            'clientes': 'show_clientes_section', 
+            'clientes': 'show_clientes_section',
+            'marcas': 'show_marcas_section',
             'email': 'show_email_section'
         }
         

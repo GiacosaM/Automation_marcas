@@ -64,10 +64,10 @@ def obtener_mensajes_predefinidos():
     return {
         "Alta": """
         Estimado/a,
-        En virtud del servicio de custodia oportunamente contratado sobre sus marcas, le informamos que, como resultado del control mensual comparativo de presentaciones ante el INPI, se han detectado algunas similitudes leves con sus registros.
-        Dichas coincidencias se detallan en el informe adjunto. A nuestro entender, no ameritan ejercer el derecho de oposición en esta instancia. No obstante, quedamos a su disposición para que, en caso de considerarlo necesario, pueda comunicarse con nuestros profesionales y evaluar conjuntamente los pasos a seguir.
 
-        Saludos cordiales.
+        En virtud del servicio de custodia contratado sobre sus marcas, le informamos que, a partir del control mensual comparativo de presentaciones ante el INPI, se han detectado similitudes muy relevantes con sus registros, que a nuestro criterio ameritan ejercer el derecho de oposición de manera inmediata.
+        Por tal motivo, le solicitamos se comunique a la mayor brevedad con nuestras oficinas,
+        a fin de coordinar con nuestros profesionales las acciones necesarias para la protección de sus derechos marcarios.
         """,
         "Media": """
         Estimado/a,
@@ -80,9 +80,8 @@ def obtener_mensajes_predefinidos():
         "Baja": """
         Estimado/a,
 
-        En virtud del servicio de custodia contratado sobre sus marcas, le informamos que, a partir del control mensual comparativo de presentaciones ante el INPI, se han detectado similitudes muy relevantes con sus registros, que a nuestro criterio ameritan ejercer el derecho de oposición de manera inmediata.
-        Por tal motivo, le solicitamos se comunique a la mayor brevedad con nuestras oficinas,
-        a fin de coordinar con nuestros profesionales las acciones necesarias para la protección de sus derechos marcarios.
+        En virtud del servicio de custodia oportunamente contratado sobre sus marcas, le informamos que, como resultado del control mensual comparativo de presentaciones ante el INPI, se han detectado algunas similitudes leves con sus registros.
+        Dichas coincidencias se detallan en el informe adjunto. A nuestro entender, no ameritan ejercer el derecho de oposición en esta instancia. No obstante, quedamos a su disposición para que, en caso de considerarlo necesario, pueda comunicarse con nuestros profesionales y evaluar conjuntamente los pasos a seguir.
 
         
         Saludos cordiales.
@@ -273,13 +272,26 @@ def crear_mensaje_email(titular, importancia, boletines_data):
     """
     Crea el contenido del mensaje de email basado en la importancia específica del grupo.
     NUEVA LÓGICA: Usa directamente la importancia del grupo (titular + importancia).
+    Ahora retorna tanto la versión texto plano como la versión HTML.
     """
+    # Importar la plantilla HTML
+    from email_templates import get_html_template, get_html_message_by_importance
+    
+    # Versión texto plano (mantener para compatibilidad)
     mensajes = obtener_mensajes_predefinidos()
+    mensaje_texto = mensajes.get(importancia, mensajes['default'])
     
-    # Usar directamente la importancia del grupo
-    mensaje_base = mensajes.get(importancia, mensajes['default'])
+    # Versión HTML
+    html_content = get_html_template()
     
-    return mensaje_base
+    # Reemplazar el contenido del mensaje según la importancia
+    mensaje_html_contenido = get_html_message_by_importance(importancia)
+    html_content = html_content.replace('<!-- El contenido del mensaje se insertará aquí -->', mensaje_html_contenido)
+    
+    return {
+        'texto': mensaje_texto,
+        'html': html_content
+    }
 
 def obtener_archivo_reporte(boletines_data):
     """
@@ -302,6 +314,7 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
                 email_usuario=None, password_usuario=None):
     """
     Envía un email con archivo adjunto opcional.
+    Soporta contenido HTML y texto plano como fallback.
     Incluye validaciones mejoradas.
     """
     try:
@@ -314,13 +327,34 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
             raise Exception(f"Email del remitente no válido: {email_usuario}")
         
         # Crear mensaje
-        msg = MIMEMultipart()
-        msg['From'] = f"Mi Marca <{email_usuario}>"
+        msg = MIMEMultipart('alternative')
+        msg['From'] = f"Estudio Contable <{email_usuario}>"
         msg['To'] = destinatario
         msg['Subject'] = asunto
         
-        # Agregar cuerpo del mensaje
-        msg.attach(MIMEText(mensaje, 'plain', 'utf-8'))
+        # Determinar el tipo de mensaje (texto plano o HTML)
+        if isinstance(mensaje, dict) and 'texto' in mensaje and 'html' in mensaje:
+            # Agregar versión texto plano (fallback)
+            msg.attach(MIMEText(mensaje['texto'], 'plain', 'utf-8'))
+            # Agregar versión HTML
+            msg.attach(MIMEText(mensaje['html'], 'html', 'utf-8'))
+        else:
+            # Mantener compatibilidad con versiones anteriores (solo texto plano)
+            msg.attach(MIMEText(mensaje, 'plain', 'utf-8'))
+        
+        # Agregar imagen del logo en línea
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png')
+        if os.path.exists(logo_path):
+            try:
+                with open(logo_path, 'rb') as img_file:
+                    img_part = MIMEBase('image', 'png')
+                    img_part.set_payload(img_file.read())
+                    encoders.encode_base64(img_part)
+                    img_part.add_header('Content-ID', '<logo>')
+                    img_part.add_header('Content-Disposition', 'inline')
+                    msg.attach(img_part)
+            except Exception as e:
+                logging.warning(f"Error al adjuntar logo: {e}")
         
         # Agregar archivo adjunto si existe
         if archivo_adjunto and os.path.exists(archivo_adjunto):

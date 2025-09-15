@@ -77,23 +77,16 @@ CLIENT_COLUMNS = {
     'provincia': {"width": 130, "header_name": "🗺️ Provincia", "flex": 1},
     'cuit': {"width": 130, "header_name": "🆔 CUIT", "flex": 1},
     'tiene_marcas': {
-        "width": 100, 
-        "header_name": "🏷️ Marcas", 
-        "flex": 1, 
+        "width": 100,
+        "header_name": "🏷️ Marcas",
+        "flex": 1,
         "editable": False,
+        "cellRenderer": "function(params) { return params.value == 1 ? '✅' : '❌'; }",
         "cellStyle": {
-            'textAlign': 'center',
-            'fontSize': '20px'
-        },
-        "cellRenderer": """
-        function(params) {
-            if (params.value == 1) {
-                return '<span title="Cliente con marcas vinculadas">✅</span>';
-            } else {
-                return '<span title="Cliente sin marcas vinculadas">❌</span>';
-            }
+            "textAlign": "center",
+            "fontSize": "20px",
+            "paddingTop": "10px"
         }
-        """
     }
 }
 
@@ -106,6 +99,7 @@ NAVIGATION_TABS = [
     {"name": "Cargar Datos", "icon": "cloud-upload-fill"},
     {"name": "Historial", "icon": "list-task"},
     {"name": "Clientes", "icon": "people-fill"},
+    {"name": "Marcas", "icon": "tags-fill"},
     {"name": "Informes", "icon": "file-earmark-text-fill"},
     {"name": "Emails", "icon": "envelope-fill"},
     # {"name": "Configuración", "icon": "gear-fill"}
