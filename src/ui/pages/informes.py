@@ -369,8 +369,8 @@ class InformesPage:
                         st.success("✅ Verificación automática realizada")
                         
                         metrics = [
-                            {"value": resultado_verificacion.get('titulares_sin_reportes', 0), 
-                             "label": "Titulares sin reportes", 
+                            {"value": resultado_verificacion.get('titulares_con_marcas_sin_reportes', 0), 
+                             "label": "Titulares con marcas sin reportes", 
                              "color": "#ffc107"},
                             {"value": resultado_verificacion.get('emails_enviados', 0), 
                              "label": "Emails enviados", 
@@ -412,7 +412,7 @@ class InformesPage:
                                 
                                 if resultado['estado'] == 'completado':
                                     st.success("✅ Verificación completada con éxito")
-                                    st.info(f"Se encontraron {resultado['titulares_sin_reportes']} titulares sin reportes")
+                                    st.info(f"Se encontraron {resultado['titulares_con_marcas_sin_reportes']} titulares con marcas sin reportes")
                                     st.success(f"Se enviaron {resultado['emails_enviados']} correos de notificación")
                                     
                                     if resultado['errores'] > 0:

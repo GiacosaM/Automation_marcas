@@ -46,7 +46,7 @@ def main():
         
         # Registrar resultados
         logger.info(f"Resultado de la verificación: {resultado}")
-        logger.info(f"Titulares sin reportes: {resultado.get('titulares_sin_reportes', 'N/A')}")
+        logger.info(f"Titulares con marcas sin reportes: {resultado.get('titulares_con_marcas_sin_reportes', 'N/A')}")
         logger.info(f"Emails enviados: {resultado.get('emails_enviados', 'N/A')}")
         logger.info(f"Errores: {resultado.get('errores', 'N/A')}")
         

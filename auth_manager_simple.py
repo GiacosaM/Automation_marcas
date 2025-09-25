@@ -484,7 +484,7 @@ def show_user_info():
                 </div>
                 <div style="flex-grow: 1;">
                     <div style="font-weight: 600; font-size: 16px;">{user_info['name']}</div>
-                    <div style="font-size: 12px; color: #bbb;">👤 {user_info['username']} | 🔑 {user_info['role']} | 📅 {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>
+                    <div style="font-size: 12px; color: #bbb;">👤 {user_info['email']} | 🔑 {user_info['role']} | 📅 {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>
                 </div>
             </div>
         </div>
