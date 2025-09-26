@@ -99,6 +99,11 @@ class MarcasApp:
         """Enrutar a la página correspondiente según el estado actual"""
         current_page = NavigationManager.get_current_page()
         
+        # Debug para navegación
+        st.sidebar.write(f"Página actual: {current_page}")
+        if current_page == 'config':
+            st.sidebar.write(f"Sección config activa: {NavigationManager.is_section_active('config')}")
+        
         if current_page == 'dashboard':
             self._show_dashboard()
         elif current_page == 'upload':
@@ -113,8 +118,9 @@ class MarcasApp:
             self._show_marcas_page()
         elif current_page == 'emails' and NavigationManager.is_section_active('email'):
             self._show_emails_page()
-        # elif current_page == 'settings':
-        #     self._show_settings_page()
+        elif current_page == 'config':
+            # Para configuración, eliminamos la comprobación de sección para simplificar
+            self._show_config_page()
         else:
             # Por defecto mostrar dashboard
             self._show_dashboard()
@@ -152,10 +158,25 @@ class MarcasApp:
         """Mostrar la página de marcas"""
         show_marcas_page()
     
-    # def _show_settings_page(self):
-    #     """Mostrar la página de configuración"""
-    #     from src.ui.pages.settings import show_settings_page
-    #     show_settings_page()
+    def _show_config_page(self):
+        """Mostrar la página de configuración"""
+        # Verificar si el usuario es admin
+        user_info = SessionManager.get('user_info', {})
+        user_role = user_info.get('role', 'user')
+        
+        if user_role != 'admin':
+            st.error("No tienes permisos para acceder a esta página")
+            return
+        
+      
+            
+        try:
+            from src.ui.pages.db_config import show_db_config_page
+            show_db_config_page()
+        except Exception as e:
+            st.error(f"Error al cargar la página de configuración: {e}")
+            import traceback
+            st.code(traceback.format_exc())
     
     def run(self):
         """Ejecutar la aplicación principal"""
@@ -168,6 +189,12 @@ class MarcasApp:
         
         # Manejar navegación
         selected_tab = self._handle_navigation()
+        
+        # Verificar si el usuario hizo clic en Configuración
+        if selected_tab == "Configuración":
+            # Configurar manualmente la página y la sección
+            SessionManager.set_current_page('config', reset_sections=True)
+            SessionManager.set('show_config_section', True)
         
         # Enrutar a la página correspondiente
         self._route_to_page()

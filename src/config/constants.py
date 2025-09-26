@@ -102,7 +102,7 @@ NAVIGATION_TABS = [
     {"name": "Marcas", "icon": "tags-fill"},
     {"name": "Informes", "icon": "file-earmark-text-fill"},
     {"name": "Emails", "icon": "envelope-fill"},
-    # {"name": "Configuración", "icon": "gear-fill"}
+    {"name": "Configuración", "icon": "gear-fill"}
 ]
 
 # Colores del tema

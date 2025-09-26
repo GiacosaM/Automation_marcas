@@ -68,7 +68,8 @@ class SessionManager:
         sections_to_reset = [
             'show_db_section',
             'show_clientes_section', 
-            'show_email_section'
+            'show_email_section',
+            'show_config_section'
         ]
         for section in sections_to_reset:
             st.session_state[section] = False
@@ -77,6 +78,7 @@ class SessionManager:
     def set_current_page(page: str, reset_sections: bool = True) -> None:
         """Establecer la página actual y opcionalmente resetear secciones"""
         st.session_state.current_page = page
+        print(f"Estableciendo página actual: {page}")
         if reset_sections:
             SessionManager.reset_navigation_sections()
     
@@ -107,8 +109,9 @@ class SessionManager:
         return {
             'keys_count': len(st.session_state.keys()),
             'current_page': st.session_state.get('current_page', 'unknown'),
+            'user_role': st.session_state.get('user_info', {}).get('role', 'unknown'),
             'active_sections': [
-                key for key in ['show_db_section', 'show_clientes_section', 'show_email_section']
+                key for key in ['show_db_section', 'show_clientes_section', 'show_email_section', 'show_config_section']
                 if st.session_state.get(key, False)
             ],
             'changes_tracked': len(st.session_state.get('cambios_procesados', set()))
