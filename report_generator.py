@@ -7,14 +7,16 @@ from datetime import datetime
 from collections import defaultdict
 from typing import List, Tuple, Optional
 from professional_theme import ProfessionalTheme
+from paths import get_logs_dir, get_informes_dir, get_config_file_path
 
 # Configurar logging
+log_file = os.path.join(get_logs_dir(), 'boletines.log')
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Logger específico para eventos críticos de reportes
 report_logger = logging.getLogger('report_events')
 report_logger.setLevel(logging.INFO)
-report_handler = logging.FileHandler('boletines.log')
+report_handler = logging.FileHandler(log_file)
 report_handler.setFormatter(logging.Formatter('%(asctime)s - REPORT - %(message)s'))
 report_logger.addHandler(report_handler)
 report_logger.propagate = False
@@ -318,9 +320,9 @@ class ProfessionalReportPDF(FPDF):
 class ReportGenerator:
     """Clase principal para generar informes de marcas."""
     
-    def __init__(self, watermark_path: str = None, output_dir: str = "informes"):
+    def __init__(self, watermark_path: str = None, output_dir: str = None):
         self.watermark_path = watermark_path
-        self.output_dir = output_dir
+        self.output_dir = output_dir if output_dir else get_informes_dir()
         self._ensure_output_directory()
     
     def _ensure_output_directory(self):

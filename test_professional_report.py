@@ -9,10 +9,11 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 from report_generator import ReportGenerator
+from paths import get_db_path, get_image_path, get_informes_dir
 
 def create_test_data():
     """Crea datos de prueba en la base de datos"""
-    conn = sqlite3.connect('boletines.db')
+    conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
     
     # Datos de muestra
@@ -94,8 +95,8 @@ def test_report_generation():
         
         # Crear generador de reportes
         generator = ReportGenerator(
-            watermark_path="imagenes/marca_agua.jpg",
-            output_dir="informes"
+            watermark_path=get_image_path("marca_agua.jpg")
+            # output_dir será automáticamente get_informes_dir()
         )
         
         # Generar reportes
@@ -131,7 +132,7 @@ def test_report_generation():
 def cleanup_test_data():
     """Limpia los datos de prueba"""
     try:
-        conn = sqlite3.connect('boletines.db')
+        conn = sqlite3.connect(get_db_path())
         cursor = conn.cursor()
         cursor.execute("DELETE FROM boletines WHERE titular = 'EMPRESA DEMO S.A.'")
         conn.commit()

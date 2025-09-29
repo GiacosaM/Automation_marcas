@@ -4,12 +4,13 @@ import os
 import json
 import logging
 from pathlib import Path
+from paths import get_config_file_path, get_data_dir
 
 class ConfigManager:
     """Gestor de configuración centralizado."""
     
-    def __init__(self, config_file="config.json"):
-        self.config_file = config_file
+    def __init__(self, config_file=None):
+        self.config_file = config_file if config_file else get_config_file_path()
         self.default_config = {
             "app": {
                 "title": "Sistema de Gestión de Marcas",
@@ -121,7 +122,7 @@ def set_config(key_path, value):
 def load_email_credentials():
     """Cargar credenciales de email desde credenciales.json"""
     try:
-        credentials_file = "credenciales.json"
+        credentials_file = os.path.join(get_data_dir(), "credenciales.json")
         if os.path.exists(credentials_file):
             with open(credentials_file, 'r', encoding='utf-8') as f:
                 credentials = json.load(f)
@@ -137,7 +138,7 @@ def load_email_credentials():
 def save_email_credentials(email, password):
     """Guardar credenciales de email en credenciales.json"""
     try:
-        credentials_file = "credenciales.json"
+        credentials_file = os.path.join(get_data_dir(), "credenciales.json")
         
         # Cargar credenciales existentes
         credentials = {}

@@ -7,6 +7,7 @@ Este script muestra cómo integrar el nuevo diseño con tu aplicación existente
 import sqlite3
 import os
 from report_generator import ReportGenerator
+from paths import get_db_path, get_image_path
 
 def generar_reportes_profesionales():
     """
@@ -25,12 +26,12 @@ def generar_reportes_profesionales():
     
     try:
         # Conectar a la base de datos
-        conn = sqlite3.connect('boletines.db')
+        conn = sqlite3.connect(get_db_path())
         
         # Configurar el generador con ruta de marca de agua
         generator = ReportGenerator(
-            watermark_path="imagenes/marca_agua.jpg",  # Ruta a tu logo
-            output_dir="informes"  # Directorio de salida
+            watermark_path=get_image_path("marca_agua.jpg")  # Ruta a tu logo
+            # El directorio de salida será automáticamente get_informes_dir()
         )
         
         # Generar todos los reportes pendientes
@@ -79,7 +80,7 @@ def verificar_configuracion():
     print("🔍 Verificando configuración...")
     
     # Verificar base de datos
-    if os.path.exists('boletines.db'):
+    if os.path.exists(get_db_path()):
         print("✅ Base de datos encontrada")
     else:
         print("❌ Base de datos no encontrada")

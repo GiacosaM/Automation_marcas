@@ -8,17 +8,19 @@ import json
 import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from paths import get_db_path, get_data_dir, get_logs_dir
 
 # Cargar variables de entorno
 load_dotenv()
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO)
+log_file = os.path.join(get_logs_dir(), 'email_verification.log')
+logging.basicConfig(level=logging.INFO, filename=log_file)
 logger = logging.getLogger(__name__)
 
 class EmailVerificationSystem:
-    def __init__(self, db_path="boletines.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path if db_path else get_db_path()
         self.setup_database()
         self.load_email_config()
 

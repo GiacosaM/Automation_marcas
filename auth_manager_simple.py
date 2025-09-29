@@ -3,10 +3,11 @@ import sqlite3
 import bcrypt
 from datetime import datetime, timedelta
 import time
+from paths import get_db_path
 
 class AuthManager:
-    def __init__(self, db_path="boletines.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path if db_path else get_db_path()
         self.setup_database()
         self.create_default_admin()
 
