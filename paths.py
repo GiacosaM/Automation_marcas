@@ -125,6 +125,22 @@ def get_project_file(relative_path):
     """
     return os.path.join(get_project_root(), relative_path)
     
+def get_assets_dir():
+    """
+    Obtiene la ruta del directorio de assets de la aplicación.
+    Crea el directorio si no existe.
+    
+    Returns:
+        str: Ruta absoluta al directorio de assets.
+    """
+    assets_dir = os.path.join(get_data_dir(), "assets")
+    
+    # Crear el directorio si no existe
+    if not os.path.exists(assets_dir):
+        os.makedirs(assets_dir, exist_ok=True)
+    
+    return assets_dir
+
 def get_image_path(image_name=None):
     """
     Obtiene la ruta completa a un archivo de imagen o al directorio de imágenes.
@@ -141,6 +157,77 @@ def get_image_path(image_name=None):
         return os.path.join(images_dir, image_name)
     return images_dir
 
+def inicializar_assets():
+    """
+    Inicializa los assets de la aplicación (logo, imágenes, etc.)
+    copiándolos desde el directorio del proyecto al directorio de assets del usuario.
+    
+    Returns:
+        bool: True si la inicialización fue exitosa, False en caso contrario.
+    """
+    import shutil
+    
+    # Asegurarnos de que el directorio de assets exista
+    assets_dir = get_assets_dir()
+    
+    # Lista de archivos a copiar desde el directorio de imágenes
+    assets_to_copy = {
+        'marca_agua.jpg': 'logo.jpg',  # Renombrar marca_agua.jpg a logo.jpg
+        'image1.jpg': 'logo_alt.jpg'   # Alternativo por si marca_agua.jpg no existe
+    }
+    
+    success = False
+    
+    # Copiar cada archivo de imagen al directorio de assets
+    for src_name, dest_name in assets_to_copy.items():
+        src_path = get_image_path(src_name)
+        dest_path = os.path.join(assets_dir, dest_name)
+        
+        # Verificar si el archivo de origen existe
+        if os.path.exists(src_path) and not os.path.exists(dest_path):
+            try:
+                shutil.copy2(src_path, dest_path)
+                print(f"Asset copiado: {src_path} → {dest_path}")
+                success = True
+                # Si se copió correctamente uno, no es necesario copiar alternativas
+                if dest_name == 'logo.jpg':
+                    break
+            except Exception as e:
+                print(f"Error al copiar asset {src_name}: {e}")
+                
+    return success
+
+def get_logo_path():
+    """
+    Obtiene la ruta al logo de la aplicación.
+    Si no existe en el directorio de assets, intenta inicializarlo.
+    
+    Returns:
+        str: Ruta absoluta al archivo de logo o None si no se encuentra.
+    """
+    logo_path = os.path.join(get_assets_dir(), "logo.jpg")
+    alt_logo_path = os.path.join(get_assets_dir(), "logo_alt.jpg")
+    
+    # Verificar si el logo principal existe
+    if os.path.exists(logo_path):
+        return logo_path
+    
+    # Verificar si el logo alternativo existe
+    if os.path.exists(alt_logo_path):
+        return alt_logo_path
+    
+    # Si no existe ninguno, intentar inicializar los assets
+    if inicializar_assets():
+        return get_logo_path()  # Llamada recursiva después de inicializar
+    
+    # Si no se pudo obtener el logo de ninguna forma, intentar retornar
+    # la ruta directa a la imagen en el directorio del proyecto
+    project_logo = get_image_path("marca_agua.jpg")
+    if os.path.exists(project_logo):
+        return project_logo
+        
+    return None
+
 # Si se ejecuta como script principal, mostrar información de las rutas
 if __name__ == "__main__":
     print(f"Directorio de datos: {get_data_dir()}")
@@ -148,7 +235,8 @@ if __name__ == "__main__":
     print(f"Directorio de informes: {get_informes_dir()}")
     print(f"Directorio de logs: {get_logs_dir()}")
     print(f"Directorio temporal: {get_temp_dir()}")
+    print(f"Directorio de assets: {get_assets_dir()}")
     print(f"Archivo de configuración: {get_config_file_path()}")
     print(f"Raíz del proyecto: {get_project_root()}")
     print(f"Directorio de imágenes: {get_image_path()}")
-    print(f"Imagen de marca de agua: {get_image_path('marca_agua.jpg')}")
+    print(f"Logo de la aplicación: {get_logo_path()}")

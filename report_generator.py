@@ -7,7 +7,7 @@ from datetime import datetime
 from collections import defaultdict
 from typing import List, Tuple, Optional
 from professional_theme import ProfessionalTheme
-from paths import get_logs_dir, get_informes_dir, get_config_file_path
+from paths import get_logs_dir, get_informes_dir, get_config_file_path, get_logo_path, inicializar_assets
 
 # Configurar logging
 log_file = os.path.join(get_logs_dir(), 'boletines.log')
@@ -321,9 +321,13 @@ class ReportGenerator:
     """Clase principal para generar informes de marcas."""
     
     def __init__(self, watermark_path: str = None, output_dir: str = None):
+        # Si se proporciona una ruta específica, usarla; si no, usar get_logo_path()
         self.watermark_path = watermark_path
         self.output_dir = output_dir if output_dir else get_informes_dir()
         self._ensure_output_directory()
+        
+        # Intentar inicializar assets si es necesario
+        inicializar_assets()
     
     def _ensure_output_directory(self):
         """Crea el directorio de salida si no existe."""
@@ -331,12 +335,22 @@ class ReportGenerator:
     
     def _validate_watermark(self) -> bool:
         """Valida si la imagen de marca de agua existe."""
-        if not self.watermark_path:
-            return False
+        # Si no se proporcionó una ruta explícita o la proporcionada no existe,
+        # intentar obtenerla desde get_logo_path()
+        if not self.watermark_path or not os.path.exists(self.watermark_path):
+            logo_path = get_logo_path()
+            if logo_path and os.path.exists(logo_path):
+                self.watermark_path = logo_path
+                logger.info(f"Logo encontrado mediante get_logo_path(): {logo_path}")
+                return True
         
-        # Intentar diferentes rutas posibles
+        # Si se proporcionó una ruta explícita y existe, usarla
+        if self.watermark_path and os.path.exists(self.watermark_path):
+            logger.info(f"Usando ruta de logo proporcionada: {self.watermark_path}")
+            return True
+        
+        # Como último recurso, intentar las rutas tradicionales
         possible_paths = [
-            self.watermark_path,
             os.path.join("imagenes", "marca_agua.jpg"),
             os.path.join("imagenes", "image1.jpg"),
             "imagenes/marca_agua.jpg",
@@ -346,10 +360,10 @@ class ReportGenerator:
         for path in possible_paths:
             if os.path.exists(path):
                 self.watermark_path = path  # Actualizar con la ruta válida
-                logger.info(f"Imagen de marca de agua encontrada: {path}")
+                logger.info(f"Imagen de marca de agua encontrada en ruta alternativa: {path}")
                 return True
         
-        logger.warning(f"Imagen de marca de agua no encontrada en ninguna de estas ubicaciones: {possible_paths}")
+        logger.warning("No se pudo encontrar la imagen del logo en ninguna ubicación")
         return False
     
     def _fetch_pending_records(self, conn):
@@ -601,7 +615,9 @@ class ReportGenerator:
             raise
 
 
-def generar_informe_pdf(conn, watermark_image: str = "imagenes/marca_agua.jpg"):
+def generar_informe_pdf(conn, watermark_image: str = None):
     """Función principal para mantener compatibilidad con el código anterior."""
-    generator = ReportGenerator(watermark_image)
+    # Si no se proporciona una ruta específica, usar get_logo_path()
+    logo_path = watermark_image or get_logo_path()
+    generator = ReportGenerator(logo_path)
     return generator.generate_reports(conn)

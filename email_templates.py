@@ -74,9 +74,28 @@ def get_html_template():
     <body>
         <div class="container">
             <div class="header">
-                <img src="cid:logo" alt="Estudio Contable Logo">
-                <h1>Servicio de Custodia de Marcas</h1>
+    <!-- Aquí va el logo simulado con HTML -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif;">
+      <tr>
+        <td align="center" style="padding: 10px 0;">
+          
+
+            <!-- Texto de marca -->
+            <div style="display:inline-block; vertical-align:middle;">
+              <div style="font-size:28px; color:#d52b1e; font-weight:bold; line-height:32px;">Mi</div>
+              <div style="font-size:28px; color:#d52b1e; font-weight:bold; line-height:32px;">Marca</div>
+             
             </div>
+
+            <div>
+            <h1>Servicio de Custodia de Marcas</h1>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+</div>
+
             <div class="content">
                 <!-- El contenido del mensaje se insertará aquí -->
                 <div class="contact-info">
