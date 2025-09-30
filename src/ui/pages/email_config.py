@@ -138,16 +138,7 @@ def show_email_config_page():
                 else:
                     st.error("❌ Error al eliminar las credenciales")
     
-    # Mostrar información adicional
-    st.markdown("""
-    ### ℹ️ Información
-
-    Para usar Gmail, debes:
-    1. Activar la verificación en dos pasos en tu cuenta de Google.
-    2. Generar una "Contraseña de aplicación" específica para esta aplicación.
-    
-    [Generar contraseña de aplicación en Google](https://myaccount.google.com/apppasswords)
-    """)
+   
 
 if __name__ == "__main__":
     # Configuración básica de logging

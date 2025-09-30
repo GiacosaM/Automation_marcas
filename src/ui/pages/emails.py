@@ -362,19 +362,19 @@ class EmailsPage:
         # Verificar si hay credenciales configuradas
         if credenciales.get('email') and credenciales.get('password'):
             st.success(f"✅ Email configurado: {credenciales['email']}")
-            st.info("🔑 Contraseña cargada de forma segura")
+            #st.info("🔑 Contraseña cargada de forma segura")
             
             # Mostrar estado de validación
-            if validate_email_format(credenciales['email']):
-                st.success("📧 Formato de email válido")
-            else:
-                st.error("❌ Formato de email inválido")
+            #if validate_email_format(credenciales['email']):
+                #st.success("📧 Formato de email válido")
+            #else:
+                #st.error("❌ Formato de email inválido")
                 
             # Enlace a configuración
-            if st.button("⚙️ Cambiar Credenciales", use_container_width=True):
-                st.session_state.main_tab = "Configuración"
-                st.session_state.config_tab = "Email"
-                st.rerun()
+            #if st.button("⚙️ Cambiar Credenciales", use_container_width=True):
+                #st.session_state.main_tab = "Configuración"
+               # st.session_state.config_tab = "Email"
+                #st.rerun()
             
             st.markdown("---")
             
@@ -384,10 +384,10 @@ class EmailsPage:
             st.warning("⚠️ No hay credenciales configuradas")
             st.info("💡 Ve a la pestaña 'Configuración > Email' para configurar las credenciales")
             
-            if st.button("⚙️ Ir a Configuración de Email", use_container_width=True):
-                st.session_state.main_tab = "Configuración"
-                st.session_state.config_tab = "Email"
-                st.rerun()
+            #if st.button("⚙️ Ir a Configuración de Email", use_container_width=True):
+                #st.session_state.main_tab = "Configuración"
+                #st.session_state.config_tab = "Email"
+                #st.rerun()
     
     def _show_send_confirmation_system(self, credenciales):
         """Sistema de confirmación para envío de emails"""
