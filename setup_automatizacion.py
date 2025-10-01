@@ -16,13 +16,15 @@ import platform
 import sqlite3
 import logging
 from datetime import datetime
+from paths import get_db_path, get_logs_dir, get_informes_dir, get_data_dir
 
 # Configuración de logging
+log_file = os.path.join(get_logs_dir(), 'setup_automatizacion.log')
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('setup_automatizacion.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler()
     ]
 )
@@ -60,10 +62,13 @@ def configurar_base_datos():
     """Configurar la base de datos para soportar notificaciones automáticas"""
     print_header("CONFIGURACIÓN DE BASE DE DATOS")
     
+    # Asegurarse de que el directorio de datos existe
+    os.makedirs(get_data_dir(), exist_ok=True)
+    
     try:
         # Conectar a la base de datos
         print("Conectando a la base de datos...")
-        conn = sqlite3.connect('boletines.db')
+        conn = sqlite3.connect(get_db_path())
         cursor = conn.cursor()
         
         # Verificar si la tabla emails_enviados existe

@@ -4,12 +4,13 @@ import os
 import json
 import logging
 from pathlib import Path
+from paths import get_config_file_path, get_data_dir
 
 class ConfigManager:
     """Gestor de configuración centralizado."""
     
-    def __init__(self, config_file="config.json"):
-        self.config_file = config_file
+    def __init__(self, config_file=None):
+        self.config_file = config_file if config_file else get_config_file_path()
         self.default_config = {
             "app": {
                 "title": "Sistema de Gestión de Marcas",
@@ -119,42 +120,64 @@ def set_config(key_path, value):
 
 # Funciones para manejo de credenciales de email
 def load_email_credentials():
-    """Cargar credenciales de email desde credenciales.json"""
+    """Cargar credenciales de email usando el nuevo sistema de gestión"""
     try:
-        credentials_file = "credenciales.json"
-        if os.path.exists(credentials_file):
-            with open(credentials_file, 'r', encoding='utf-8') as f:
-                credentials = json.load(f)
-                return {
-                    'email': credentials.get('email', ''),
-                    'password': credentials.get('password', '')
-                }
-        return {'email': '', 'password': ''}
+        # Limpiar caché en session_state si existe
+        import streamlit as st
+        if 'email_credentials' in st.session_state:
+            del st.session_state['email_credentials']
+            logging.info("Caché de credenciales eliminada para recargar")
+            
+        # Usar el nuevo sistema de gestión de credenciales
+        from email_utils import obtener_credenciales
+        
+        # Forzar recarga de credenciales
+        credentials = obtener_credenciales()
+        
+        # Si no hay credenciales, devolver un diccionario vacío
+        if not credentials:
+            logging.warning("No se encontraron credenciales de email")
+            return {'email': '', 'password': ''}
+            
+        # Validar que la contraseña no esté vacía
+        if not credentials.get('password'):
+            logging.warning("Se encontraron credenciales pero la contraseña está vacía")
+            return {'email': credentials.get('email', ''), 'password': ''}
+            
+        logging.info(f"Credenciales cargadas correctamente para {credentials.get('email')}")
+        
+        # Devolver un diccionario completo con todos los datos necesarios
+        return {
+            'email': credentials.get('email', ''),
+            'password': credentials.get('password', ''),
+            'smtp_host': credentials.get('smtp_host', 'smtp.gmail.com'),
+            'smtp_port': credentials.get('smtp_port', 587)
+        }
     except Exception as e:
-        logging.error(f"Error loading email credentials: {e}")
+        logging.error(f"Error loading email credentials: {e}", exc_info=True)
+        # En caso de error, devolver un diccionario vacío
         return {'email': '', 'password': ''}
 
 def save_email_credentials(email, password):
-    """Guardar credenciales de email en credenciales.json"""
+    """Guardar credenciales de email usando el nuevo sistema de gestión"""
     try:
-        credentials_file = "credenciales.json"
+        # Usar el nuevo sistema de gestión de credenciales
+        from email_utils import guardar_credenciales, obtener_credenciales
         
-        # Cargar credenciales existentes
-        credentials = {}
-        if os.path.exists(credentials_file):
-            with open(credentials_file, 'r', encoding='utf-8') as f:
-                credentials = json.load(f)
+        # Obtener las credenciales existentes para no perder datos como host y puerto
+        old_credentials = obtener_credenciales() or {}
         
-        # Actualizar solo email y password
-        credentials['email'] = email
-        credentials['password'] = password
+        # Usar los valores actuales o los predeterminados
+        smtp_host = old_credentials.get('smtp_host', 'smtp.gmail.com')
+        smtp_port = old_credentials.get('smtp_port', 587)
         
-        # Guardar de vuelta
-        with open(credentials_file, 'w', encoding='utf-8') as f:
-            json.dump(credentials, f, indent=2, ensure_ascii=False)
+        # Guardar las credenciales con el nuevo sistema
+        result = guardar_credenciales(email, smtp_host, smtp_port, password)
         
-        logging.info("Email credentials saved successfully")
-        return True
+        if result:
+            logging.info("Email credentials saved successfully")
+        
+        return result
     except Exception as e:
         logging.error(f"Error saving email credentials: {e}")
         return False

@@ -8,23 +8,44 @@ import json
 import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from paths import get_db_path, get_data_dir, get_logs_dir
 
 # Cargar variables de entorno
 load_dotenv()
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO)
+log_file = os.path.join(get_logs_dir(), 'email_verification.log')
+logging.basicConfig(level=logging.INFO, filename=log_file)
 logger = logging.getLogger(__name__)
 
 class EmailVerificationSystem:
-    def __init__(self, db_path="boletines.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path if db_path else get_db_path()
+        self.credentials_missing = False  # Por defecto, asumimos que las credenciales existen
         self.setup_database()
         self.load_email_config()
 
     def load_email_config(self):
-        """Cargar configuración de email desde archivo .env o JSON"""
-        # Primero intentar cargar desde variables de entorno (.env)
+        """Cargar configuración de email desde credentials.json (prioritario), .env o JSON"""
+        # Primero intentar cargar desde credentials.json (nuevo sistema centralizado)
+        try:
+            from email_utils import obtener_credenciales
+            credentials = obtener_credenciales()
+            
+            if credentials and credentials.get('email') and credentials.get('password'):
+                logger.info(f"Usando credenciales de email desde credentials.json para {credentials.get('email')}")
+                self.smtp_server = credentials.get('smtp_host', 'smtp.gmail.com')
+                self.smtp_port = credentials.get('smtp_port', 587)
+                self.email_user = credentials.get('email')
+                self.email_password = credentials.get('password')
+                self.sender_name = 'Sistema de Verificación - Estudio Contable'
+                return
+            else:
+                logger.warning("No se encontraron credenciales válidas en credentials.json")
+        except Exception as e:
+            logger.warning(f"Error al cargar credenciales desde credentials.json: {e}")
+        
+        # Segundo: intentar cargar desde variables de entorno (.env)
         email_user = os.getenv('EMAIL_USER')
         email_password = os.getenv('EMAIL_PASSWORD')
         
@@ -37,7 +58,7 @@ class EmailVerificationSystem:
             self.sender_name = 'Sistema de Verificación - Estudio Contable'
             return
         
-        # Si no hay variables de entorno, intentar archivo JSON
+        # Tercero: intentar archivo JSON
         try:
             with open('email_config.json', 'r') as f:
                 config = json.load(f)
@@ -48,11 +69,13 @@ class EmailVerificationSystem:
                 self.sender_name = config.get('sender_name', 'Sistema de Verificación')
                 logger.info("Usando credenciales de email desde email_config.json")
         except FileNotFoundError:
-            logger.warning("Archivo email_config.json no encontrado y no hay variables de entorno.")
-            self.create_default_email_config()
+            logger.warning("No se encontraron credenciales en ninguna fuente (credentials.json, .env, email_config.json)")
+            self.setup_default_email_config()
+            self.credentials_missing = True
         except Exception as e:
             logger.error(f"Error al cargar configuración de email: {e}")
             self.setup_default_email_config()
+            self.credentials_missing = True
 
     def create_default_email_config(self):
         """Crear archivo de configuración de email por defecto"""
@@ -77,6 +100,7 @@ class EmailVerificationSystem:
         self.email_user = ''
         self.email_password = ''
         self.sender_name = 'Sistema de Verificación'
+        self.credentials_missing = True  # Indicador de que faltan credenciales
 
     def setup_database(self):
         """Configurar la base de datos con los campos necesarios para verificación"""
@@ -154,6 +178,14 @@ class EmailVerificationSystem:
         Returns:
             dict: {'success': bool, 'message': str, 'activation_code': str (solo para testing)}
         """
+        # Verificar si hay credenciales de email configuradas
+        if self.credentials_missing or not self.email_user or not self.email_password:
+            return {
+                'success': False, 
+                'message': '⚠️ No hay credenciales de email configuradas. Por favor configure las credenciales en el panel de administración antes de registrar usuarios.',
+                'error_type': 'missing_credentials'
+            }
+        
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -209,8 +241,8 @@ class EmailVerificationSystem:
             bool: True si se envió exitosamente, False en caso contrario
         """
         try:
-            if not self.email_user or not self.email_password:
-                logger.warning("Credenciales de email no configuradas")
+            if self.credentials_missing or not self.email_user or not self.email_password:
+                logger.warning("⚠️ Credenciales de email no configuradas o incompletas")
                 return False
             
             # Importar plantillas HTML
@@ -282,6 +314,15 @@ Sistema de Verificación - Estudio Contable"""
         Returns:
             dict: {'success': bool, 'message': str}
         """
+        # La verificación no necesita credenciales de email directamente, pero las comprobamos
+        # por consistencia y para poder notificar al usuario si hay problemas
+        if self.credentials_missing or not self.email_user or not self.email_password:
+            return {
+                'success': False, 
+                'message': '⚠️ No hay credenciales de email configuradas. Por favor configure las credenciales en el panel de administración.',
+                'error_type': 'missing_credentials'
+            }
+            
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -339,6 +380,14 @@ Sistema de Verificación - Estudio Contable"""
         Returns:
             dict: {'success': bool, 'message': str}
         """
+        # Verificar si hay credenciales de email configuradas
+        if self.credentials_missing or not self.email_user or not self.email_password:
+            return {
+                'success': False, 
+                'message': '⚠️ No hay credenciales de email configuradas. Por favor configure las credenciales en el panel de administración.',
+                'error_type': 'missing_credentials'
+            }
+            
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()

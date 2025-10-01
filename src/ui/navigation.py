@@ -20,22 +20,8 @@ class NavigationManager:
             Nombre de la pestaña seleccionada
         """
         # Extraer nombres e iconos de las pestañas
-        visible_tabs = NAVIGATION_TABS.copy()
-        
-        # Filtrar pestañas según rol de usuario
-        # Solo mostrar Configuración a administradores
-        if "user_info" in st.session_state:
-            user_role = st.session_state.user_info.get('role', 'user')
-            if user_role != 'admin':
-                # Filtrar la pestaña de configuración
-                visible_tabs = [tab for tab in visible_tabs if tab["name"] != "Configuración"]
-        else:
-            # Si no hay información de usuario, filtrar la pestaña de configuración
-            visible_tabs = [tab for tab in visible_tabs if tab["name"] != "Configuración"]
-        
-        # Extraer nombres e iconos de las pestañas visibles
-        tab_names = [tab["name"] for tab in visible_tabs]
-        tab_icons = [tab["icon"] for tab in visible_tabs]
+        tab_names = [tab["name"] for tab in NAVIGATION_TABS]
+        tab_icons = [tab["icon"] for tab in NAVIGATION_TABS]
         
         # Crear el menú de navegación
         selected_tab = option_menu(
@@ -109,11 +95,8 @@ class NavigationManager:
             'Marcas': ('marcas', {'show_marcas_section': True}),
             'Informes': ('informes', {}),
             'Emails': ('emails', {'show_email_section': True}),
-            'Configuración': ('config', {'show_config_section': True})
+            'Configuración': ('settings', {})
         }
-        
-        # Debug para navegación
-        print(f"Navegación: {selected_tab} -> {navigation_map.get(selected_tab)}")
         
         if selected_tab in navigation_map:
             page, sections = navigation_map[selected_tab]
@@ -136,7 +119,7 @@ class NavigationManager:
         Verificar si una sección está activa
         
         Args:
-            section_name: Nombre de la sección (db, clientes, email, config)
+            section_name: Nombre de la sección (db, clientes, email)
             
         Returns:
             True si la sección está activa
@@ -145,8 +128,7 @@ class NavigationManager:
             'db': 'show_db_section',
             'clientes': 'show_clientes_section',
             'marcas': 'show_marcas_section',
-            'email': 'show_email_section',
-            'config': 'show_config_section'
+            'email': 'show_email_section'
         }
         
         if section_name in section_map:
@@ -160,14 +142,13 @@ class NavigationManager:
         Activar una sección específica
         
         Args:
-            section_name: Nombre de la sección (db, clientes, email, config)
+            section_name: Nombre de la sección (db, clientes, email)
         """
         section_map = {
             'db': 'show_db_section',
             'clientes': 'show_clientes_section',
             'marcas': 'show_marcas_section',
-            'email': 'show_email_section',
-            'config': 'show_config_section'
+            'email': 'show_email_section'
         }
         
         # Resetear todas las secciones

@@ -126,3 +126,15 @@ SYSTEM_LIMITS = {
     "max_records_display": 1000,
     "session_timeout_minutes": 60
 }
+
+# Tabs de navegación
+NAVIGATION_TABS = [
+    {"name": "Dashboard", "icon": "graph-up"},
+    {"name": "Cargar Datos", "icon": "upload"},
+    {"name": "Historial", "icon": "clock-history"},
+    {"name": "Clientes", "icon": "people"},
+    {"name": "Marcas", "icon": "building"},
+    {"name": "Informes", "icon": "file-earmark-text"},
+    {"name": "Emails", "icon": "envelope"},
+    {"name": "Configuración", "icon": "gear"}
+]

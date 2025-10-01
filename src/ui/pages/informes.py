@@ -299,7 +299,8 @@ class InformesPage:
         import pandas as pd
         import sqlite3
         import streamlit as st
-        db_path = 'boletines.db'
+        from paths import get_db_path
+        db_path = get_db_path()
         query = '''
             SELECT id, titular, nombre_reporte, ruta_reporte
             FROM boletines

@@ -6,10 +6,11 @@ y poder generar reportes de demostración
 
 import sqlite3
 import os
+from paths import get_db_path, get_informes_dir
 
 def mostrar_registros_pendientes():
     """Muestra los registros con importancia 'Pendiente'"""
-    conn = sqlite3.connect('boletines.db')
+    conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -36,7 +37,7 @@ def cambiar_importancia_temporal(titular=None, nueva_importancia='Alta', limite=
     """
     Cambia temporalmente la importancia de algunos registros para generar reportes de prueba
     """
-    conn = sqlite3.connect('boletines.db')
+    conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
     
     try:
@@ -74,7 +75,7 @@ def cambiar_importancia_temporal(titular=None, nueva_importancia='Alta', limite=
 
 def restaurar_importancia_pendiente():
     """Restaura todos los registros modificados a 'Pendiente'"""
-    conn = sqlite3.connect('boletines.db')
+    conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
     
     try:
@@ -109,10 +110,10 @@ def generar_reportes_demo():
     
     if cambios > 0:
         # Generar reportes
-        conn = sqlite3.connect('boletines.db')
+        conn = sqlite3.connect(get_db_path())
         generator = ReportGenerator(
-            watermark_path="imagenes/marca_agua.jpg",
-            output_dir="informes"
+            watermark_path=get_image_path("marca_agua.jpg")
+            # output_dir será automáticamente get_informes_dir()
         )
         
         resultado = generator.generate_reports(conn)

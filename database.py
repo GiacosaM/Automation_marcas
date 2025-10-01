@@ -2,14 +2,17 @@
 
 import sqlite3
 import logging
+import os
 from datetime import datetime, timedelta
+from paths import get_db_path, get_logs_dir
 
 # Configuración del logging optimizado
+log_file = os.path.join(get_logs_dir(), 'boletines.log')
 logging.basicConfig(
     level=logging.WARNING,  # Solo registrar WARNING y ERROR por defecto
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('boletines.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler()
     ]
 )
@@ -20,7 +23,7 @@ critical_logger.setLevel(logging.INFO)
 
 # Verificar si ya tiene handlers para evitar duplicados
 if not critical_logger.handlers:
-    critical_handler = logging.FileHandler('boletines.log')
+    critical_handler = logging.FileHandler(log_file)
     critical_handler.setFormatter(logging.Formatter('%(asctime)s - CRITICAL - %(message)s'))
     critical_logger.addHandler(critical_handler)
 
@@ -29,7 +32,7 @@ critical_logger.propagate = False
 def crear_conexion():
     """Crea y devuelve una conexión a la base de datos SQLite."""
     try:
-        conn = sqlite3.connect('boletines.db')
+        conn = sqlite3.connect(get_db_path())
         # Habilitar soporte de foreign keys
         conn.execute("PRAGMA foreign_keys = ON")
         # Solo log en caso de problemas - no en uso normal
@@ -508,12 +511,20 @@ def cliente_tiene_marcas(conn, cliente_id=None, cuit=None):
         if not has_marcas and cuit:
             # Manejar casos donde CUIT puede ser string o int
             cuit_str = str(cuit) if not isinstance(cuit, str) else cuit
-            cuit_int = int(cuit_str) if cuit_str.isdigit() else None
+            cuit_clean = cuit_str.replace('-', '').replace(' ', '')
+            cuit_int = int(cuit_clean) if cuit_clean.isdigit() else None
             
             if cuit_int is not None:
-                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ? OR cuit = ?", (cuit_str, cuit_int))
+                cursor.execute("""
+                    SELECT COUNT(*) FROM Marcas 
+                    WHERE REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ? 
+                    OR REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ?
+                """, (cuit_clean, str(cuit_int)))
             else:
-                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ?", (cuit_str,))
+                cursor.execute("""
+                    SELECT COUNT(*) FROM Marcas 
+                    WHERE REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ?
+                """, (cuit_clean,))
             
             count_by_cuit = cursor.fetchone()[0]
             has_marcas = count_by_cuit > 0
@@ -559,6 +570,7 @@ def obtener_clientes(conn, force_refresh=True):
         result = []
         for row in rows:
             cliente_id = row[0]
+            titular = row[1]  # Índice 1 corresponde a titular en la consulta
             cuit = row[7]  # Índice 7 corresponde a cuit en la consulta
             
             # Verificamos primero por cliente_id (relación directa) - esto es más preciso
@@ -567,18 +579,28 @@ def obtener_clientes(conn, force_refresh=True):
             tiene_marcas_id = count_by_id > 0
             
             # También verificamos por coincidencia de CUIT (para detección de potenciales vinculaciones)
-            # y lo almacenamos como dato separado para uso en la interfaz
+            # Solo como información de depuración
             cuit_str = str(cuit) if cuit is not None else ""
-            cuit_int = int(cuit_str) if cuit_str.isdigit() else None
+            cuit_clean = cuit_str.replace('-', '').replace(' ', '') if cuit_str else ""
+            cuit_int = int(cuit_clean) if cuit_clean.isdigit() else None
             
             count_by_cuit = 0
             if cuit_int is not None:
-                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ? OR cuit = ?", 
-                               (cuit_str, cuit_int))
+                cursor.execute("""
+                    SELECT COUNT(*) FROM Marcas 
+                    WHERE REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ? 
+                    OR REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ?
+                """, (cuit_clean, str(cuit_int)))
                 count_by_cuit = cursor.fetchone()[0]
-            elif cuit_str:
-                cursor.execute("SELECT COUNT(*) FROM Marcas WHERE cuit = ?", (cuit_str,))
+            elif cuit_clean:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM Marcas 
+                    WHERE REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ?
+                """, (cuit_clean,))
                 count_by_cuit = cursor.fetchone()[0]
+            
+            if count_by_cuit > 0:
+                logging.debug(f"Cliente {cliente_id} ({titular}) - Marcas por CUIT: {count_by_cuit}")
             
             # Crear una nueva fila con todos los datos originales más los indicadores
             new_row = list(row) + [1 if tiene_marcas_id else 0]  # 1=Tiene marcas asignadas, 0=No tiene
@@ -689,7 +711,7 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
                         marcas_vinculadas += 1
             
             conn.commit()
-            logging.info(f"Total: Se vincularon {marcas_vinculadas} marcas al cliente '{titular}' (ID: {cliente_id}) con CUIT {cuit}")
+            logging.info(f"Total: Se vincularon {marcas_vinculadas} marcas al cliente '{nombre_titular_final}' (ID: {cliente_id}) con CUIT {cuit}")
             
             # Verificar que las vinculaciones funcionaron
             cursor.execute("""
@@ -700,11 +722,12 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
             logging.info(f"Total de marcas vinculadas al cliente {cliente_id}: {total_vinculadas}")
             
             # Forzar el refresco de datos en UI
+            # Siempre actualizar fecha_modificacion para forzar la recarga
+            cursor.execute("""
+                UPDATE clientes SET fecha_modificacion = datetime('now', 'localtime') WHERE id = ?
+            """, (cliente_id,))
+            
             if marcas_vinculadas > 0:
-                cursor.execute("""
-                    UPDATE clientes SET fecha_modificacion = datetime('now', 'localtime') WHERE id = ?
-                """, (cliente_id,))
-                
                 # Obtener detalles de las marcas vinculadas para el log
                 if cuit_int is not None:
                     cursor.execute("""
@@ -722,7 +745,7 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
                     """, (cliente_id, cuit_str))
                 
                 for marca in cursor.fetchall():
-                    logging.info(f"  - Marca '{marca[1]}' (ID: {marca[0]}, CUIT: {marca[2]}) vinculada al cliente {titular}")
+                    logging.info(f"  - Marca '{marca[1]}' (ID: {marca[0]}, CUIT: {marca[2]}) vinculada al cliente {nombre_titular_final}")
             else:
                 logging.info(f"No se encontraron marcas sin vincular con CUIT {cuit} (en ningún formato)")
         
@@ -1445,13 +1468,13 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
         conn.commit()
         logging.info(f"Total: Se vincularon {marcas_vinculadas} marcas al cliente '{titular}' (ID: {cliente_id}) con CUIT {cuit}")
         
-        # Verificar que las vinculaciones funcionaron
+        # Verificar que las vinculaciones funcionaron - contar TODAS las marcas vinculadas al cliente
         cursor.execute("""
-            SELECT COUNT(*) FROM Marcas WHERE cliente_id = ? AND REPLACE(REPLACE(cuit, '-', ''), ' ', '') = ?
-        """, (cliente_id, cuit_clean))
+            SELECT COUNT(*) FROM Marcas WHERE cliente_id = ?
+        """, (cliente_id,))
         
         total_vinculadas = cursor.fetchone()[0]
-        logging.info(f"Total de marcas vinculadas al cliente {cliente_id} con CUIT {cuit_clean}: {total_vinculadas}")
+        logging.info(f"Total de marcas vinculadas al cliente {cliente_id}: {total_vinculadas}")
         
         filas_afectadas = cursor.rowcount
         conn.commit()

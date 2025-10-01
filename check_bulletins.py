@@ -1,9 +1,10 @@
 import sqlite3
 import datetime
 from datetime import datetime as dt
+from paths import get_db_path
 
 # Connect to the database
-conn = sqlite3.connect('boletines.db')
+conn = sqlite3.connect(get_db_path())
 cursor = conn.cursor()
 
 # Get today's date

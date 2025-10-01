@@ -41,3 +41,601 @@
 2025-09-01 08:26:56,059 - INFO - ================================================================================
 2025-09-01 08:26:56,059 - INFO - FIN DE VERIFICACIÓN AUTOMÁTICA - 2025-09-01 08:26:56
 2025-09-01 08:26:56,059 - INFO - ================================================================================
+2025-10-01 08:07:30,848 - INFO - ================================================================================
+2025-10-01 08:07:30,849 - INFO - INICIANDO VERIFICACIÓN AUTOMÁTICA - 2025-10-01 08:07:30
+2025-10-01 08:07:30,850 - INFO - ================================================================================
+2025-10-01 08:07:30,850 - INFO - Directorio de trabajo: /Users/martingiacosa/Desktop/Proyectos/Python/Automation
+2025-10-01 08:07:30,983 - INFO - Verificando marcas sin reportes entre 2025-10-01 y 2025-10-31
+2025-10-01 08:07:30,987 - INFO - El titular 'AGROSERVICIOS HUMBOLDT S.A.' tiene 8 marcas sin reportes en el mes actual
+2025-10-01 08:07:31.968 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:31.968 Session state does not function when running a script without `streamlit run`
+2025-10-01 08:07:32,159 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,159 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,159 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,159 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,160 - INFO - El titular 'PONCE, EVI' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.160 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,161 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,161 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,161 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,161 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,162 - INFO - El titular 'DUNINGAN TRACY, ELSA MARIA LUISA' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.162 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,163 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,163 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,163 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,163 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,163 - INFO - El titular 'ANJOBER S.R.L.' tiene 4 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.163 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,164 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,164 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,165 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,165 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,165 - INFO - El titular 'ATILIO O. SALAS INMOBILIARIA S.R.L.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.165 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,166 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,166 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,166 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,166 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,167 - INFO - El titular 'GRANJAS CARNAVE S.A.' tiene 9 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.168 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,175 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,176 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,176 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,176 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,177 - INFO - El titular 'ECHAGÜE, JOAQUIN' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.177 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,178 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,178 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,178 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,178 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,179 - INFO - El titular 'BENUZZI INMOBILIARIA S.A.' tiene 6 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.179 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,180 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,180 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,180 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,180 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,181 - INFO - El titular 'BOLSA DE COMERCIO DE SANTA FE' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.181 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,182 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,182 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,183 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,183 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,184 - INFO - El titular 'CAPITEL S.A' tiene 20 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.185 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,186 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,186 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,186 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,186 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,187 - INFO - El titular 'COMPAÑIA AVICOLA S.A.' tiene 10 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.187 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,188 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,188 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,188 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,188 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,188 - INFO - El titular 'DIP, ADRIAN MANUEL' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.188 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,189 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,190 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,190 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,190 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,190 - INFO - El titular 'ESCOBAR SANTA FE S.A.C.I.F.I.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.191 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,192 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,193 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,193 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,193 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,193 - INFO - El titular 'NATION S.A.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.193 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,194 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,195 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,195 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,195 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,195 - INFO - El titular 'RUDA, ESTER ELIA' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.195 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,196 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,196 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,197 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,197 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,197 - INFO - El titular 'GALAN, LUCAS MIGUEL' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.197 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,198 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,199 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,199 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,199 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,199 - INFO - El titular 'TRUCCO, HUGO LUIS ANGEL' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.200 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,201 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,201 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,201 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,201 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,203 - INFO - El titular 'DEHNOS S.A.' tiene 21 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.203 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,204 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,205 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,206 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,206 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,206 - INFO - El titular 'LORENZON, HUGO HORACIO' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.207 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,209 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,209 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,209 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,209 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,210 - INFO - El titular 'NUTRICION ANIMAL S.A.' tiene 5 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.211 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,212 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,212 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,212 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,212 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,213 - INFO - El titular 'STIEFEL, EMILIA ALFONSINA' tiene 4 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.213 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,214 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,215 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,215 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,215 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,215 - INFO - El titular 'OLIVERA, HERNAN MATIAS' tiene 6 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.216 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,217 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,217 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,217 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,217 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,217 - INFO - El titular 'LUCCISANO, MARIO CESAR' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.218 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,219 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,219 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,219 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,219 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,219 - INFO - El titular 'FISA METAL S.R.L.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.220 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,221 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,221 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,221 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,221 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,221 - INFO - El titular 'GRANDES ALMACENES ESPERANZA SA' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.222 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,223 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,223 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,223 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,223 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,223 - INFO - El titular 'GRISSETTI, CRISTIAN ISRAEL' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.224 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,225 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,225 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,225 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,225 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,225 - INFO - El titular 'ROSSI, NATALIA' tiene 4 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.226 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,227 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,227 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,227 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,227 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,227 - INFO - El titular 'MARTIN, OSCAR' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.227 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,228 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,228 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,228 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,228 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,229 - INFO - El titular 'GONZALEZ, PERLA LUZ' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.229 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,230 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,230 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,230 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,230 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,231 - INFO - El titular 'OLEINIK, ROBERTO ANATOLE' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.231 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,232 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,232 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,232 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,233 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,233 - INFO - El titular 'ALBERTO, AVELINO JOSE' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.233 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,234 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,235 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,235 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,235 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,235 - INFO - El titular 'M.M. COMUNICACIONES S.A.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.235 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,236 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,236 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,236 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,236 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,239 - INFO - El titular 'PILAY S.A.' tiene 64 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.240 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,240 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,241 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,241 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,241 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,241 - INFO - El titular 'KUCHEN, MARIA EUGENIA' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.241 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,242 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,242 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,242 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,242 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,243 - INFO - El titular 'RUIZ, GUILLERMO RICARDO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.243 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,244 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,244 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,244 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,244 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,244 - INFO - El titular 'BOTTA, STELLA MARIS' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.244 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,245 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,245 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,245 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,246 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,246 - INFO - El titular 'MACIAS, MARGARITA NELIDA' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.246 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,247 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,247 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,247 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,247 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,247 - INFO - El titular 'ESCOBAR OPERACIONES INMOBILIARIAS S.R.L.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.247 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,249 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,249 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,249 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,249 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,249 - INFO - El titular 'RENE HUGO URSELLA E HIJOS S.R.L.' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.251 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,252 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,252 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,252 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,253 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,253 - INFO - El titular 'HUSER, RICARDO ADRIAN' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.253 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,254 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,254 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,255 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,255 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,255 - INFO - El titular 'FOURNIER JULIO CESAR' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.255 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,256 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,256 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,256 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,256 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,257 - INFO - El titular 'PIGHIN, JORGE ALBERTO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.257 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,258 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,258 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,259 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,259 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,259 - INFO - El titular 'CINCOSENTIDOS S.R.L.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.259 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,260 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,260 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,260 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,261 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,262 - INFO - El titular 'OCAMPO, GUILLERMO' tiene 9 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.262 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,263 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,265 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,265 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,265 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,265 - INFO - El titular 'FERNANDEZ, STELLA MARIS' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.265 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,266 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,266 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,266 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,267 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,267 - INFO - El titular 'GAREIS, SERGIO OSCAR' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.267 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,268 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,268 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,268 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,268 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,274 - INFO - El titular 'FRIAS, RICARDO WALTER' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.274 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,275 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,275 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,275 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,275 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,276 - INFO - El titular 'SENTIR CARRUAJES S.A.C.I.F.I.A.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.276 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,277 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,277 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,277 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,277 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,278 - INFO - El titular 'LAMAR S.A.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.278 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,279 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,279 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,279 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,279 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,279 - INFO - El titular 'MARIA SOLEDAD GARNERO' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.280 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,281 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,281 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,281 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,288 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,288 - INFO - El titular 'SEGURANZA S.A.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.289 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,290 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,290 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,290 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,290 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,290 - INFO - El titular 'MEM INGENIERIA S.A.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.291 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,291 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,292 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,292 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,292 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,292 - INFO - El titular 'ANDRES BERNARDO PIEDRABUENA' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.292 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,293 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,293 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,293 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,293 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,294 - INFO - El titular 'ESTRADA, MARIANO AGUSTIN' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.294 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,295 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,295 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,295 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,295 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,295 - INFO - El titular 'COMPAGNUCCI, MARIEL GUADALUPE' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.295 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,296 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,296 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,296 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,297 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,297 - INFO - El titular 'CAMINO, MARCOS MAXIMILIANO' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.297 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,298 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,298 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,298 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,298 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,298 - INFO - El titular 'BENZI, MATIAS MIGUEL' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.299 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,299 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,299 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,300 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,300 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,300 - INFO - El titular 'ANIMAL FOOD S.A.' tiene 9 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.300 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,301 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,301 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,301 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,302 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,302 - INFO - El titular 'GRUPO INVERSIONES S.R.L.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.302 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,304 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,304 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,304 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,304 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,305 - INFO - El titular 'CASTELLO, MARCOS ANTONIO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.305 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,306 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,306 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,306 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,306 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,306 - INFO - El titular 'SCHEGGIA, GUSTAVO GUILLERMO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.307 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,308 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,308 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,308 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,308 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,308 - INFO - El titular 'ESCOBAR LITORAL S.A.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.308 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,309 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,309 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,309 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,309 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,310 - INFO - El titular 'JAVIER ZEMEL' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.310 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,311 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,311 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,311 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,311 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,311 - INFO - El titular 'RBM GROUP S.A.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.312 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,313 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,313 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,313 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,313 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,313 - INFO - El titular 'TORANZA SCHEFER, FABIO WALTER' tiene 5 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.314 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,315 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,315 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,315 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,315 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,315 - INFO - El titular 'BUMAGUIN, MATIAS SIMON' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.315 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,316 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,316 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,316 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,316 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,317 - INFO - El titular 'GUIDA BOCCA, MARICEL MERCEDES' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.317 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,318 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,318 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,318 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,318 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,318 - INFO - El titular 'LIPOMIZE S.R.L.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.319 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,320 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,320 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,320 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,320 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,320 - INFO - El titular 'ARMANDO, EDMUNDO ANTONIO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.320 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,321 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,321 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,321 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,322 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,322 - INFO - El titular 'FERREYRA, MARIA BELEN' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.322 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,323 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,323 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,323 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,323 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,324 - INFO - El titular 'FUSARI CORFIELD, AGUSTIN' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.324 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,325 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,325 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,325 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,325 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,325 - INFO - El titular 'CHICONI, DAMIAN HECTOR' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.326 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,327 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,327 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,327 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,327 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,327 - INFO - El titular 'GONELLA, RUBEN OSVALDO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.327 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,328 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,328 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,329 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,329 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,329 - INFO - El titular 'SUAGRO SRL' tiene 8 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.329 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,330 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,331 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,331 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,331 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,331 - INFO - El titular 'SINERCOM SRL' tiene 10 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.332 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,333 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,333 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,333 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,333 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,333 - INFO - El titular 'ALMATERRA S.A.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.333 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,334 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,334 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,334 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,334 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,335 - INFO - El titular 'ACOSTA, ATILIO BLAS' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.335 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,336 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,336 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,336 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,336 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,336 - INFO - El titular 'ZURBRIGGEN, EDMUNDO SIMON' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.336 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,337 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,337 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,338 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,338 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,338 - INFO - El titular 'CONTI, MARTIN JOSE' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.338 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,339 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,339 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,339 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,339 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,340 - INFO - El titular 'KAISER, FABIAN JOSE' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.340 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,341 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,341 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,341 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,341 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,342 - INFO - El titular 'DISTRIBUIDORA DUROL SRL' tiene 9 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.342 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,343 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,343 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,343 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,343 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,343 - INFO - El titular 'GOLDFRAM S.A.S.' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.344 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,344 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,345 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,345 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,345 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,345 - INFO - El titular 'TRENTO, LUIS RAUL' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.345 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,346 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,346 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,346 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,346 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,347 - INFO - El titular 'FRANCIA, MATIAS IGNACIO' tiene 3 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.347 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,348 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,348 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,348 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,348 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,348 - INFO - El titular 'PONTARELLI, LISANDRO ROBERTO' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.349 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,350 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,350 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,350 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,350 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,350 - INFO - El titular 'PRONUSER SRL' tiene 6 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.351 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,352 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,352 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,352 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,352 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,352 - INFO - El titular 'ALBRECHT, FRANCISCO JAVIER' tiene 4 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.353 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,354 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,354 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,354 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,354 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,354 - INFO - El titular 'REGIONAL MED S.R.L.' tiene 8 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.355 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,355 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,356 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,356 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,356 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,356 - INFO - El titular 'ABAD, MATIAS ALBERTO' tiene 5 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.356 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,358 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,358 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,358 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,358 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,359 - INFO - El titular 'BRACAMONTE, JUAN DIEGO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.359 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,360 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,360 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,360 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,360 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,361 - INFO - El titular 'LEIVA MARIA ANGELICA' tiene 2 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.361 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,362 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,362 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,362 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,362 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,362 - INFO - El titular 'BOFFA, ANGEL RUBEN' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.363 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,363 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,364 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,364 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,364 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,364 - INFO - El titular 'DELPUPPO HNOS Y CIA S.A.' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.364 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,365 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,365 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,365 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,365 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,366 - INFO - El titular 'BUSEGHIN, LUIS MATIAS' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.366 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,367 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,367 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,367 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,367 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,367 - INFO - El titular 'RAMSEYER ADRIAN DARDO' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.368 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,369 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,369 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,369 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,369 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,369 - INFO - El titular 'PUERTO ANTIGUO S.A.' tiene 6 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.370 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,371 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,371 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,371 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,371 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,371 - INFO - El titular 'VIDA FRESCA SRL' tiene 1 marcas sin reportes en el mes actual
+2025-10-01 08:07:32.371 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-01 08:07:32,372 - WARNING - Contraseña no encontrada en keyring para martingiacosa@gmail.com
+2025-10-01 08:07:32,372 - WARNING - No se encontraron credenciales de email
+2025-10-01 08:07:32,372 - WARNING - No se pudieron obtener credenciales de email desde ninguna fuente
+2025-10-01 08:07:32,373 - ERROR - No se encontraron credenciales de email configuradas
+2025-10-01 08:07:32,373 - INFO - Verificación completada: 97 titulares con marcas sin reportes, 0 emails enviados, 0 ya notificados, 97 errores
+2025-10-01 08:07:32,373 - INFO - Verificación periódica ejecutada con resultado: {'estado': 'completado', 'titulares_con_marcas_sin_reportes': 97, 'emails_enviados': 0, 'ya_notificados': 0, 'errores': 97, 'fecha_verificacion': '2025-10-01 08:07:32'}
+2025-10-01 08:07:32,373 - INFO - Resultado de la verificación: {'estado': 'completado', 'titulares_con_marcas_sin_reportes': 97, 'emails_enviados': 0, 'ya_notificados': 0, 'errores': 97, 'fecha_verificacion': '2025-10-01 08:07:32'}
+2025-10-01 08:07:32,373 - INFO - Titulares con marcas sin reportes: 97
+2025-10-01 08:07:32,373 - INFO - Emails enviados: 0
+2025-10-01 08:07:32,373 - INFO - Errores: 97
+2025-10-01 08:07:32,373 - INFO - Verificación automática completada exitosamente
+2025-10-01 08:07:32,373 - INFO - ================================================================================
+2025-10-01 08:07:32,373 - INFO - FIN DE VERIFICACIÓN AUTOMÁTICA - 2025-10-01 08:07:32
+2025-10-01 08:07:32,373 - INFO - ================================================================================

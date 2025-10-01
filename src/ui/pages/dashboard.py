@@ -455,5 +455,10 @@ class DashboardPage:
 
 def show_dashboard():
     """Función de compatibilidad para mostrar el dashboard"""
-    dashboard = DashboardPage()
-    dashboard.show()
+    try:
+        dashboard = DashboardPage()
+        dashboard.show()
+    except Exception as e:
+        st.error(f"Error al mostrar el dashboard: {e}")
+        st.write("Detalles técnicos del error para debugging:")
+        st.code(str(e))

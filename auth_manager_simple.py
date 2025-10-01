@@ -3,10 +3,11 @@ import sqlite3
 import bcrypt
 from datetime import datetime, timedelta
 import time
+from paths import get_db_path
 
 class AuthManager:
-    def __init__(self, db_path="boletines.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path if db_path else get_db_path()
         self.setup_database()
         self.create_default_admin()
 
@@ -319,6 +320,18 @@ def _show_register_form():
                         st.rerun()
                     else:
                         st.error("❌ " + result['message'])
+                        # Mostrar mensaje específico cuando faltan credenciales de email
+                        if 'error_type' in result and result['error_type'] == 'missing_credentials':
+                            st.warning("""
+                            ### ⚙️ Configuración Requerida
+                            Para habilitar el registro de usuarios, primero debe configurar las credenciales de email en el panel de administración.
+                            
+                            **Pasos:**
+                            1. Acceda como administrador
+                            2. Vaya a la sección de Configuración
+                            3. Configure las credenciales de email en la sección correspondiente
+                            """)
+                            
             else:
                 st.warning("⚠️ Por favor completa todos los campos")
 
@@ -357,6 +370,17 @@ def _show_verify_form():
                             st.rerun()
                         else:
                             st.error("❌ " + result['message'])
+                            # Mostrar mensaje específico cuando faltan credenciales de email
+                            if 'error_type' in result and result['error_type'] == 'missing_credentials':
+                                st.warning("""
+                                ### ⚙️ Configuración Requerida
+                                Para habilitar la verificación de usuarios, primero debe configurar las credenciales de email en el panel de administración.
+                                
+                                **Pasos:**
+                                1. Acceda como administrador
+                                2. Vaya a la sección de Configuración
+                                3. Configure las credenciales de email en la sección correspondiente
+                                """)
                 else:
                     st.warning("⚠️ Por favor completa todos los campos.")
         
@@ -401,6 +425,17 @@ def _show_resend_form():
                         st.rerun()
                     else:
                         st.error("❌ " + result['message'])
+                        # Mostrar mensaje específico cuando faltan credenciales de email
+                        if 'error_type' in result and result['error_type'] == 'missing_credentials':
+                            st.warning("""
+                            ### ⚙️ Configuración Requerida
+                            Para habilitar el reenvío de códigos, primero debe configurar las credenciales de email en el panel de administración.
+                            
+                            **Pasos:**
+                            1. Acceda como administrador
+                            2. Vaya a la sección de Configuración
+                            3. Configure las credenciales de email en la sección correspondiente
+                            """)
                 else:
                     st.warning("⚠️ Ingresa tu email para reenviar el código.")
         

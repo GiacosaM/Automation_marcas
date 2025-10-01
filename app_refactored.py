@@ -37,6 +37,7 @@ from src.utils.session_manager import SessionManager
 # Importar páginas
 from src.ui.pages.dashboard import show_dashboard
 from src.ui.pages.marcas import show_marcas_page
+# La página email_config se importará dinámicamente para mejorar el rendimiento
 
 # Importar módulos existentes (mantenemos la funcionalidad actual)
 from auth_manager_simple import handle_authentication
@@ -118,9 +119,8 @@ class MarcasApp:
             self._show_marcas_page()
         elif current_page == 'emails' and NavigationManager.is_section_active('email'):
             self._show_emails_page()
-        elif current_page == 'config':
-            # Para configuración, eliminamos la comprobación de sección para simplificar
-            self._show_config_page()
+        # elif current_page == 'settings':
+        #     self._show_settings_page()
         else:
             # Por defecto mostrar dashboard
             self._show_dashboard()
@@ -158,25 +158,10 @@ class MarcasApp:
         """Mostrar la página de marcas"""
         show_marcas_page()
     
-    def _show_config_page(self):
-        """Mostrar la página de configuración"""
-        # Verificar si el usuario es admin
-        user_info = SessionManager.get('user_info', {})
-        user_role = user_info.get('role', 'user')
-        
-        if user_role != 'admin':
-            st.error("No tienes permisos para acceder a esta página")
-            return
-        
-      
-            
-        try:
-            from src.ui.pages.db_config import show_db_config_page
-            show_db_config_page()
-        except Exception as e:
-            st.error(f"Error al cargar la página de configuración: {e}")
-            import traceback
-            st.code(traceback.format_exc())
+    # def _show_settings_page(self):
+    #     """Mostrar la página de configuración"""
+    #     from src.ui.pages.settings import show_settings_page
+    #     show_settings_page()
     
     def run(self):
         """Ejecutar la aplicación principal"""
