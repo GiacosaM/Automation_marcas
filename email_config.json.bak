@@ -1,7 +1,0 @@
-{
-    "smtp_server": "smtp.gmail.com",
-    "smtp_port": 587,
-    "email_user": "tu_email@gmail.com",
-    "email_password": "tu_app_password_aqui",
-    "sender_name": "Sistema de Verificación - Marcas"
-}

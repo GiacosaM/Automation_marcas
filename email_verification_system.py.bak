@@ -1,17 +1,17 @@
 import sqlite3
 import bcrypt
 import smtplib
-import random
-import string
+import r    def _log_current_config(self):
+        """Registra la configuración actual de email (sin exponer la contraseña)"""
+        if self.credentials_missing:
+            logger.warning("No hay credenciales de email configuradas.")
+            return
+            
+        logger.info(f"Config SMTP: {self.email_user}@{self.smtp_server}:{self.smtp_port} [Password: {'Configurada' if self.email_password else 'Faltante'}]")string
 import logging
-import json
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from paths import get_db_path, get_data_dir, get_logs_dir
-
-# Cargar variables de entorno
-load_dotenv()
+from paths import get_db_path, get_logs_dir
 
 # Configurar logging
 log_file = os.path.join(get_logs_dir(), 'email_verification.log')
@@ -30,44 +30,30 @@ class EmailVerificationSystem:
         self._log_current_config()
 
     def load_email_config(self):
-        """Cargar configuración de email desde credentials.json usando el sistema centralizado"""
+        """Cargar configuración de email desde el sistema centralizado"""
         try:
-            # Importar y usar exclusivamente el sistema centralizado de credenciales
             from email_utils import obtener_credenciales
             credentials = obtener_credenciales()
             
-            if credentials:
-                # Buscar campos de email con diferentes nombres posibles
-                email = credentials.get('email') or credentials.get('email_user') or credentials.get('user')
-                password = credentials.get('password') or credentials.get('email_password')
+            if credentials and credentials.get('email') and credentials.get('password'):
+                self.email_user = credentials.get('email') or credentials.get('email_user') or credentials.get('user')
+                self.email_password = credentials.get('password') or credentials.get('email_password')
+                self.smtp_server = credentials.get('smtp_host') or credentials.get('smtp_server') or credentials.get('server') or 'smtp.gmail.com'
                 
-                # Buscar campos de servidor SMTP con diferentes nombres posibles
-                smtp_host = (credentials.get('smtp_host') or credentials.get('smtp_server') or 
-                            credentials.get('server') or 'smtp.gmail.com')
-                
-                # Obtener puerto y convertirlo a entero si es necesario
+                # Convertir puerto a entero si es necesario
                 smtp_port_raw = credentials.get('smtp_port') or credentials.get('port') or 587
-                smtp_port = int(smtp_port_raw) if isinstance(smtp_port_raw, str) else smtp_port_raw
+                self.smtp_port = int(smtp_port_raw) if isinstance(smtp_port_raw, str) else smtp_port_raw
                 
-                if email and password:
-                    logger.info(f"Usando credenciales de email desde sistema centralizado para {email}")
-                    logger.info(f"Servidor SMTP: {smtp_host}:{smtp_port}")
-                    
-                    self.smtp_server = smtp_host
-                    self.smtp_port = smtp_port
-                    self.email_user = email
-                    self.email_password = password
-                    self.sender_name = 'Sistema de Verificación - Estudio Contable'
-                    self.credentials_missing = False
-                    return
-            else:
-                logger.warning("No se encontraron credenciales válidas en el sistema centralizado")
-                self.setup_default_email_config()
-                self.credentials_missing = True
-        except Exception as e:
-            logger.error(f"Error al cargar credenciales desde sistema centralizado: {e}")
+                self.sender_name = 'Sistema de Verificación - Estudio Contable'
+                self.credentials_missing = False
+                logger.info(f"Credenciales cargadas para {self.email_user} vía {self.smtp_server}:{self.smtp_port}")
+                return
+                
+            logger.warning("Credenciales inválidas o incompletas en el sistema centralizado")
             self.setup_default_email_config()
-            self.credentials_missing = True
+        except Exception as e:
+            logger.error(f"Error al cargar credenciales: {e}")
+            self.setup_default_email_config()
 
     def _log_current_config(self):
         """Registra la configuración actual de email (sin exponer la contraseña)"""
@@ -95,7 +81,7 @@ class EmailVerificationSystem:
         self.email_user = ''
         self.email_password = ''
         self.sender_name = 'Sistema de Verificación'
-        self.credentials_missing = True  # Indicador de que faltan credenciales
+        self.credentials_missing = True
 
     def setup_database(self):
         """Configurar la base de datos con los campos necesarios para verificación"""
@@ -164,20 +150,13 @@ class EmailVerificationSystem:
         """
         Registrar un nuevo usuario y enviar código de activación
         
-        Args:
-            username: Nombre de usuario único
-            email: Email del usuario
-            password: Contraseña en texto plano
-            name: Nombre completo del usuario (opcional)
-        
         Returns:
             dict: {'success': bool, 'message': str, 'activation_code': str (solo para testing)}
         """
-        # Verificar si hay credenciales de email configuradas
         if self.credentials_missing or not self.email_user or not self.email_password:
             return {
                 'success': False, 
-                'message': '⚠️ No hay credenciales de email configuradas en el sistema centralizado. Por favor configure las credenciales usando las herramientas de administración antes de registrar usuarios.',
+                'message': 'No hay credenciales de email configuradas en el sistema centralizado.',
                 'error_type': 'missing_credentials'
             }
         
@@ -190,19 +169,15 @@ class EmailVerificationSystem:
             if cursor.fetchone():
                 return {'success': False, 'message': 'Usuario o email ya existe'}
             
-            # Generar código de activación
+            # Generar código y hash de contraseña
             activation_code = self.generate_activation_code()
             password_hash = self.hash_password(password)
-            
-            # Si no se proporciona name, usar el username
-            if name is None:
-                name = username
             
             # Insertar usuario
             cursor.execute('''
                 INSERT INTO users (username, name, email, password_hash, activation_code, code_created_at, is_active, is_verified)
                 VALUES (?, ?, ?, ?, ?, ?, 0, 0)
-            ''', (username, name, email, password_hash, activation_code, datetime.now()))
+            ''', (username, name or username, email, password_hash, activation_code, datetime.now()))
             
             conn.commit()
             conn.close()
@@ -211,16 +186,16 @@ class EmailVerificationSystem:
             email_sent = self.send_activation_code(email, username, activation_code)
             
             if email_sent:
-                logger.info(f"Usuario {username} registrado exitosamente. Código enviado a {email}")
+                logger.info(f"Usuario {username} registrado y código enviado a {email}")
                 return {
                     'success': True, 
                     'message': 'Usuario registrado. Revisa tu email para el código de activación.',
-                    'activation_code': activation_code  # Solo para testing - remover en producción
+                    'activation_code': activation_code  # Solo para testing
                 }
             else:
                 message = 'Usuario registrado, pero hubo un problema enviando el email.'
                 if self.credentials_missing:
-                    message += ' No se encontraron credenciales de email configuradas en el sistema centralizado.'
+                    message += ' No se encontraron credenciales de email configuradas.'
                 else:
                     message += ' Verifique la configuración del servidor SMTP y credenciales.'
                 
@@ -236,7 +211,7 @@ class EmailVerificationSystem:
 
     def send_activation_code(self, email, username, activation_code):
         """
-        Enviar código de activación por email - versión ultra simplificada
+        Enviar código de activación por email
         
         Returns:
             bool: True si se envió exitosamente, False en caso contrario
@@ -244,42 +219,23 @@ class EmailVerificationSystem:
         try:
             # Si las credenciales no están disponibles, actualizar desde el sistema centralizado
             if self.credentials_missing or not self.email_user or not self.email_password:
-                # Intentar recargar las credenciales una vez más
                 from email_utils import obtener_credenciales
                 credentials = obtener_credenciales()
                 
-                if credentials:
-                    # Buscar campos de email con diferentes nombres posibles - NO sobreescribimos el parámetro email
-                    sender_email = credentials.get('email') or credentials.get('email_user') or credentials.get('user')
-                    password = credentials.get('password') or credentials.get('email_password')
-                    
-                    # Buscar campos de servidor SMTP con diferentes nombres posibles
-                    smtp_host = (credentials.get('smtp_host') or credentials.get('smtp_server') or 
-                                credentials.get('server') or 'smtp.gmail.com')
-                    
-                    # Obtener puerto y convertirlo a entero si es necesario
+                if credentials and credentials.get('email') and credentials.get('password'):
+                    self.email_user = credentials.get('email') or credentials.get('email_user') or credentials.get('user')
+                    self.email_password = credentials.get('password')
+                    self.smtp_server = credentials.get('smtp_server') or credentials.get('smtp_host') or credentials.get('server')
                     smtp_port_raw = credentials.get('smtp_port') or credentials.get('port') or 587
-                    smtp_port = int(smtp_port_raw) if isinstance(smtp_port_raw, str) else smtp_port_raw
-                    
-                    if sender_email and password:
-                        logger.info(f"Recargando credenciales antes de enviar: {sender_email}")
-                        logger.info(f"Servidor SMTP recargado: {smtp_host}:{smtp_port}")
-                        logger.info(f"Email destinatario permanece: {email}")
-                        
-                        self.smtp_server = smtp_host
-                        self.smtp_port = smtp_port
-                        self.email_user = sender_email
-                        self.email_password = password
-                        self.credentials_missing = False
+                    self.smtp_port = int(smtp_port_raw) if isinstance(smtp_port_raw, str) else smtp_port_raw
+                    self.credentials_missing = False
                 else:
-                    logger.warning("⚠️ Credenciales de email no configuradas o incompletas en el sistema centralizado")
+                    logger.warning("Credenciales incompletas")
                     return False
             
-            # VERSIÓN 3 (MODIFICADA): HTML con estilos e imagen incorporada
+            # Crear mensaje HTML con CSS inline
             from email.mime.multipart import MIMEMultipart
             from email.mime.text import MIMEText
-            from email.mime.image import MIMEImage
-            import os
             
             # Crear mensaje plano
             text_body = f"""Hola {username},
@@ -304,7 +260,7 @@ Sistema de Verificación"""
             # Adjuntar texto plano
             alt_part.attach(MIMEText(text_body, 'plain', 'utf-8'))
             
-            # Crear HTML con referencia a imagen
+            # HTML con estilos inline
             html_body = f"""
             <html>
               <head>
@@ -339,67 +295,35 @@ Sistema de Verificación"""
             # Adjuntar HTML
             alt_part.attach(MIMEText(html_body, 'html', 'utf-8'))
             
-            # No adjuntamos logo para esta versión - quitamos esa parte para simplificar
-            
-            # El mensaje ya se ha creado arriba con tipo 'related'
-            
-            # Enviar email - con más detalle en los pasos para detectar donde falla
+            # Enviar email
             try:
-                logger.info(f"Conectando a servidor {self.smtp_server}:{self.smtp_port}")
-                
-                if not self.smtp_server:
-                    logger.error("Error: SMTP server está vacío")
+                if not self.smtp_server or not self.email_user or not self.email_password:
                     return False
                     
-                # Crear servidor con timeout
                 server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30)
-                
-                logger.info("Iniciando TLS")
                 server.starttls()
-                
-                # Validar que tenemos credenciales
-                if not self.email_user or not self.email_password:
-                    logger.error("Error: Credenciales incompletas (usuario o contraseña vacíos)")
-                    return False
-                
-                logger.info(f"Intentando login con usuario {self.email_user}")
                 server.login(self.email_user, self.email_password)
                 
-                # Validar que el destinatario no está vacío
-                if not email:
-                    logger.error("Error: Email destinatario está vacío")
-                    return False
-                
-                logger.info(f"Enviando email a {email}")
-                msg_content = msg.as_string()
-                logger.debug(f"Tamaño del mensaje: {len(msg_content)} bytes")
-                
-                # Envío ultra simple sin usar as_string()
-                result = server.sendmail(self.email_user, [email], msg_content)
-                
-                if result:
-                    logger.warning(f"Resultados parciales al enviar email: {result}")
-                
+                server.sendmail(self.email_user, [email], msg.as_string())
                 server.quit()
-                logger.info(f"Código de activación enviado exitosamente a {email}")
+                
                 return True
-            except smtplib.SMTPRecipientsRefused as e:
-                logger.error(f"Destinatario rechazado: {e}")
-                return False
+                
             except smtplib.SMTPDataError as e:
                 error_code = getattr(e, 'smtp_code', None)
                 error_msg = getattr(e, 'smtp_error', b'').decode('utf-8', 'ignore')
                 
                 if error_code == 550 and 'Unusual sending activity' in error_msg:
-                    logger.error(f"Error: Límite de envío de Zoho excedido. Hay que esperar un tiempo: {error_msg}")
                     self.last_rate_limit_error = error_msg
+                    logger.error(f"Límite de tasa: {error_msg}")
                     return False
                 else:
                     logger.error(f"Error de datos SMTP: {e}")
                     return False
+                    
             except Exception as e:
-                logger.error(f"Error detallado en el envío de email: {str(e)}")
-                raise  # Re-lanzamos la excepción para capturarla en los manejadores específicos
+                logger.error(f"Error en envío: {str(e)}")
+                raise
             
         except smtplib.SMTPAuthenticationError as e:
             logger.error(f"Error de autenticación SMTP: {e}")
@@ -424,12 +348,10 @@ Sistema de Verificación"""
         Returns:
             dict: {'success': bool, 'message': str}
         """
-        # La verificación no necesita credenciales de email directamente, pero las comprobamos
-        # por consistencia y para poder notificar al usuario si hay problemas
         if self.credentials_missing or not self.email_user or not self.email_password:
             return {
                 'success': False, 
-                'message': '⚠️ No hay credenciales de email configuradas en el sistema centralizado. Por favor configure las credenciales usando las herramientas de administración.',
+                'message': 'No hay credenciales de email configuradas en el sistema centralizado.',
                 'error_type': 'missing_credentials'
             }
             
@@ -490,11 +412,10 @@ Sistema de Verificación"""
         Returns:
             dict: {'success': bool, 'message': str}
         """
-        # Verificar si hay credenciales de email configuradas
         if self.credentials_missing or not self.email_user or not self.email_password:
             return {
                 'success': False, 
-                'message': '⚠️ No hay credenciales de email configuradas en el sistema centralizado. Por favor configure las credenciales usando las herramientas de administración.',
+                'message': 'No hay credenciales de email configuradas en el sistema centralizado.',
                 'error_type': 'missing_credentials'
             }
             
@@ -518,10 +439,8 @@ Sistema de Verificación"""
             if is_active and is_verified:
                 return {'success': False, 'message': 'La cuenta ya está activada'}
             
-            # Generar nuevo código
+            # Generar nuevo código y actualizar base de datos
             activation_code = self.generate_activation_code()
-            
-            # Actualizar código en base de datos
             cursor.execute('''
                 UPDATE users 
                 SET activation_code = ?, code_created_at = ?
@@ -532,22 +451,18 @@ Sistema de Verificación"""
             conn.close()
             
             # Enviar nuevo código
-            logger.info(f"Intentando enviar código de activación a {email} con credenciales de {self.email_user}")
-            logger.info(f"Servidor SMTP: {self.smtp_server}:{self.smtp_port}")
             email_sent = self.send_activation_code(email, username, activation_code)
             
             if email_sent:
                 return {'success': True, 'message': 'Nuevo código enviado a tu email'}
+            
+            # Manejar errores de envío
+            if self.credentials_missing:
+                return {'success': False, 'message': 'No hay credenciales de email configuradas en el sistema centralizado.'}
+            elif self.last_rate_limit_error:
+                return {'success': False, 'message': 'No se puede enviar el email en este momento. El servidor ha detectado demasiados envíos y ha limitado temporalmente la cuenta. Por favor intente más tarde.'}
             else:
-                logger.error(f"Error al enviar email a {email}. Credenciales missing: {self.credentials_missing}")
-                if self.credentials_missing:
-                    return {'success': False, 'message': 'No hay credenciales de email configuradas en el sistema centralizado. Por favor configúrelas primero.'}
-                elif self.last_rate_limit_error:
-                    # Mensaje específico para límite de tasa
-                    return {'success': False, 'message': f'No se puede enviar el email en este momento. El servidor ha detectado demasiados envíos y ha limitado temporalmente la cuenta. Por favor intente más tarde.'}
-                else:
-                    # Mensaje simple pero informativo
-                    return {'success': False, 'message': f'Error al enviar el código de activación al email {email}. Las credenciales del sistema centralizado funcionan correctamente, pero hay un problema al enviar el mensaje específico.'}
+                return {'success': False, 'message': f'Error al enviar el código de activación al email {email}. Las credenciales del sistema centralizado funcionan correctamente, pero hay un problema al enviar el mensaje específico.'}
                 
         except Exception as e:
             logger.error(f"Error al reenviar código: {e}")
@@ -651,17 +566,18 @@ Sistema de Verificación"""
             user = cursor.fetchone()
             conn.close()
             
-            if user:
-                return {
-                    'id': user[0],
-                    'username': user[1],
-                    'email': user[2],
-                    'role': user[3],
-                    'is_active': user[4],
-                    'is_verified': user[5],
-                    'created_at': user[6]
-                }
-            return None
+            if not user:
+                return None
+                
+            return {
+                'id': user[0],
+                'username': user[1],
+                'email': user[2],
+                'role': user[3],
+                'is_active': user[4],
+                'is_verified': user[5],
+                'created_at': user[6]
+            }
             
         except Exception as e:
             logger.error(f"Error al obtener usuario: {e}")

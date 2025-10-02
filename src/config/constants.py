@@ -57,7 +57,7 @@ BULLETIN_COLUMNS = {
         "header_name": "⚡ Importancia",
         "editable": True,
         "cellEditor": 'agSelectCellEditor',
-        "cellEditorParams": {'values': ['Baja', 'Media', 'Alta', 'Pendiente']},
+        "cellEditorParams": {'values': ['Baja',  'Alta', 'Pendiente']},
         "cellStyle": {
             'cursor': 'pointer',
             'backgroundColor': 'rgba(255,255,255,0.1)',

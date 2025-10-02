@@ -125,7 +125,8 @@ def _apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         # Crear el select_slider
         filtro_importancia_slider = st.select_slider(
             "Nivel de Importancia",
-            options=["Todas", "Baja", "Media", "Alta", "Pendiente"],
+            #options=["Todas", "Baja", "Media", "Alta", "Pendiente"],
+            options=["Todas", "Baja", "Alta", "Pendiente"],
             value="Todas",
             key="importance_slider",
             help="Desliza para seleccionar el nivel de importancia",
@@ -231,8 +232,8 @@ def show_historial_page():
                     st.metric("🔴 Alta Importancia", alta_importancia)
                 
                 with col3:
-                    media_importancia = len([r for r in rows if len(r) > 15 and r[15] == "Media"])
-                    st.metric("🟡 Media Importancia", media_importancia)
+                    media_importancia = len([r for r in rows if len(r) > 15 and r[15] == "Baja"])
+                    st.metric("🟡 Baja Importancia", media_importancia)
                 
                 with col4:
                     pendientes = len([r for r in rows if len(r) > 15 and r[15] == "Pendiente"])

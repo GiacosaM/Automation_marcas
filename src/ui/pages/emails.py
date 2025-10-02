@@ -365,11 +365,11 @@ class EmailsPage:
             #st.info("🔑 Contraseña cargada de forma segura")
             
             # Mostrar estado de validación
-            #if validate_email_format(credenciales['email']):
-                #st.success("📧 Formato de email válido")
-            #else:
-                #st.error("❌ Formato de email inválido")
-                
+            if validate_email_format(credenciales['email']):
+                st.success("📧 Formato de email válido")
+            else:
+                st.error("❌ Formato de email inválido")
+
             # Enlace a configuración
             #if st.button("⚙️ Cambiar Credenciales", use_container_width=True):
                 #st.session_state.main_tab = "Configuración"
@@ -773,43 +773,6 @@ class EmailsPage:
                     fit_columns=True
                 )
 
-                # Estadísticas del historial
-                st.markdown("#### 📈 Estadísticas del Historial")
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    total_enviados = len(historial_df)
-                    st.metric("📧 Total Enviados", total_enviados)
-                with col2:
-                    hoy = datetime.now().date()
-                    if 'Fecha Envío' in historial_df.columns:
-                        try:
-                            enviados_hoy = len(historial_df[pd.to_datetime(
-                                historial_df['Fecha Envío'], errors='coerce'
-                            ).dt.date == hoy])
-                            st.metric("📅 Enviados Hoy", enviados_hoy)
-                        except:
-                            st.metric("📅 Enviados Hoy", "N/A")
-                    else:
-                        st.metric("📅 Enviados Hoy", "N/A")
-                with col3:
-                    if 'Importancia' in historial_df.columns:
-                        try:
-                            importancia_alta = len(historial_df[historial_df['Importancia'] == 'Alta'])
-                            st.metric("🔴 Importancia Alta", importancia_alta)
-                        except:
-                            st.metric("🔴 Importancia Alta", "N/A")
-                    else:
-                        st.metric("🔴 Importancia Alta", "N/A")
-                with col4:
-                    if 'Importancia' in historial_df.columns:
-                        try:
-                            sin_reportes = len(historial_df[historial_df['Importancia'] == 'Sin Reportes'])
-                            st.metric("🔵 Sin Reportes", sin_reportes)
-                        except:
-                            st.metric("🔵 Sin Reportes", "N/A")
-                    else:
-                        st.metric("🔵 Sin Reportes", "N/A")
-                
                 # Añadir exportación CSV
                 st.markdown("---")
                 if st.button("📊 Exportar Historial", use_container_width=True):

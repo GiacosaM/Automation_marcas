@@ -51,7 +51,7 @@ def show_email_config_page():
         with col2:
             smtp_host = st.text_input(
                 "Servidor SMTP", 
-                value=credenciales.get("smtp_host", "smtp.gmail.com") if credenciales else "smtp.gmail.com",
+                value=credenciales.get("smtp_host", "smtp.zoho.com") if credenciales else "smtp.zoho.com",
                 help="Ej: smtp.gmail.com, smtp.office365.com"
             )
             

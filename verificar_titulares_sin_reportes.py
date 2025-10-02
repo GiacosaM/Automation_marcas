@@ -1,5 +1,5 @@
 """
-Módulo para verificar marcas sin reportes durante el mes en curso
+Módulo para verificar marcas sin reportes durante el mes anterior
 """
 
 import smtplib
@@ -12,7 +12,43 @@ from email.mime.text import MIMEText
 from datetime import datetime
 import calendar
 
-# Función para obtener credenciales de email sin depender de streamlit
+# Configuración de logging con appdirs
+try:
+    from paths import get_logs_dir
+    
+    # Asegurar que el directorio de logs existe
+    logs_dir = get_logs_dir()
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Definir ruta del archivo de log
+    log_file = os.path.join(logs_dir, 'verificacion_titulares.log')
+    
+    # Configurar logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    
+    logging.info(f"Logging configurado. Archivo de log: {log_file}")
+except ImportError:
+    # Fallback si no se puede importar paths
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('verificacion_titulares.log'),
+            logging.StreamHandler()
+        ]
+    )
+    logging.warning("No se pudo importar el módulo paths. Usando ubicación predeterminada para logs.")
+
+# Crear logger para este módulo
+logger = logging.getLogger('verificacion_reportes')
+
 def obtener_credenciales_email():
     """
     Obtiene las credenciales de email desde diferentes fuentes.
@@ -30,10 +66,10 @@ def obtener_credenciales_email():
         import streamlit as st
         email_user = st.secrets["email"]["user"]
         email_password = st.secrets["email"]["password"]
-        logging.info("Credenciales obtenidas desde st.secrets")
+        logger.info("Credenciales obtenidas desde st.secrets")
         return email_user, email_password
     except (ImportError, KeyError, Exception) as e:
-        logging.debug(f"No se pudieron obtener credenciales desde st.secrets: {e}")
+        logger.debug(f"No se pudieron obtener credenciales desde st.secrets: {e}")
     
     # Método 2: Archivo credenciales.json
     try:
@@ -42,10 +78,10 @@ def obtener_credenciales_email():
             email_user = credentials.get('email')
             email_password = credentials.get('password')
             if email_user and email_password:
-                logging.info("Credenciales obtenidas desde credenciales.json")
+                logger.info("Credenciales obtenidas desde credenciales.json")
                 return email_user, email_password
     except Exception as e:
-        logging.debug(f"No se pudieron obtener credenciales desde credenciales.json: {e}")
+        logger.debug(f"No se pudieron obtener credenciales desde credenciales.json: {e}")
     
     # Método 3: Configuración
     try:
@@ -54,26 +90,14 @@ def obtener_credenciales_email():
         email_user = credentials.get('email')
         email_password = credentials.get('password')
         if email_user and email_password:
-            logging.info("Credenciales obtenidas desde config.py")
+            logger.info("Credenciales obtenidas desde config.py")
             return email_user, email_password
     except Exception as e:
-        logging.debug(f"No se pudieron obtener credenciales desde config.py: {e}")
+        logger.debug(f"No se pudieron obtener credenciales desde config.py: {e}")
     
     # No se encontraron credenciales
-    logging.warning("No se pudieron obtener credenciales de email desde ninguna fuente")
+    logger.warning("No se pudieron obtener credenciales de email desde ninguna fuente")
     return None, None
-
-# Configuración de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('boletines.log'),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('verificacion_reportes')
 
 def obtener_nombre_mes(numero_mes):
     """Retorna el nombre del mes en español dado su número (1-12)"""
@@ -86,7 +110,7 @@ def obtener_nombre_mes(numero_mes):
 
 def verificar_titulares_sin_reportes(conn):
     """
-    Verifica las marcas que no tienen reportes generados durante el mes en curso
+    Verifica las marcas que no tienen reportes generados durante el mes anterior
     y envía un correo electrónico de notificación al titular listando todas las marcas afectadas.
     
     Args:
@@ -96,18 +120,25 @@ def verificar_titulares_sin_reportes(conn):
         dict: Un diccionario con información sobre el resultado de la verificación y envío
     """
     try:
-        # Obtener el mes y año actual
+        # Obtener la fecha actual para calcular el mes anterior
         fecha_actual = datetime.now()
-        mes_actual = fecha_actual.month
-        anio_actual = fecha_actual.year
-        nombre_mes = obtener_nombre_mes(mes_actual)
         
-        # Definir el periodo actual como string (formato: MM-YYYY)
-        periodo_actual = f"{mes_actual:02d}-{anio_actual}"
+        # Calcular mes anterior
+        if fecha_actual.month == 1:  # Si estamos en enero, el mes anterior es diciembre del año anterior
+            mes_anterior = 12
+            anio_anterior = fecha_actual.year - 1
+        else:
+            mes_anterior = fecha_actual.month - 1
+            anio_anterior = fecha_actual.year
         
-        # Calcular el primer y último día del mes actual
-        primer_dia = f"{anio_actual}-{mes_actual:02d}-01"
-        ultimo_dia = f"{anio_actual}-{mes_actual:02d}-{calendar.monthrange(anio_actual, mes_actual)[1]:02d}"
+        nombre_mes = obtener_nombre_mes(mes_anterior)
+        
+        # Definir el periodo anterior como string (formato: MM-YYYY)
+        periodo_anterior = f"{mes_anterior:02d}-{anio_anterior}"
+        
+        # Calcular el primer y último día del mes anterior
+        primer_dia = f"{anio_anterior}-{mes_anterior:02d}-01"
+        ultimo_dia = f"{anio_anterior}-{mes_anterior:02d}-{calendar.monthrange(anio_anterior, mes_anterior)[1]:02d}"
         
         logger.info(f"Verificando marcas sin reportes entre {primer_dia} y {ultimo_dia}")
         
@@ -211,11 +242,11 @@ def verificar_titulares_sin_reportes(conn):
                     WHERE tipo_email = 'notificacion_marcas' 
                     AND titular = ? 
                     AND periodo_notificacion = ?
-                """, (titular, periodo_actual))
+                """, (titular, periodo_anterior))
                 ya_notificado = cursor.fetchone()[0] > 0
             
             if ya_notificado:
-                logger.info(f"Ya se ha enviado una notificación a '{titular}' para el periodo {periodo_actual}")
+                logger.info(f"Ya se ha enviado una notificación a '{titular}' para el periodo {periodo_anterior}")
                 ya_notificados += 1
                 continue
             
@@ -240,7 +271,7 @@ def verificar_titulares_sin_reportes(conn):
                 msg = MIMEMultipart('alternative')
                 msg['From'] = f"Sistema de Gestión de Marcas <{email_user}>"
                 msg['To'] = email
-                msg['Subject'] = f"Notificación: Marcas sin reportes - {nombre_mes} {anio_actual}"
+                msg['Subject'] = f"Notificación: Marcas sin reportes - {nombre_mes} {anio_anterior}"
                 
                 # Crear lista HTML de marcas sin reportes
                 lista_marcas_html = ""
@@ -250,7 +281,7 @@ def verificar_titulares_sin_reportes(conn):
                 # Crear versión texto plano como fallback
                 text_body = f"""Estimado {titular},
 
-Le informamos que durante el mes de {nombre_mes} {anio_actual} las siguientes marcas de su titularidad no han tenido reportes generados:
+Le informamos que durante el mes de {nombre_mes} {anio_anterior} las siguientes marcas de su titularidad no han tenido reportes generados:
 
 {', '.join([f"{m[1]} (Clase {m[2]})" for m in marcas_sin_reportes])}
 
@@ -263,7 +294,7 @@ Sistema de Gestión de Marcas"""
                 contenido_especifico = f"""
                 <p>Estimado/a <span class="highlight">{titular}</span>,</p>
                 
-                <p> En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI <span class="highlight">{nombre_mes} {anio_actual}</span>. Como resultado, nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.</p>
+                <p> En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI <span class="highlight">{nombre_mes} {anio_anterior}</span>. Como resultado, nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.</p>
                 <ul style="margin-left: 25px; margin-bottom: 20px;">
                     {lista_marcas_html}
                 </ul>
@@ -317,14 +348,14 @@ Sistema de Gestión de Marcas"""
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular, periodo_notificacion, marcas_sin_reportes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                            "enviado", "notificacion_marcas", titular, periodo_actual, marcas_str))
+                            "enviado", "notificacion_marcas", titular, periodo_anterior, marcas_str))
                     elif tiene_columna_periodo:
                         cursor.execute("""
                             INSERT INTO emails_enviados 
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular, periodo_notificacion)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                            "enviado", "notificacion_marcas", titular, periodo_actual))
+                            "enviado", "notificacion_marcas", titular, periodo_anterior))
                     else:
                         # Inserción básica si no existen las columnas adicionales
                         cursor.execute("""

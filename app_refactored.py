@@ -119,8 +119,8 @@ class MarcasApp:
             self._show_marcas_page()
         elif current_page == 'emails' and NavigationManager.is_section_active('email'):
             self._show_emails_page()
-        # elif current_page == 'settings':
-        #     self._show_settings_page()
+        elif current_page == 'config':
+            self._show_settings_page()
         else:
             # Por defecto mostrar dashboard
             self._show_dashboard()
@@ -158,10 +158,20 @@ class MarcasApp:
         """Mostrar la página de marcas"""
         show_marcas_page()
     
-    # def _show_settings_page(self):
-    #     """Mostrar la página de configuración"""
-    #     from src.ui.pages.settings import show_settings_page
-    #     show_settings_page()
+    def _show_settings_page(self):
+        """Mostrar la página de configuración"""
+        # Mostrar secciones de configuración según la sección activa
+        st.title("⚙️ Configuración del Sistema")
+        
+        # Crear tabs para distintas secciones
+        tabs = st.tabs(["🔐 Email"])
+        
+        # Tab de configuración de email
+        with tabs[0]:
+            from src.ui.pages.email_config import show_email_config_page
+            show_email_config_page()
+            
+        
     
     def run(self):
         """Ejecutar la aplicación principal"""
