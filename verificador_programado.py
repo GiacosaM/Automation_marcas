@@ -138,7 +138,7 @@ def mostrar_panel_verificacion():
     
     with col1:
         st.info("""
-        Este componente verifica automáticamente los titulares sin reportes
+        Este componente verifica automáticamente los titulares sin reportes del mes anterior
         el primer día de cada mes a las 8:00 AM y envía notificaciones por email.
         """)
         
