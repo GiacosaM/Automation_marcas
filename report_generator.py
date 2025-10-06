@@ -321,8 +321,8 @@ class ReportGenerator:
     """Clase principal para generar informes de marcas."""
     
     def __init__(self, watermark_path: str = None, output_dir: str = None):
-        # Si se proporciona una ruta específica, usarla; si no, usar get_logo_path()
-        self.watermark_path = watermark_path
+        # Siempre utilizar get_logo_path() para obtener la ruta del logo
+        self.watermark_path = get_logo_path()
         self.output_dir = output_dir if output_dir else get_informes_dir()
         self._ensure_output_directory()
         
@@ -335,19 +335,15 @@ class ReportGenerator:
     
     def _validate_watermark(self) -> bool:
         """Valida si la imagen de marca de agua existe."""
-        # Si no se proporcionó una ruta explícita o la proporcionada no existe,
-        # intentar obtenerla desde get_logo_path()
-        if not self.watermark_path or not os.path.exists(self.watermark_path):
-            logo_path = get_logo_path()
-            if logo_path and os.path.exists(logo_path):
-                self.watermark_path = logo_path
-                logger.info(f"Logo encontrado mediante get_logo_path(): {logo_path}")
-                return True
-        
-        # Si se proporcionó una ruta explícita y existe, usarla
-        if self.watermark_path and os.path.exists(self.watermark_path):
-            logger.info(f"Usando ruta de logo proporcionada: {self.watermark_path}")
+        # Siempre intentar obtener la ruta del logo desde get_logo_path()
+        logo_path = get_logo_path()
+        if logo_path and os.path.exists(logo_path):
+            self.watermark_path = logo_path
+            logger.info(f"Logo encontrado mediante get_logo_path(): {logo_path}")
             return True
+            
+        logger.warning("No se encontró ningún logo válido mediante get_logo_path()")
+        return False
         
         # Como último recurso, intentar las rutas tradicionales
         possible_paths = [
@@ -501,7 +497,7 @@ class ReportGenerator:
             }
             mes_ingles = fecha_actual.strftime("%B %Y")
             mes_ano = mes_ingles.replace(fecha_actual.strftime("%B"), meses_castellano[fecha_actual.strftime("%B")])
-            mes_ano_archivo = fecha_actual.strftime("%B-%Y")
+            mes_ano_archivo = mes_ingles.replace(fecha_actual.strftime("%B"), meses_castellano[fecha_actual.strftime("%B")]).replace(" ", "-")
             
             # Log de inicio con resumen mejorado
             titulares_unicos = len(set(clave[0] for clave in agrupados.keys()))
@@ -568,7 +564,7 @@ class ReportGenerator:
         try:
             # Crear PDF con tema profesional
             watermark = self.watermark_path if self._validate_watermark() else None
-            pdf = ProfessionalReportPDF(watermark, "ESTUDIO CONTABLE")
+            pdf = ProfessionalReportPDF(watermark, "ESTUDIO DE MARCAS Y PATENTES")
             pdf.add_page()
             
             # Título principal con importancia
@@ -617,7 +613,6 @@ class ReportGenerator:
 
 def generar_informe_pdf(conn, watermark_image: str = None):
     """Función principal para mantener compatibilidad con el código anterior."""
-    # Si no se proporciona una ruta específica, usar get_logo_path()
-    logo_path = watermark_image or get_logo_path()
-    generator = ReportGenerator(logo_path)
+    # Usar siempre la función get_logo_path() para obtener la ruta del logo
+    generator = ReportGenerator(None)  # Pasamos None para que ReportGenerator use get_logo_path()
     return generator.generate_reports(conn)

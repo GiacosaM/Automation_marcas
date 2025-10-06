@@ -247,7 +247,7 @@ def verificar_titulares_sin_reportes(conn):
                 # Importante: usar EXACTAMENTE el mismo email que se usa para autenticar
                 msg['From'] = email_user
                 msg['To'] = email
-                msg['Subject'] = f"Notificación: Marcas sin reportes - {nombre_mes} {anio_reporte}"
+                msg['Subject'] = f"Notificación: CUSTODIA DE MARCAS - {nombre_mes} {anio_reporte}"
                 
                 # Crear lista HTML de marcas sin reportes
                 lista_marcas_html = ""
@@ -270,7 +270,7 @@ Sistema de Gestión de Marcas"""
                 contenido_especifico = f"""
                 <p>Estimado/a <span class="highlight">{titular}</span>,</p>
                 
-                <p> En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI <span class="highlight">{nombre_mes} {anio_reporte}</span>. Como resultado, nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.</p>
+                <p> En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI <span class="highlight">{nombre_mes} {anio_reporte}</span>. Como resultado, <span class="highlight"> nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.</span></p>
                 <ul style="margin-left: 25px; margin-bottom: 20px;">
                     {lista_marcas_html}
                 </ul>
