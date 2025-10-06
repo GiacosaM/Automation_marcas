@@ -365,10 +365,7 @@ class EmailsPage:
             #st.info("🔑 Contraseña cargada de forma segura")
             
             # Mostrar estado de validación
-            if validate_email_format(credenciales['email']):
-                st.success("📧 Formato de email válido")
-            else:
-                st.error("❌ Formato de email inválido")
+           
 
             # Enlace a configuración
             #if st.button("⚙️ Cambiar Credenciales", use_container_width=True):
@@ -446,7 +443,7 @@ class EmailsPage:
                 else:
                     st.error("❌ No se puede continuar debido a los problemas de validación")
         else:
-            st.error("❌ No hay grupos listos para recibir emails")
+            #st.error("❌ No hay grupos listos para recibir emails")
             st.info("Revisa que los clientes tengan email registrado y reportes generados")
             
             # Botón deshabilitado para mostrar el estado

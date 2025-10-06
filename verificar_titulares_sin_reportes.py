@@ -1,5 +1,5 @@
 """
-Módulo para verificar marcas sin reportes durante el mes anterior
+Módulo para verificar marcas sin reportes durante el mes en curso
 """
 
 import smtplib
@@ -11,93 +11,68 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 import calendar
+from datetime import timedelta
 
-# Configuración de logging con appdirs
-try:
-    from paths import get_logs_dir
-    
-    # Asegurar que el directorio de logs existe
-    logs_dir = get_logs_dir()
-    os.makedirs(logs_dir, exist_ok=True)
-    
-    # Definir ruta del archivo de log
-    log_file = os.path.join(logs_dir, 'verificacion_titulares.log')
-    
-    # Configurar logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
-    
-    logging.info(f"Logging configurado. Archivo de log: {log_file}")
-except ImportError:
-    # Fallback si no se puede importar paths
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('verificacion_titulares.log'),
-            logging.StreamHandler()
-        ]
-    )
-    logging.warning("No se pudo importar el módulo paths. Usando ubicación predeterminada para logs.")
-
-# Crear logger para este módulo
-logger = logging.getLogger('verificacion_reportes')
-
+# Función para obtener credenciales de email utilizando email_utils.py
 def obtener_credenciales_email():
     """
-    Obtiene las credenciales de email desde diferentes fuentes.
-    Primero intenta desde st.secrets si streamlit está disponible,
-    luego desde credenciales.json, y finalmente valores por defecto.
-    
+    Obtiene las credenciales de email usando la función obtener_credenciales() de email_utils.py.
+
     Returns:
-        tuple: (email_user, email_password)
+        tuple: (email_user, email_password, email_host, email_port)
     """
-    email_user = None
-    email_password = None
+    from email_utils import obtener_credenciales
     
-    # Método 1: Streamlit secrets (si está disponible)
     try:
-        import streamlit as st
-        email_user = st.secrets["email"]["user"]
-        email_password = st.secrets["email"]["password"]
-        logger.info("Credenciales obtenidas desde st.secrets")
-        return email_user, email_password
-    except (ImportError, KeyError, Exception) as e:
-        logger.debug(f"No se pudieron obtener credenciales desde st.secrets: {e}")
-    
-    # Método 2: Archivo credenciales.json
-    try:
-        with open('credenciales.json', 'r') as f:
-            credentials = json.load(f)
-            email_user = credentials.get('email')
-            email_password = credentials.get('password')
-            if email_user and email_password:
-                logger.info("Credenciales obtenidas desde credenciales.json")
-                return email_user, email_password
-    except Exception as e:
-        logger.debug(f"No se pudieron obtener credenciales desde credenciales.json: {e}")
-    
-    # Método 3: Configuración
-    try:
-        from config import load_email_credentials
-        credentials = load_email_credentials()
+        # Obtener credenciales usando la función de email_utils.py
+        credentials = obtener_credenciales()
+        
+        if not credentials:
+            logging.error("No se encontraron credenciales de email")
+            return None, None, None, None
+            
+        # Extraer valores del diccionario
         email_user = credentials.get('email')
         email_password = credentials.get('password')
-        if email_user and email_password:
-            logger.info("Credenciales obtenidas desde config.py")
-            return email_user, email_password
+        email_host = credentials.get('smtp_host')
+        email_port = credentials.get('smtp_port')
+        
+        # Verificar que tenemos todos los datos necesarios
+        if not all([email_user, email_password, email_host, email_port]):
+            raise ValueError("Faltan campos obligatorios en las credenciales")
+        
+        # Asegurar que el puerto sea un entero
+        try:
+            email_port = int(email_port)
+        except (TypeError, ValueError):
+            raise ValueError(f"El puerto SMTP debe ser un número válido, se recibió: {email_port}")
+        
+        logging.info("Credenciales obtenidas correctamente desde email_utils")
+        return email_user, email_password, email_host, email_port
+        
     except Exception as e:
-        logger.debug(f"No se pudieron obtener credenciales desde config.py: {e}")
-    
-    # No se encontraron credenciales
-    logger.warning("No se pudieron obtener credenciales de email desde ninguna fuente")
-    return None, None
+        logging.error(f"Error al obtener credenciales de email: {e}")
+        return None, None, None, None
+
+# Configuración de logging
+from paths import get_logs_dir
+import os
+
+# Crear ruta al archivo de log usando la función de paths.py
+log_file_path = os.path.join(get_logs_dir(), 'boletines.log')
+
+# Configurar logging para registrar solo WARNING, ERROR y CRITICAL
+logging.basicConfig(
+    level=logging.WARNING,  # Cambio de INFO a WARNING para reducir mensajes
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file_path),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger('verificacion_reportes')
+# Ya no registramos mensaje INFO de creación de archivo
 
 def obtener_nombre_mes(numero_mes):
     """Retorna el nombre del mes en español dado su número (1-12)"""
@@ -110,7 +85,7 @@ def obtener_nombre_mes(numero_mes):
 
 def verificar_titulares_sin_reportes(conn):
     """
-    Verifica las marcas que no tienen reportes generados durante el mes anterior
+    Verifica las marcas que no tienen reportes generados durante el mes en curso
     y envía un correo electrónico de notificación al titular listando todas las marcas afectadas.
     
     Args:
@@ -120,25 +95,25 @@ def verificar_titulares_sin_reportes(conn):
         dict: Un diccionario con información sobre el resultado de la verificación y envío
     """
     try:
-        # Obtener la fecha actual para calcular el mes anterior
+        # Obtener el mes y año actual
         fecha_actual = datetime.now()
+        mes_actual = fecha_actual.month
+        anio_actual = fecha_actual.year
         
-        # Calcular mes anterior
-        if fecha_actual.month == 1:  # Si estamos en enero, el mes anterior es diciembre del año anterior
-            mes_anterior = 12
-            anio_anterior = fecha_actual.year - 1
-        else:
-            mes_anterior = fecha_actual.month - 1
-            anio_anterior = fecha_actual.year
+        # Calcular el primer y último día del mes pasado
+        primer_dia_mes_pasado = (fecha_actual.replace(day=1) - timedelta(days=1)).replace(day=1)
+        ultimo_dia_mes_pasado = fecha_actual.replace(day=1) - timedelta(days=1)
         
-        nombre_mes = obtener_nombre_mes(mes_anterior)
+        # Usar el mes y año del mes pasado para el reporte
+        mes_reporte = primer_dia_mes_pasado.month
+        anio_reporte = primer_dia_mes_pasado.year
+        nombre_mes = obtener_nombre_mes(mes_reporte)
         
-        # Definir el periodo anterior como string (formato: MM-YYYY)
-        periodo_anterior = f"{mes_anterior:02d}-{anio_anterior}"
-        
-        # Calcular el primer y último día del mes anterior
-        primer_dia = f"{anio_anterior}-{mes_anterior:02d}-01"
-        ultimo_dia = f"{anio_anterior}-{mes_anterior:02d}-{calendar.monthrange(anio_anterior, mes_anterior)[1]:02d}"
+        # Definir el periodo actual como string (formato: MM-YYYY)
+        periodo_actual = f"{mes_actual:02d}-{anio_actual}"
+
+        primer_dia = primer_dia_mes_pasado.strftime("%Y-%m-%d")
+        ultimo_dia = ultimo_dia_mes_pasado.strftime("%Y-%m-%d")
         
         logger.info(f"Verificando marcas sin reportes entre {primer_dia} y {ultimo_dia}")
         
@@ -242,25 +217,25 @@ def verificar_titulares_sin_reportes(conn):
                     WHERE tipo_email = 'notificacion_marcas' 
                     AND titular = ? 
                     AND periodo_notificacion = ?
-                """, (titular, periodo_anterior))
+                """, (titular, periodo_actual))
                 ya_notificado = cursor.fetchone()[0] > 0
             
             if ya_notificado:
-                logger.info(f"Ya se ha enviado una notificación a '{titular}' para el periodo {periodo_anterior}")
+                logger.info(f"Ya se ha enviado una notificación a '{titular}' para el periodo {periodo_actual}")
                 ya_notificados += 1
                 continue
             
-            # Intentar enviar email de notificación
+                # Intentar enviar email de notificación
             try:
                 # Obtener credenciales de email (usando una función independiente de streamlit)
-                email_user, email_password = obtener_credenciales_email()
+                email_user, email_password, email_host, email_port = obtener_credenciales_email()
+                
+                
                 
                 if not email_user or not email_password:
                     logger.error("No se encontraron credenciales de email configuradas")
                     errores += 1
-                    continue
-                
-                # Importar plantillas HTML
+                    continue                # Importar plantillas HTML
                 from email_templates import get_html_template
                 from email.mime.multipart import MIMEMultipart
                 from email.mime.text import MIMEText
@@ -269,9 +244,10 @@ def verificar_titulares_sin_reportes(conn):
                 
                 # Crear mensaje usando MIMEMultipart para soporte HTML
                 msg = MIMEMultipart('alternative')
-                msg['From'] = f"Sistema de Gestión de Marcas <{email_user}>"
+                # Importante: usar EXACTAMENTE el mismo email que se usa para autenticar
+                msg['From'] = email_user
                 msg['To'] = email
-                msg['Subject'] = f"Notificación: Marcas sin reportes - {nombre_mes} {anio_anterior}"
+                msg['Subject'] = f"Notificación: Marcas sin reportes - {nombre_mes} {anio_reporte}"
                 
                 # Crear lista HTML de marcas sin reportes
                 lista_marcas_html = ""
@@ -281,7 +257,7 @@ def verificar_titulares_sin_reportes(conn):
                 # Crear versión texto plano como fallback
                 text_body = f"""Estimado {titular},
 
-Le informamos que durante el mes de {nombre_mes} {anio_anterior} las siguientes marcas de su titularidad no han tenido reportes generados:
+Le informamos que durante el mes de {nombre_mes} {anio_reporte} las siguientes marcas de su titularidad no han tenido reportes generados:
 
 {', '.join([f"{m[1]} (Clase {m[2]})" for m in marcas_sin_reportes])}
 
@@ -294,7 +270,7 @@ Sistema de Gestión de Marcas"""
                 contenido_especifico = f"""
                 <p>Estimado/a <span class="highlight">{titular}</span>,</p>
                 
-                <p> En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI <span class="highlight">{nombre_mes} {anio_anterior}</span>. Como resultado, nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.</p>
+                <p> En virtud del servicio de custodia oportunamente contratado sobre sus marcas, nos complace informarle que hemos realizado el control mensual comparativo de presentaciones ante el INPI <span class="highlight">{nombre_mes} {anio_reporte}</span>. Como resultado, nuestro sistema no ha detectado marcas similares que pudieran afectar los derechos que estamos protegiendo sobre sus registros.</p>
                 <ul style="margin-left: 25px; margin-bottom: 20px;">
                     {lista_marcas_html}
                 </ul>
@@ -316,7 +292,20 @@ Sistema de Gestión de Marcas"""
                 msg.attach(MIMEText(html_content, 'html', 'utf-8'))
                 
                 # Agregar logo si existe
-                logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png')
+                from paths import get_assets_dir
+                logo_path = os.path.join(get_assets_dir(), 'Logo.png')
+                # Buscar también en otras ubicaciones posibles si no existe en assets
+                if not os.path.exists(logo_path):
+                    alt_paths = [
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png'),
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo1.png'),
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Logo.png')
+                    ]
+                    for path in alt_paths:
+                        if os.path.exists(path):
+                            logo_path = path
+                            break
+                
                 if os.path.exists(logo_path):
                     try:
                         with open(logo_path, 'rb') as img_file:
@@ -327,17 +316,23 @@ Sistema de Gestión de Marcas"""
                     except Exception as e:
                         logger.warning(f"Error al adjuntar logo: {e}")
                     
-                # Enviar email
-                server = smtplib.SMTP("smtp.gmail.com", 587)
+                # Enviar email - usando el método exacto que funciona en email_verification_system.py
+                port = int(email_port) if isinstance(email_port, str) else email_port
+                server = smtplib.SMTP(email_host, port)
+                server.ehlo()  # Identificarse con el servidor
                 server.starttls()
+                server.ehlo()  # Identificarse nuevamente después de TLS
                 server.login(email_user, email_password)
-                server.send_message(msg)
+                
+                # Usar sendmail en lugar de send_message (importante para evitar el error de relay)
+                msg_content = msg.as_string()
+                server.sendmail(email_user, [email], msg_content)
                 server.quit()
                 
                 # Registrar envío en la tabla emails_enviados
                 try:
                     # Crear un resumen del mensaje en lugar de almacenar todo el HTML
-                    resumen_mensaje = f"Notificación: Marcas sin reportes para {nombre_mes} {anio_actual}"
+                    resumen_mensaje = f"Notificación: Marcas sin reportes para {nombre_mes} {anio_reporte}"
                     
                     # Crear un string con las marcas sin reportes
                     marcas_str = ", ".join([f"{m[1]} (Clase {m[2]})" for m in marcas_sin_reportes])
@@ -348,14 +343,14 @@ Sistema de Gestión de Marcas"""
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular, periodo_notificacion, marcas_sin_reportes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                            "enviado", "notificacion_marcas", titular, periodo_anterior, marcas_str))
+                            "enviado", "notificacion_marcas", titular, periodo_actual, marcas_str))
                     elif tiene_columna_periodo:
                         cursor.execute("""
                             INSERT INTO emails_enviados 
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular, periodo_notificacion)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                            "enviado", "notificacion_marcas", titular, periodo_anterior))
+                            "enviado", "notificacion_marcas", titular, periodo_actual))
                     else:
                         # Inserción básica si no existen las columnas adicionales
                         cursor.execute("""

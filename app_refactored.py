@@ -42,7 +42,7 @@ from src.ui.pages.marcas import show_marcas_page
 # Importar módulos existentes (mantenemos la funcionalidad actual)
 from auth_manager_simple import handle_authentication
 from database import crear_conexion, limpieza_automatica_logs
-from verificador_programado import inicializar_verificador_en_app, mostrar_panel_verificacion
+#from verificador_programado import inicializar_verificador_en_app, mostrar_panel_verificacion
 
 
 class MarcasApp:
@@ -70,12 +70,13 @@ class MarcasApp:
                         SessionManager.set('resultado_limpieza_automatica', resultado_limpieza)
                         
                         # Verificar titulares sin reportes (primera semana del mes)
-                        hoy = datetime.now()
-                        dia_del_mes = hoy.day
-                        if dia_del_mes <= 7:  # Ejecutar solo la primera semana de cada mes
-                            from verificar_titulares_sin_reportes import verificar_titulares_sin_reportes
-                            resultado_verificacion = verificar_titulares_sin_reportes(conn)
-                            SessionManager.set('resultado_verificacion_reportes', resultado_verificacion)
+                        # DESACTIVADO: Para evitar ejecución automática al iniciar la app
+                        # hoy = datetime.now()
+                        # dia_del_mes = hoy.day
+                        # if dia_del_mes <= 7:  # Ejecutar solo la primera semana de cada mes
+                        #     from verificar_titulares_sin_reportes import verificar_titulares_sin_reportes
+                        #     resultado_verificacion = verificar_titulares_sin_reportes(conn)
+                        #     SessionManager.set('resultado_verificacion_reportes', resultado_verificacion)
                         
                         SessionManager.set('sistema_inicializado', True)
                     except Exception as e:
@@ -176,7 +177,7 @@ class MarcasApp:
     def run(self):
         """Ejecutar la aplicación principal"""
         # Inicializar verificador programado (ejecuta verificaciones automáticas)
-        inicializar_verificador_en_app()
+        #inicializar_verificador_en_app()
         
         # Verificar autenticación
         if not handle_authentication():

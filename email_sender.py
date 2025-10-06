@@ -10,15 +10,17 @@ from email import encoders
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
-# Importar funciones de logs desde database.py
+# Importar funciones de logs desde database.py y paths.py
 from database import insertar_log_envio
+from paths import get_logs_dir
+from email_utils import obtener_credenciales
 
 # Configuración de logging optimizado para emails
 logging.basicConfig(
     level=logging.WARNING,  # Solo registrar WARNING y ERROR por defecto
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('email_sender.log'),
+        logging.FileHandler(os.path.join(get_logs_dir(), 'email_sender.log')),
         logging.StreamHandler()
     ]
 )
@@ -26,14 +28,13 @@ logging.basicConfig(
 # Logger específico para eventos críticos de email
 email_logger = logging.getLogger('email_events')
 email_logger.setLevel(logging.INFO)
-email_handler = logging.FileHandler('boletines.log')  # Usar el mismo archivo
+email_handler = logging.FileHandler(os.path.join(get_logs_dir(), 'boletines.log'))  # Usar el mismo archivo
 email_handler.setFormatter(logging.Formatter('%(asctime)s - EMAIL - %(message)s'))
 email_logger.addHandler(email_handler)
 email_logger.propagate = False
 
-# Configuración de email
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+# La configuración de email se obtiene dinámicamente con obtener_credenciales()
+# en lugar de usar valores hardcodeados
 
 def validar_email(email: str) -> bool:
     """
@@ -50,7 +51,15 @@ def validar_credenciales_email(email_usuario: str, password_usuario: str) -> boo
     Valida las credenciales de email intentando conectar al servidor SMTP.
     """
     try:
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        # Obtener la configuración de SMTP desde email_utils
+        credenciales = obtener_credenciales()
+        if not credenciales:
+            raise Exception("No se pudieron obtener las credenciales de email")
+        
+        smtp_host = credenciales.get('smtp_host', 'smtp.gmail.com')  # Valor por defecto como fallback
+        smtp_port = credenciales.get('smtp_port', 587)  # Valor por defecto como fallback
+        
+        server = smtplib.SMTP(smtp_host, smtp_port)
         server.starttls()
         server.login(email_usuario, password_usuario)
         server.quit()
@@ -376,8 +385,16 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         elif archivo_adjunto:
             logging.warning(f"Archivo adjunto no encontrado: {archivo_adjunto}")
         
+        # Obtener la configuración de SMTP desde email_utils
+        credenciales = obtener_credenciales()
+        if not credenciales:
+            raise Exception("No se pudieron obtener las credenciales de email")
+        
+        smtp_host = credenciales.get('smtp_host', 'smtp.gmail.com')  # Valor por defecto como fallback
+        smtp_port = credenciales.get('smtp_port', 587)  # Valor por defecto como fallback
+        
         # Conectar al servidor SMTP
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server = smtplib.SMTP(smtp_host, smtp_port)
         server.starttls()
         server.login(email_usuario, password_usuario)
         
@@ -490,11 +507,18 @@ def validar_clientes_para_envio(conn):
     
     return validacion
 
-def procesar_envio_emails(conn, email_usuario, password_usuario):
+def procesar_envio_emails(conn, email_usuario=None, password_usuario=None):
     """
     Función principal para procesar y enviar todos los emails pendientes.
     Incluye validación de reportes con importancia 'Pendiente'.
     """
+    # Obtener credenciales desde email_utils si no se proporcionan
+    if email_usuario is None or password_usuario is None:
+        credenciales = obtener_credenciales()
+        if credenciales:
+            email_usuario = credenciales.get('email')
+            password_usuario = credenciales.get('password')
+    
     resultados = {
         'exitosos': [],
         'fallidos': [],
