@@ -242,18 +242,22 @@ def verificar_titulares_sin_reportes(conn):
                 from email.mime.image import MIMEImage
                 import os
                 
-                # Crear mensaje usando MIMEMultipart para soporte HTML
-                msg = MIMEMultipart('alternative')
+                # Crear mensaje como multipart/related (html + imágenes embebidas)
+                # Estructura: multipart/related
+                #               |- multipart/alternative (plain, html)
+                #               |- image (Content-ID)
+                import mimetypes
+                msg_root = MIMEMultipart('related')
                 # Importante: usar EXACTAMENTE el mismo email que se usa para autenticar
-                msg['From'] = email_user
-                msg['To'] = email
-                msg['Subject'] = f"Notificación: CUSTODIA DE MARCAS - {nombre_mes} {anio_reporte}"
-                
+                msg_root['From'] = email_user
+                msg_root['To'] = email
+                msg_root['Subject'] = f"Notificación: CUSTODIA DE MARCAS - {nombre_mes} {anio_reporte}"
+
                 # Crear lista HTML de marcas sin reportes
                 lista_marcas_html = ""
                 for codigo_marca, marca, clase in marcas_sin_reportes:
                     lista_marcas_html += f"<li><span class=\"highlight\">{marca}</span> (Clase {clase}, Código {codigo_marca})</li>"
-                
+
                 # Crear versión texto plano como fallback
                 text_body = f"""Estimado {titular},
 
@@ -265,7 +269,7 @@ Si cree que esto es un error o requiere información adicional, por favor contá
 
 Saludos cordiales,
 Sistema de Gestión de Marcas"""
-                
+
                 # Contenido específico para este tipo de notificación
                 contenido_especifico = f"""
                 <p>Estimado/a <span class="highlight">{titular}</span>,</p>
@@ -282,15 +286,19 @@ Sistema de Gestión de Marcas"""
                 <p>Saludos cordiales,<br>
                 Equipo de Gestión de Marcas</p>
                 """
-                
+
                 # Obtener plantilla HTML y reemplazar el contenido
                 html_template = get_html_template()
                 html_content = html_template.replace('<!-- El contenido del mensaje se insertará aquí -->', contenido_especifico)
-                
-                # Adjuntar partes al mensaje
-                msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
-                msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-                
+
+                # Crear la parte alternative y adjuntar texto y html
+                msg_alternative = MIMEMultipart('alternative')
+                msg_alternative.attach(MIMEText(text_body, 'plain', 'utf-8'))
+                msg_alternative.attach(MIMEText(html_content, 'html', 'utf-8'))
+
+                # Adjuntar la parte alternative al root
+                msg_root.attach(msg_alternative)
+
                 # Agregar logo si existe
                 from paths import get_assets_dir
                 logo_path = os.path.join(get_assets_dir(), 'Logo.png')
@@ -305,16 +313,28 @@ Sistema de Gestión de Marcas"""
                         if os.path.exists(path):
                             logo_path = path
                             break
-                
+
                 if os.path.exists(logo_path):
                     try:
                         with open(logo_path, 'rb') as img_file:
-                            img = MIMEImage(img_file.read())
+                            img_data = img_file.read()
+                            # Intentar detectar tipo MIME por extensión
+                            mime_type, _ = mimetypes.guess_type(logo_path)
+                            if mime_type and mime_type.startswith('image/'):
+                                subtype = mime_type.split('/')[1]
+                            else:
+                                ext = os.path.splitext(logo_path)[1].lstrip('.').lower()
+                                subtype = ext if ext else 'png'
+                            img = MIMEImage(img_data, _subtype=subtype)
+                            # Asegurarse de que el Content-ID coincida exactamente con cid:logo usado en la plantilla
                             img.add_header('Content-ID', '<logo>')
-                            img.add_header('Content-Disposition', 'inline')
-                            msg.attach(img)
+                            img.add_header('Content-Disposition', 'inline; filename="Logo.png"')
+                            msg_root.attach(img)
+                            logger.info(f"Logo adjuntado desde {logo_path} con Content-ID <logo>")
                     except Exception as e:
                         logger.warning(f"Error al adjuntar logo: {e}")
+                else:
+                    logger.warning(f"No se encontró el archivo de logo en ninguna ruta esperada. Buscado: {logo_path}")
                     
                 # Enviar email - usando el método exacto que funciona en email_verification_system.py
                 port = int(email_port) if isinstance(email_port, str) else email_port
@@ -325,7 +345,7 @@ Sistema de Gestión de Marcas"""
                 server.login(email_user, email_password)
                 
                 # Usar sendmail en lugar de send_message (importante para evitar el error de relay)
-                msg_content = msg.as_string()
+                msg_content = msg_root.as_string()
                 server.sendmail(email_user, [email], msg_content)
                 server.quit()
                 
@@ -342,14 +362,14 @@ Sistema de Gestión de Marcas"""
                             INSERT INTO emails_enviados 
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular, periodo_notificacion, marcas_sin_reportes)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                        """, (email, msg_root['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                             "enviado", "notificacion_marcas", titular, periodo_actual, marcas_str))
                     elif tiene_columna_periodo:
                         cursor.execute("""
                             INSERT INTO emails_enviados 
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular, periodo_notificacion)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                        """, (email, msg_root['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                             "enviado", "notificacion_marcas", titular, periodo_actual))
                     else:
                         # Inserción básica si no existen las columnas adicionales
@@ -357,7 +377,7 @@ Sistema de Gestión de Marcas"""
                             INSERT INTO emails_enviados 
                             (destinatario, asunto, mensaje, fecha_envio, status, tipo_email, titular)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (email, msg['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                        """, (email, msg_root['Subject'], resumen_mensaje, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                             "enviado", "notificacion_marcas", titular))
                     
                     conn.commit()

@@ -1,10 +1,20 @@
 """
 Este archivo contiene las plantillas HTML para los correos electrónicos
 """
+import os
+from paths import get_logo_path, inicializar_assets
 
 def get_html_template():
     """
-    Retorna la plantilla HTML básica para correos electrónicos profesionales
+    Retorna la plantilla HTML básica para correos electrónicos profesionales.
+    
+    Nota: Esta plantilla incluye una referencia a una imagen con Content-ID 'company-logo@mimarca.com.ar'.
+    Para que se muestre correctamente, se debe adjuntar una imagen con este Content-ID específico al email.
+    Ejemplo de cómo adjuntar la imagen:
+    
+    img = MIMEImage(open(logo_path, 'rb').read())
+    img.add_header('Content-ID', '<company-logo@mimarca.com.ar>')
+    img.add_header('Content-Disposition', 'inline')
     """
     html_template = """
     <!DOCTYPE html>
@@ -79,13 +89,13 @@ def get_html_template():
       <tr>
         <td align="center" style="padding: 10px 0;">
           
-
-            <!-- Texto de marca -->
-            <div style="display:inline-block; vertical-align:middle;">
-              <div style="font-size:28px; color:#d52b1e; font-weight:bold; line-height:32px;">Mi</div>
-              <div style="font-size:28px; color:#d52b1e; font-weight:bold; line-height:32px;">Marca</div>
-             
+            <!-- Logo de la empresa -->
+            <div style="display:inline-block; vertical-align:middle; margin-right:10px;">
+            <img src="cid:logo" alt="Logo Empresa" 
+                style="max-height:60px; max-width:180px; border-radius:8px;">
             </div>
+            
+         
 
             <div>
             <h1>Servicio de Custodia de Marcas</h1>
