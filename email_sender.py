@@ -6,6 +6,8 @@ import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
+import mimetypes
 from email import encoders
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
@@ -335,35 +337,59 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         if not validar_email(email_usuario):
             raise Exception(f"Email del remitente no válido: {email_usuario}")
         
-        # Crear mensaje
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"Estudio Contable <{email_usuario}>"
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        
-        # Determinar el tipo de mensaje (texto plano o HTML)
+        # Crear mensaje con estructura multipart/related -> multipart/alternative (texto + html)
+        msg_root = MIMEMultipart('related')
+        msg_alternative = MIMEMultipart('alternative')
+        msg_root['From'] = f"Estudio de Marcas y Patentes <{email_usuario}>"
+        msg_root['To'] = destinatario
+        msg_root['Subject'] = asunto
+
+        # Adjuntar texto y html al alternative
         if isinstance(mensaje, dict) and 'texto' in mensaje and 'html' in mensaje:
-            # Agregar versión texto plano (fallback)
-            msg.attach(MIMEText(mensaje['texto'], 'plain', 'utf-8'))
-            # Agregar versión HTML
-            msg.attach(MIMEText(mensaje['html'], 'html', 'utf-8'))
+            msg_alternative.attach(MIMEText(mensaje['texto'], 'plain', 'utf-8'))
+            msg_alternative.attach(MIMEText(mensaje['html'], 'html', 'utf-8'))
         else:
-            # Mantener compatibilidad con versiones anteriores (solo texto plano)
-            msg.attach(MIMEText(mensaje, 'plain', 'utf-8'))
-        
-        # Agregar imagen del logo en línea
-        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png')
+            msg_alternative.attach(MIMEText(mensaje, 'plain', 'utf-8'))
+
+        # Adjuntar alternative al root
+        msg_root.attach(msg_alternative)
+
+        # Agregar logo si existe (mismo comportamiento que verificar_titulares_sin_reportes.py)
+        from paths import get_assets_dir
+        logo_path = os.path.join(get_assets_dir(), 'Logo.png')
+        # Buscar también en otras ubicaciones posibles si no existe en assets
+        if not os.path.exists(logo_path):
+            alt_paths = [
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png'),
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo1.png'),
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Logo.png')
+            ]
+            for path in alt_paths:
+                if os.path.exists(path):
+                    logo_path = path
+                    break
+
         if os.path.exists(logo_path):
             try:
                 with open(logo_path, 'rb') as img_file:
-                    img_part = MIMEBase('image', 'png')
-                    img_part.set_payload(img_file.read())
-                    encoders.encode_base64(img_part)
-                    img_part.add_header('Content-ID', '<logo>')
-                    img_part.add_header('Content-Disposition', 'inline')
-                    msg.attach(img_part)
+                    img_data = img_file.read()
+                    # Intentar detectar tipo MIME por extensión
+                    mime_type, _ = mimetypes.guess_type(logo_path)
+                    if mime_type and mime_type.startswith('image/'):
+                        subtype = mime_type.split('/')[1]
+                    else:
+                        ext = os.path.splitext(logo_path)[1].lstrip('.').lower()
+                        subtype = ext if ext else 'png'
+                    img = MIMEImage(img_data, _subtype=subtype)
+                    # Asegurarse de que el Content-ID coincida exactamente con cid:logo usado en la plantilla
+                    img.add_header('Content-ID', '<logo>')
+                    img.add_header('Content-Disposition', 'inline; filename="Logo.png"')
+                    msg_root.attach(img)
+                    logger.info(f"Logo adjuntado desde {logo_path} con Content-ID <logo>")
             except Exception as e:
                 logging.warning(f"Error al adjuntar logo: {e}")
+        else:
+            logging.warning(f"No se encontró el archivo de logo en ninguna ruta esperada. Buscado: {logo_path}")
         
         # Agregar archivo adjunto si existe
         if archivo_adjunto and os.path.exists(archivo_adjunto):
@@ -377,7 +403,7 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
                     'Content-Disposition',
                     f'attachment; filename= {nombre_archivo or os.path.basename(archivo_adjunto)}'
                 )
-                msg.attach(part)
+                msg_root.attach(part)
                 logging.info(f"Archivo adjunto agregado: {nombre_archivo}")
             except Exception as e:
                 logging.warning(f"Error al adjuntar archivo: {e}")
@@ -398,8 +424,14 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         server.starttls()
         server.login(email_usuario, password_usuario)
         
-        # Enviar email
-        text = msg.as_string()
+        # Enviar email (usar msg_root si existe, sino msg para compatibilidad)
+        if 'msg_root' in locals():
+            text = msg_root.as_string()
+        elif 'msg' in locals():
+            text = msg.as_string()
+        else:
+            raise Exception("No se encontró el mensaje para enviar (msg_root/msg)")
+
         server.sendmail(email_usuario, destinatario, text)
         server.quit()
         
@@ -584,7 +616,13 @@ def procesar_envio_emails(conn, email_usuario=None, password_usuario=None):
                     continue
                 
                 # Crear mensaje específico para esta importancia
-                mes_actual = datetime.now().strftime("%B %Y")
+                # Formatear mes en español (no depender de locale del sistema)
+                now = datetime.now()
+                meses_es = [
+                    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+                ]
+                mes_actual = f"{meses_es[now.month - 1].capitalize()} {now.year}"
                 asunto = f"Reporte de marcas de importancia {importancia} - {mes_actual}"
                 mensaje = crear_mensaje_email(titular, importancia, datos_grupo['boletines'])
                 

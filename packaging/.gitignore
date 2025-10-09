@@ -1,0 +1,29 @@
+# Ignorar entornos virtuales de compilación
+build_venv/
+venv/
+env/
+
+# Ignorar directorios de compilación
+build/
+dist/
+
+# Ignorar archivos generados por PyInstaller
+*.spec~
+*.log
+
+# Ignorar archivos comprimidos de distribución
+*.zip
+*.tar.gz
+*.dmg
+*.deb
+*.rpm
+
+# Ignorar archivos temporales
+*.pyc
+__pycache__/
+.DS_Store
+Thumbs.db
+
+# Ignorar checksums
+checksums.txt
+checksums.sha256

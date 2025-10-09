@@ -289,7 +289,7 @@ Tu código de verificación es: {activation_code}
 Este código es válido por 15 minutos.
 
 Saludos,
-Sistema de Verificación"""
+mimarca.com.ar"""
             
             # Crear mensaje multipart
             msg = MIMEMultipart('related')
@@ -311,22 +311,23 @@ Sistema de Verificación"""
                 <style>
                   body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
                   .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                  .header {{ background-color: #4CAF50; color: white; padding: 10px; text-align: center; }}
+                  .header {{ background-color: #1a365d;; color: white; padding: 10px; text-align: center; }}
                   .content {{ padding: 20px; border: 1px solid #ddd; }}
-                  .code {{ font-size: 24px; font-weight: bold; color: #4CAF50; }}
+                  .code {{ font-size: 24px; font-weight: bold; color: #000000; }}
                   .footer {{ margin-top: 20px; font-size: 12px; color: #777; text-align: center; }}
                 </style>
               </head>
               <body>
                 <div class="container">
                   <div class="header">
+                    <h1>Estudio de Marcas y Patentes</h1>
                     <h2>Código de Verificación</h2>
                   </div>
                   <div class="content">
                     <p>Hola <strong>{username}</strong>,</p>
                     <p>Tu código de verificación es: <span class="code">{activation_code}</span></p>
                     <p>Este código es válido por <strong>15 minutos</strong>.</p>
-                    <p>Saludos,<br>Sistema de Verificación</p>
+                    <p>Saludos,<br>mimarca.com.ar</p>
                   </div>
                   <div class="footer">
                     <p>Este es un mensaje automático, por favor no responda a este correo.</p>

@@ -368,7 +368,13 @@ class InformesPage:
                     
                     if estado == 'completado':
                         st.success("✅ Verificación automática realizada")
-                        
+
+                        # Mostrar mensaje específico para la UI si la verificación lo generó
+                        mensaje_ui = resultado_verificacion.get('mensaje_ui')
+                        if mensaje_ui:
+                            # Mensaje informativo persistente para que el usuario lo vea después del rerun
+                            st.info(mensaje_ui)
+
                         metrics = [
                             {"value": resultado_verificacion.get('titulares_con_marcas_sin_reportes', 0), 
                              "label": "Titulares con marcas sin reportes", 
@@ -380,7 +386,7 @@ class InformesPage:
                              "label": "Errores", 
                              "color": "#dc3545"},
                         ]
-                        
+
                         for metric in metrics:
                             st.markdown(f"""
                             <div style='background:{metric["color"]};padding:1rem;border-radius:8px;text-align:center;margin-bottom:10px;'>
@@ -388,7 +394,7 @@ class InformesPage:
                                 <span style='font-size:0.9rem;color:#fff;'>{metric["label"]}</span>
                             </div>
                             """, unsafe_allow_html=True)
-                        
+
                         st.caption(f"Última verificación: {resultado_verificacion.get('fecha_verificacion', 'N/A')}")
                     else:
                         st.error(f"❌ Error en la última verificación: {resultado_verificacion.get('mensaje', 'Error desconocido')}")
@@ -413,8 +419,12 @@ class InformesPage:
                                 
                                 if resultado['estado'] == 'completado':
                                     st.success("✅ Verificación completada con éxito")
-                                    st.info(f"Se encontraron {resultado['titulares_con_marcas_sin_reportes']} titulares con marcas sin reportes")
-                                    st.success(f"Se enviaron {resultado['emails_enviados']} correos de notificación")
+                                    # Mostrar mensaje UI si existe (por ejemplo: "No hay reportes para enviar")
+                                    if resultado.get('mensaje_ui'):
+                                        st.info(resultado.get('mensaje_ui'))
+                                    else:
+                                        st.info(f"Se encontraron {resultado['titulares_con_marcas_sin_reportes']} titulares con marcas sin reportes")
+                                        st.success(f"Se enviaron {resultado['emails_enviados']} correos de notificación")
                                     
                                     if resultado['errores'] > 0:
                                         st.warning(f"Hubo {resultado['errores']} errores durante el envío")

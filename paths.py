@@ -8,11 +8,31 @@ localización de recursos a través de todo el proyecto.
 """
 
 import os
+import sys
 import appdirs
 
 # Nombre de la aplicación para la gestión de directorios
 APP_NAME = "MiAppMarcas"
 APP_AUTHOR = "GiacosaM"  # Nombre del autor o empresa
+
+def get_base_dir():
+    """
+    Detecta el directorio base de la aplicación.
+    Si se está ejecutando desde un ejecutable empaquetado, usa el directorio del ejecutable.
+    Si se está ejecutando como script Python, usa el directorio del script.
+    
+    Returns:
+        str: Ruta absoluta al directorio base de la aplicación.
+    """
+    # Detectar si estamos en un ejecutable empaquetado con PyInstaller
+    if getattr(sys, 'frozen', False):
+        # Ejecutable empaquetado: usar el directorio padre del ejecutable
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Script Python: usar el directorio del script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    return base_dir
 
 def get_data_dir():
     """
@@ -22,14 +42,14 @@ def get_data_dir():
     Returns:
         str: Ruta absoluta al directorio de datos.
     """
-    # Usar una ubicación visible en el escritorio en lugar de la biblioteca oculta
-    app_name = "MiAppMarcas"
-    # data_dir = user_data_dir(app_name, appauthor=None)  # Comentado: ruta en la biblioteca
-    data_dir = os.path.join(os.path.expanduser("~/Desktop"), app_name)  # Nueva ruta en el escritorio
+    # Usar el directorio base de la aplicación (donde está el ejecutable o el script)
+    data_dir = get_base_dir()
     
-    # Crear el directorio si no existe
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir, exist_ok=True)
+    # Crear subdirectorios necesarios
+    for subdir in ['assets', 'imagenes', 'informes', 'logs', 'config']:
+        full_path = os.path.join(data_dir, subdir)
+        if not os.path.exists(full_path):
+            os.makedirs(full_path, exist_ok=True)
     
     return data_dir
 
@@ -100,7 +120,16 @@ def get_config_file_path():
     Returns:
         str: Ruta absoluta al archivo "config.json".
     """
-    return os.path.join(get_data_dir(), "config.json")
+    # Buscar primero en el directorio principal de la aplicación
+    config_path = os.path.join(get_data_dir(), "config.json")
+    
+    # Si no existe, buscar en el subdirectorio config
+    if not os.path.exists(config_path):
+        config_subdir = os.path.join(get_data_dir(), "config", "config.json")
+        if os.path.exists(config_subdir):
+            return config_subdir
+    
+    return config_path
 
 # Función de utilidad para obtener rutas relativas al directorio del proyecto
 def get_project_root():
@@ -152,7 +181,13 @@ def get_image_path(image_name=None):
     Returns:
         str: Ruta absoluta al archivo de imagen o al directorio de imágenes.
     """
-    images_dir = os.path.join(get_project_root(), "imagenes")
+    # Primero intentar en el directorio de datos de la aplicación
+    images_dir = os.path.join(get_data_dir(), "imagenes")
+    
+    # Si no existe, intentar en el directorio del proyecto (modo desarrollo)
+    if not os.path.exists(images_dir):
+        images_dir = os.path.join(get_project_root(), "imagenes")
+    
     if image_name:
         return os.path.join(images_dir, image_name)
     return images_dir

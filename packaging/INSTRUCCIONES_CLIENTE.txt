@@ -1,0 +1,222 @@
+============================================================
+   MiAppMarcas - Sistema de Gestión de Marcas
+   Versión 1.0.0 para Windows
+============================================================
+
+📦 INSTALACIÓN (Solo la primera vez)
+====================================
+
+1. Descomprimir el archivo MiAppMarcas-v1.0.0-windows.zip
+
+2. Mover la carpeta "MiAppMarcas" donde desees:
+   - Escritorio
+   - C:\Programas\MiAppMarcas
+   - Documentos\MiAppMarcas
+   - Cualquier ubicación que prefieras
+
+3. ¡Listo! No requiere instalación de Python ni programas adicionales
+
+
+🚀 PRIMERA EJECUCIÓN (toma 1-2 minutos)
+========================================
+
+1. Abrir la carpeta MiAppMarcas
+
+2. Hacer DOBLE CLIC en "MiAppMarcas.exe"
+
+3. Verás una ventana con progreso:
+   ┌─────────────────────────────────────────┐
+   │  MiAppMarcas - Configuración Inicial    │
+   │                                          │
+   │  ▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░ 50%              │
+   │  Instalando dependencias...              │
+   │                                          │
+   │  Esto solo sucede la primera vez        │
+   │  Por favor espera 1-2 minutos           │
+   └─────────────────────────────────────────┘
+
+4. El navegador se abrirá AUTOMÁTICAMENTE en:
+   http://localhost:8501
+
+5. ¡Ya puedes usar la aplicación!
+
+
+⚡ EJECUCIONES SIGUIENTES (instantáneo)
+========================================
+
+1. Doble clic en "MiAppMarcas.exe"
+2. Espera 5-10 segundos
+3. El navegador se abre automáticamente
+4. ¡Listo!
+
+
+📁 ¿DÓNDE ESTÁN MIS DATOS?
+===========================
+
+Todos tus datos están en la carpeta:
+  MiAppMarcas/app/
+
+Contenido importante:
+
+📊 Base de datos:
+   app/boletines.db
+   (Aquí están todos los registros de marcas)
+
+🖼️  Imágenes:
+   app/imagenes/
+   (Logos y recursos visuales)
+
+⚙️  Configuración:
+   app/config.json
+   (Configuración de email y credenciales)
+
+📄 Informes generados:
+   app/informes/
+   (Se crea automáticamente al generar informes)
+
+📝 Logs del sistema:
+   app/logs/
+   (Registro de actividades y errores)
+
+
+💾 RESPALDO DE TUS DATOS
+=========================
+
+¡IMPORTANTE! Haz backup regularmente de:
+  ✅ app/boletines.db (tu base de datos)
+  ✅ app/config.json (tus configuraciones)
+  ✅ app/imagenes/ (tus imágenes personalizadas)
+
+Copia estas carpetas a un lugar seguro:
+- USB / Disco externo
+- Carpeta sincronizada (OneDrive, Google Drive)
+- Servidor de la empresa
+
+
+🔧 SOLUCIÓN DE PROBLEMAS
+=========================
+
+❌ La aplicación no inicia:
+   1. Revisar el archivo "launcher.log"
+   2. Verificar que no haya otro MiAppMarcas ejecutándose
+   3. Reiniciar la computadora
+
+❌ Error durante la instalación:
+   1. Verificar conexión a internet (necesaria primera vez)
+   2. Eliminar la carpeta ".venv" (oculta)
+   3. Ejecutar MiAppMarcas.exe de nuevo
+
+❌ El antivirus bloquea el programa:
+   1. Agregar MiAppMarcas.exe a las excepciones
+   2. O temporalmente deshabilitar el antivirus
+   3. El archivo es seguro, es tu propia aplicación
+
+❌ El navegador no se abre:
+   1. Abrir manualmente: http://localhost:8501
+   2. Verificar que no tengas otro programa en el puerto 8501
+
+❌ "No se puede conectar al servidor":
+   1. Espera 10-15 segundos después de ejecutar
+   2. El servidor tarda un poco en iniciar
+   3. Actualiza la página del navegador
+
+
+🔄 CERRAR LA APLICACIÓN
+========================
+
+Opción 1 (Recomendada):
+   - Cerrar la pestaña del navegador
+   - Cerrar la ventana negra (consola) que quedó abierta
+
+Opción 2:
+   - Presionar Ctrl+C en la ventana negra
+   - Confirmar con "S" (Sí) si pregunta
+
+NO cierres solo el navegador dejando la consola abierta,
+el programa seguirá ejecutándose en segundo plano.
+
+
+📊 REQUISITOS DEL SISTEMA
+==========================
+
+✅ Sistema Operativo:
+   - Windows 10 (64-bit) o superior
+   - Windows 11 (64-bit)
+
+✅ Hardware:
+   - 4GB de RAM (mínimo)
+   - 2GB de espacio en disco
+   - Procesador moderno (últimos 5 años)
+
+✅ Conexión a Internet:
+   - Necesaria solo la PRIMERA vez
+   - Para instalación de dependencias
+   - Luego funciona sin internet (excepto envío de emails)
+
+
+🆕 ACTUALIZACIONES
+===================
+
+Cuando recibas una actualización:
+
+1. Cerrar MiAppMarcas si está ejecutándose
+
+2. HACER BACKUP de:
+   - app/boletines.db
+   - app/config.json
+   - app/imagenes/
+
+3. Opción A - Actualización Completa:
+   - Eliminar la carpeta MiAppMarcas vieja
+   - Descomprimir la nueva versión
+   - Copiar tus backups a la nueva carpeta app/
+
+4. Opción B - Actualización Ligera (si recibiste solo app.zip):
+   - Descomprimir app.zip
+   - Reemplazar la carpeta "app" completa
+   - (La carpeta .venv se mantiene, no reinstala)
+
+5. Ejecutar MiAppMarcas.exe normalmente
+
+
+📞 SOPORTE TÉCNICO
+===================
+
+Si tienes problemas que no puedes resolver:
+
+1. Adjunta el archivo "launcher.log"
+2. Describe el problema paso a paso
+3. Envía capturas de pantalla si es posible
+
+Contacto:
+Email: tu-email@ejemplo.com
+Teléfono: +XX XXX XXX XXXX
+
+
+✨ CONSEJOS Y BUENAS PRÁCTICAS
+===============================
+
+✅ Mantén la ventana negra (consola) abierta mientras usas la app
+✅ Haz backup de tu base de datos semanalmente
+✅ No muevas archivos dentro de la carpeta MiAppMarcas/app/
+✅ Si vas a mover MiAppMarcas a otra ubicación, ciérralo primero
+✅ La primera ejecución requiere internet, las siguientes no
+✅ Si compartes la PC, cada usuario puede tener su propia carpeta MiAppMarcas
+
+
+📝 NOTAS DE VERSIÓN
+====================
+
+Versión 1.0.0 (Octubre 2025)
+- Primera versión distribuible
+- Sistema completo de gestión de marcas
+- Interfaz web intuitiva
+- Base de datos SQLite integrada
+- Sistema de autenticación
+- Generación de informes
+- Envío automático de emails
+
+
+============================================================
+   ¡Gracias por usar MiAppMarcas!
+============================================================

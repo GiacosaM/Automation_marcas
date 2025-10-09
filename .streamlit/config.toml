@@ -1,16 +1,10 @@
+# Archivo de configuración para Streamlit
 [server]
-headless = true
+port = 8501
+headless = false
 enableCORS = false
 enableXsrfProtection = false
-
-[theme]
-primaryColor = "#667eea"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#fafafa"
+address = "0.0.0.0"
 
 [browser]
-gatherUsageStats = false
-
-[global]
-suppressDeprecationWarnings = true
+serverAddress = "localhost"
