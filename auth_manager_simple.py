@@ -194,9 +194,8 @@ def show_login():
             st.markdown(
                 """
                 <div class="auth-header">
-                    <img src="https://mimarca.com.ar/templates/yootheme/cache/10/logo-10f1f883.webp" alt="Logo">
-                    <h1>Mi Marca · Portal</h1>
-                    <p>Estudio Contable — Marcas y Patentes</p>
+                    <h2>MiMarca</h2>
+                    <p>Estudio de Marcas y Patentes</p>
                 </div>
                 """,
                 unsafe_allow_html=True,

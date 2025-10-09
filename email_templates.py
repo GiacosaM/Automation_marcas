@@ -39,12 +39,12 @@ def get_html_template():
             .header {
                 background-color: #1a365d;
                 color: #ffffff;
-                padding: 20px;
+                padding: 25px;
                 text-align: center;
             }
             .header img {
-                max-height: 60px;
-                margin-bottom: 10px;
+                max-height: 120px;
+                margin-bottom: 15px;
             }
             .header h1 {
                 margin: 0;
@@ -92,7 +92,7 @@ def get_html_template():
             <!-- Logo de la empresa -->
             <div style="display:inline-block; vertical-align:middle; margin-right:10px;">
             <img src="cid:logo" alt="Logo Empresa" 
-                style="max-height:60px; max-width:180px; border-radius:8px;">
+                style="max-height:120px; max-width:300px; border-radius:8px;">
             </div>
             
          

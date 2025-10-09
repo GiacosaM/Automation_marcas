@@ -171,8 +171,15 @@ fi
 
 # Copiar carpeta src/ completa (arquitectura modular)
 if [ -d "$PROJECT_ROOT/src" ]; then
-    cp -r "$PROJECT_ROOT/src" "$FINAL_PACKAGE/app/"
-    echo -e "${GREEN}✓${NC} Carpeta src/ copiada"
+    # Usar -R en lugar de -r para una copia recursiva más robusta
+    cp -R "$PROJECT_ROOT/src" "$FINAL_PACKAGE/app/"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Carpeta src/ copiada"
+    else
+        echo -e "${RED}✗${NC} Error al copiar carpeta src/"
+    fi
+else
+    echo -e "${YELLOW}⚠${NC} Carpeta src/ no encontrada en $PROJECT_ROOT/src"
 fi
 
 # Copiar módulos necesarios
@@ -195,8 +202,15 @@ echo -e "\n${YELLOW}[5/6]${NC} Copiando requirements.txt..."
 
 if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
     cp "$PROJECT_ROOT/requirements.txt" "$FINAL_PACKAGE/requirements.txt"
-    echo -e "${GREEN}✓${NC} requirements.txt copiado desde proyecto"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} requirements.txt copiado desde proyecto"
+    else
+        echo -e "${RED}✗${NC} Error al copiar requirements.txt"
+        exit 1
+    fi
 else
+    echo -e "${YELLOW}⚠${NC} requirements.txt no encontrado en $PROJECT_ROOT"
+    echo -e "   Creando requirements.txt básico..."
     # Fallback: crear requirements.txt básico
     cat > "$FINAL_PACKAGE/requirements.txt" << 'EOF'
 # Dependencias principales
@@ -287,6 +301,61 @@ echo -e "📊 Tamaño del paquete: ${YELLOW}$PACKAGE_SIZE${NC}\n"
 
 echo -e "📁 Contenido:"
 ls -lh "$FINAL_PACKAGE" | tail -n +2 | awk '{printf "   %s  %s\n", $9, $5}'
+
+echo -e "\n${BLUE}VERIFICANDO ARCHIVOS CRÍTICOS:${NC}"
+
+# Verificar archivos críticos
+VERIFICATION_PASSED=true
+
+# Verificar requirements.txt
+if [ -f "$FINAL_PACKAGE/requirements.txt" ]; then
+    echo -e "   ${GREEN}✓${NC} requirements.txt presente"
+else
+    echo -e "   ${RED}✗${NC} requirements.txt FALTANTE"
+    VERIFICATION_PASSED=false
+fi
+
+# Verificar carpeta src/
+if [ -d "$FINAL_PACKAGE/app/src" ]; then
+    # Verificar que contenga archivos
+    SRC_FILES=$(find "$FINAL_PACKAGE/app/src" -name "*.py" | wc -l)
+    if [ $SRC_FILES -gt 0 ]; then
+        echo -e "   ${GREEN}✓${NC} Carpeta src/ presente ($SRC_FILES archivos .py)"
+    else
+        echo -e "   ${YELLOW}⚠${NC} Carpeta src/ vacía"
+    fi
+else
+    echo -e "   ${RED}✗${NC} Carpeta src/ FALTANTE"
+    VERIFICATION_PASSED=false
+fi
+
+# Verificar app_refactored.py
+if [ -f "$FINAL_PACKAGE/app/app_refactored.py" ]; then
+    echo -e "   ${GREEN}✓${NC} app_refactored.py presente"
+else
+    echo -e "   ${RED}✗${NC} app_refactored.py FALTANTE"
+    VERIFICATION_PASSED=false
+fi
+
+# Verificar base de datos
+if [ -f "$FINAL_PACKAGE/app/boletines.db" ]; then
+    echo -e "   ${GREEN}✓${NC} boletines.db presente"
+else
+    echo -e "   ${YELLOW}⚠${NC} boletines.db no encontrado (se creará en primera ejecución)"
+fi
+
+# Verificar ejecutable
+if [ -f "$FINAL_PACKAGE/MiAppMarcas" ]; then
+    echo -e "   ${GREEN}✓${NC} Ejecutable MiAppMarcas presente"
+else
+    echo -e "   ${RED}✗${NC} Ejecutable MiAppMarcas FALTANTE"
+    VERIFICATION_PASSED=false
+fi
+
+if [ "$VERIFICATION_PASSED" = false ]; then
+    echo -e "\n${RED}⚠ ADVERTENCIA: Algunos archivos críticos están faltantes${NC}"
+    echo -e "   Por favor revisa los errores arriba antes de distribuir\n"
+fi
 
 echo -e "\n${YELLOW}PRÓXIMOS PASOS:${NC}"
 echo -e "   1. Prueba el ejecutable:"

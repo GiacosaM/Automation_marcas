@@ -622,8 +622,14 @@ def procesar_envio_emails(conn, email_usuario=None, password_usuario=None):
                     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
                     'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
                 ]
-                mes_actual = f"{meses_es[now.month - 1].capitalize()} {now.year}"
-                asunto = f"Reporte de marcas de importancia {importancia} - {mes_actual}"
+                mes_anterior = f"{meses_es[now.month - 2].capitalize()} {now.year}" if now.month > 1 else f"Diciembre {now.year - 1}"
+                
+                # Personalizar el asunto según la importancia
+                if importancia.lower() == 'baja':
+                    asunto = f"Custodia de Marcas con deteccion de similares  - {mes_anterior}"
+                else:
+                    asunto = f"Custodia de Marcas con deteccion de similitudes relevantes - {mes_anterior}"
+            
                 mensaje = crear_mensaje_email(titular, importancia, datos_grupo['boletines'])
                 
                 # Enviar email

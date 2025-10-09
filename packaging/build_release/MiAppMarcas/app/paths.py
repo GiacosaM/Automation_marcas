@@ -42,8 +42,12 @@ def get_data_dir():
     Returns:
         str: Ruta absoluta al directorio de datos.
     """
-    # Usar el directorio base de la aplicación (donde está el ejecutable o el script)
-    data_dir = get_base_dir()
+    # Si estamos ejecutando localmente y queremos usar una ubicación específica
+    if os.path.exists("/Users/martingiacosa/Desktop/MiAppMarcas"):
+        data_dir = "/Users/martingiacosa/Desktop/MiAppMarcas"
+    else:
+        # Usar el directorio base de la aplicación (donde está el ejecutable o el script)
+        data_dir = get_base_dir()
     
     # Crear subdirectorios necesarios
     for subdir in ['assets', 'imagenes', 'informes', 'logs', 'config']:
