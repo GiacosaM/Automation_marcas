@@ -3,7 +3,7 @@ import os
 import logging
 import secrets  
 from fpdf import FPDF
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import List, Tuple, Optional
 from professional_theme import ProfessionalTheme
@@ -499,6 +499,11 @@ class ReportGenerator:
             mes_ano = mes_ingles.replace(fecha_actual.strftime("%B"), meses_castellano[fecha_actual.strftime("%B")])
             mes_ano_archivo = mes_ingles.replace(fecha_actual.strftime("%B"), meses_castellano[fecha_actual.strftime("%B")]).replace(" ", "-")
             
+            # Calcular el mes anterior correctamente
+            fecha_mes_anterior = fecha_actual.replace(day=1) - timedelta(days=1)
+            mes_anterior_ingles = fecha_mes_anterior.strftime("%B %Y")
+            mes_ano_anterior = mes_anterior_ingles.replace(fecha_mes_anterior.strftime("%B"), meses_castellano[fecha_mes_anterior.strftime("%B")])
+            
             # Log de inicio con resumen mejorado
             titulares_unicos = len(set(clave[0] for clave in agrupados.keys()))
             logger.info(f"🚀 INICIANDO GENERACIÓN DE INFORMES")
@@ -514,7 +519,7 @@ class ReportGenerator:
             for (titular, importancia), registros_grupo in agrupados.items():
                 try:
                     nombre_archivo, ruta_archivo = self._generate_single_report(
-                        titular, registros_grupo, mes_ano, mes_ano_archivo, importancia
+                        titular, registros_grupo, mes_ano_anterior, mes_ano_archivo, importancia
                     )
                     
                     # Marcar los registros de este grupo específico como procesados
@@ -559,7 +564,7 @@ class ReportGenerator:
             }
     
     def _generate_single_report(self, titular: str, registros: List[Tuple], 
-                              mes_ano: str, mes_ano_archivo: str, importancia: str) -> Tuple[str, str]:
+                              mes_ano_anterior: str, mes_ano_archivo: str, importancia: str) -> Tuple[str, str]:
         """Genera un informe individual para un titular con una importancia específica."""
         try:
             # Crear PDF con tema profesional
@@ -569,11 +574,12 @@ class ReportGenerator:
             
             # Título principal con importancia
             titulo_principal = f"INFORME DE MARCAS PUBLICADAS"
-            subtitulo = f"Clasificacion: {importancia.upper()} - Periodo: {mes_ano}"
-            pdf.add_main_title(titulo_principal, subtitulo)
+            #subtitulo = f"Clasificacion: {importancia.upper()} - Periodo: {mes_ano}"
+            #pdf.add_main_title(titulo_principal, subtitulo)
+            pdf.add_main_title(titulo_principal)
             
             # Sección de información general
-            pdf.add_info_section(titular, mes_ano, len(registros))
+            pdf.add_info_section(titular, mes_ano_anterior, len(registros))
             
             # Separador para tabla de resumen
             pdf.add_section_separator("RESUMEN DE REGISTROS")
@@ -598,7 +604,7 @@ class ReportGenerator:
             # Guardar PDF con nombre que incluya importancia
             titular_limpio = self._clean_filename(titular)
             digitos_random = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-            nombre_archivo = f"{mes_ano_archivo} - Informe {titular_limpio} - {importancia} - {digitos_random}.pdf"
+            nombre_archivo = f"Informe {titular_limpio} - {importancia} - {digitos_random}.pdf"
             
             ruta_archivo = os.path.join(self.output_dir, nombre_archivo)  
             pdf.output(ruta_archivo)

@@ -364,9 +364,13 @@ class GridService:
         # Aplicar configuraciones personalizadas de columnas si existen
         if custom_column_defs:
             for col_def in custom_column_defs:
-                field_name = col_def.pop("field")
-                header_name = col_def.pop("headerName", field_name)
-                gb.configure_column(field_name, headerName=header_name, **col_def)
+                # Hacer una copia para no modificar el original
+                col_def_copy = col_def.copy()
+                field_name = col_def_copy.pop("field", None)
+                if field_name is None:
+                    continue  # Saltar esta columna si no tiene el campo field
+                header_name = col_def_copy.pop("headerName", field_name)
+                gb.configure_column(field_name, headerName=header_name, **col_def_copy)
         
         grid_options = gb.build()
         

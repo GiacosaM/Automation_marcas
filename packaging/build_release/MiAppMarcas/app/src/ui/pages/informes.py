@@ -166,58 +166,199 @@ class InformesPage:
     def _generate_all_reports(self):
         """Generar todos los reportes pendientes usando report_generator y mostrar links de descarga"""
         import os
-        with st.spinner("🔄 Generando informes..."):
-            try:
+        import time
+        import traceback
+        import shutil
+        import logging
+        from paths import get_informes_dir, get_assets_dir, get_image_path, inicializar_assets, get_logo_path
+        
+        # Configurar logging específico para esta función
+        logging.basicConfig(level=logging.INFO, 
+                            format='%(asctime)s - %(levelname)s - %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S')
+        
+        report_logger = logging.getLogger('report_generation')
+        
+        # Asegurar que los directorios necesarios existan
+        try:
+            # Mostrar mensaje inicial al usuario
+            st.info("🔄 Iniciando generación de informes. Este proceso puede tomar unos momentos...")
+            
+            # Usar un placeholder para mostrar mensajes de progreso
+            progress_placeholder = st.empty()
+            progress_placeholder.text("Verificando directorios y assets...")
+            
+            # Obtener las rutas correctas usando paths.py
+            informes_dir = get_informes_dir()
+            assets_dir = get_assets_dir()
+            imagenes_dir = get_image_path() # Esta función devuelve el directorio de imágenes
+            
+            # Verificar si los directorios existen, si no, crearlos
+            for dir_path in [informes_dir, assets_dir, imagenes_dir]:
+                if not os.path.exists(dir_path):
+                    os.makedirs(dir_path, exist_ok=True)
+                    report_logger.info(f"Directorio creado: {dir_path}")
+            
+            # También crear un directorio local para compatibilidad
+            if not os.path.exists("informes"):
+                os.makedirs("informes", exist_ok=True)
+                report_logger.info("Directorio local 'informes' creado")
+                
+            # Intentar inicializar los assets (logos) usando la función de paths.py
+            progress_placeholder.text("Inicializando recursos (logos)...")
+            inicializar_assets()
+            report_logger.info("Assets inicializados correctamente")
+            
+            # Verificar si el logo existe
+            logo_path = get_logo_path()
+            if logo_path and os.path.exists(logo_path):
+                report_logger.info(f"Logo encontrado en: {logo_path}")
+            else:
+                report_logger.warning("Logo no encontrado en la ruta estándar")
+                
+                # Intentar encontrar/copiar logos de ubicaciones alternativas
+                logo_jpg_path = r"c:\Users\Iara\Downloads\Archivo\logo.jpg"
+                logo_png_path = r"c:\Users\Iara\Downloads\Archivo\Logo.png"
+                
+                # Intentar copiar los logos externos si existen
+                try:
+                    if os.path.exists(logo_jpg_path):
+                        shutil.copy2(logo_jpg_path, os.path.join(assets_dir, "logo.jpg"))
+                        shutil.copy2(logo_jpg_path, os.path.join(imagenes_dir, "marca_agua.jpg"))
+                        report_logger.info(f"Logo JPG copiado desde: {logo_jpg_path}")
+                    
+                    if os.path.exists(logo_png_path):
+                        shutil.copy2(logo_png_path, os.path.join(assets_dir, "logo.png"))
+                        shutil.copy2(logo_png_path, os.path.join(imagenes_dir, "marca_agua.png"))
+                        report_logger.info(f"Logo PNG copiado desde: {logo_png_path}")
+                except Exception as e:
+                    report_logger.error(f"Error copiando logos: {str(e)}")
+            
+            # Mostrar spinner con animación de progreso
+            with st.spinner("🔄 Generando informes..."):
+                # Conectar a la base de datos
+                progress_placeholder.text("Conectando a la base de datos...")
                 conn = crear_conexion()
-                if conn:
-                    resultado = generar_informe_pdf(conn)
-                    download_links = []
-                    # Si la función retorna nombres/rutas de archivos, mostrar links
-                    if resultado['success']:
-                        if resultado['message'] == 'no_pending':
-                            st.success("✅ No hay informes pendientes de generación")
-                        elif resultado['message'] == 'completed':
-                            if resultado['reportes_generados'] > 0:
-                                st.success(f"✅ Se generaron {resultado['reportes_generados']} informes correctamente")
-                                if resultado.get('pendientes', 0) > 0:
-                                    st.info(f"ℹ️ {resultado['pendientes']} registros permanecen como 'Pendiente' y no fueron procesados")
-                                if resultado.get('errores', 0) > 0:
-                                    st.warning(f"⚠️ {resultado['errores']} informes tuvieron errores durante la generación")
-                                # Mostrar links de descarga si existen
-                                # Buscar los archivos generados en la carpeta de informes
-                                informes_dir = "informes"
-                                if os.path.exists(informes_dir):
-                                    archivos = [f for f in os.listdir(informes_dir) if f.endswith('.pdf')]
-                                    if archivos:
-                                        st.markdown("### 📥 Descargar Informes Generados")
-                                        for archivo in archivos:
-                                            ruta = os.path.join(informes_dir, archivo)
+                
+                if not conn:
+                    st.error("❌ No se pudo conectar a la base de datos")
+                    return
+                
+                report_logger.info("Conexión a la base de datos establecida")
+                
+                # Establecer el tiempo de inicio
+                start_time = time.time()
+                
+                # Generar informes directamente (sin threading)
+                progress_placeholder.text("Procesando registros y generando informes...")
+                report_logger.info("Iniciando generación de informes")
+                
+                # Llamar a la función de generación de informes
+                resultado = generar_informe_pdf(conn)
+                report_logger.info(f"Resultado de generación: {resultado}")
+                
+                # Registrar el tiempo que tomó
+                elapsed_time = time.time() - start_time
+                progress_placeholder.text(f"Proceso completado en {elapsed_time:.1f} segundos")
+                report_logger.info(f"Tiempo de procesamiento: {elapsed_time:.1f} segundos")
+                
+                # Mostrar resultado
+                if resultado['success']:
+                    if resultado['message'] == 'no_pending':
+                        st.success("✅ No hay informes pendientes de generación")
+                    elif resultado['message'] == 'completed':
+                        if resultado.get('reportes_generados', 0) > 0:
+                            st.success(f"✅ Se generaron {resultado['reportes_generados']} informes correctamente")
+                            if resultado.get('pendientes', 0) > 0:
+                                st.info(f"ℹ️ {resultado['pendientes']} registros permanecen como 'Pendiente' y no fueron procesados")
+                            if resultado.get('errores', 0) > 0:
+                                st.warning(f"⚠️ {resultado['errores']} informes tuvieron errores durante la generación")
+                            
+                            # Buscar archivos PDF generados
+                            progress_placeholder.text("Buscando informes generados...")
+                            archivos_encontrados = False
+                            
+                            # Mostrar links de descarga desde ambas ubicaciones posibles
+                            # Primero buscar en el directorio obtenido de get_informes_dir()
+                            if os.path.exists(informes_dir):
+                                archivos = [f for f in os.listdir(informes_dir) if f.endswith('.pdf')]
+                                report_logger.info(f"Encontrados {len(archivos)} archivos PDF en {informes_dir}")
+                                
+                                if archivos:
+                                    archivos_encontrados = True
+                                    st.markdown("### 📥 Descargar Informes Generados")
+                                    for archivo in archivos[:10]:  # Limitar a 10 archivos para evitar sobrecarga
+                                        ruta = os.path.join(informes_dir, archivo)
+                                        try:
                                             with open(ruta, "rb") as f:
                                                 st.download_button(
                                                     label=f"Descargar {archivo}",
                                                     data=f.read(),
                                                     file_name=archivo,
-                                                    mime="application/pdf"
+                                                    mime="application/pdf",
+                                                    key=f"download_{archivo}"
                                                 )
-                            else:
-                                st.warning("⚠️ No se pudo generar ningún informe")
-                    else:
-                        if resultado['message'] == 'pending_only':
-                            st.warning(f"⚠️ No se generaron informes. Los {resultado['pendientes']} registros están marcados como 'Pendiente'")
-                            st.info("💡 Cambia la importancia de los registros en la sección 'Historial' para poder procesarlos")
-                        elif resultado['message'] == 'error':
-                            st.error(f"❌ Error al generar informes: {resultado.get('error', 'Error desconocido')}")
+                                        except Exception as e:
+                                            st.warning(f"No se pudo cargar {archivo}: {e}")
+                                            report_logger.error(f"Error cargando archivo {archivo}: {e}")
+                            
+                            # Si no se encontraron archivos en el directorio principal, buscar en "informes" local
+                            if not archivos_encontrados and os.path.exists("informes"):
+                                archivos = [f for f in os.listdir("informes") if f.endswith('.pdf')]
+                                report_logger.info(f"Encontrados {len(archivos)} archivos PDF en el directorio local 'informes'")
+                                
+                                if archivos:
+                                    st.markdown("### 📥 Descargar Informes Generados")
+                                    for archivo in archivos[:10]:  # Limitar a 10 archivos para evitar sobrecarga
+                                        ruta = os.path.join("informes", archivo)
+                                        try:
+                                            with open(ruta, "rb") as f:
+                                                st.download_button(
+                                                    label=f"Descargar {archivo}",
+                                                    data=f.read(),
+                                                    file_name=archivo,
+                                                    mime="application/pdf",
+                                                    key=f"download_local_{archivo}"
+                                                )
+                                        except Exception as e:
+                                            st.warning(f"No se pudo cargar {archivo}: {e}")
+                                            report_logger.error(f"Error cargando archivo local {archivo}: {e}")
+                                            
+                            # Si no se encontraron archivos en ninguna ubicación
+                            if not archivos_encontrados:
+                                st.warning(f"⚠️ Los informes fueron generados, pero no se pueden encontrar en la carpeta: {informes_dir}")
+                                st.info("Intente ver los reportes en la sección de Historial")
+                                report_logger.warning(f"No se encontraron archivos PDF ni en {informes_dir} ni en 'informes' local")
                         else:
-                            st.error("❌ No se pudieron generar los informes")
-                    # Botón para ir al historial
-                    if st.button("📋 Ver Reportes Generados"):
-                        SessionManager.set_current_page('historial')
-                        SessionManager.set('show_db_section', True)
-                        st.rerun()
+                            st.warning("⚠️ No se pudo generar ningún informe")
+                            report_logger.warning("No se generaron informes (resultado['reportes_generados'] = 0)")
                 else:
-                    st.error("❌ No se pudo conectar a la base de datos")
-            except Exception as e:
-                st.error(f"❌ Error durante la generación: {e}")
+                    if resultado.get('message') == 'pending_only':
+                        st.warning(f"⚠️ No se generaron informes. Los {resultado.get('pendientes', 0)} registros están marcados como 'Pendiente'")
+                        st.info("💡 Cambia la importancia de los registros en la sección 'Historial' para poder procesarlos")
+                    elif resultado.get('message') == 'error':
+                        st.error(f"❌ Error al generar informes: {resultado.get('error', 'Error desconocido')}")
+                        report_logger.error(f"Error generando informes: {resultado.get('error', 'Error desconocido')}")
+                    else:
+                        st.error("❌ No se pudieron generar los informes")
+                        report_logger.error("No se pudieron generar los informes (razón desconocida)")
+                
+                # Botón para ir al historial
+                if st.button("📋 Ver Reportes Generados"):
+                    SessionManager.set_current_page('historial')
+                    SessionManager.set('show_db_section', True)
+                    st.rerun()
+                    
+            # Mensaje final fuera del spinner para confirmar que todo terminó
+            progress_placeholder.empty()  # Limpiar el placeholder
+            report_logger.info("Proceso de generación de informes completado")
+            
+        except Exception as e:
+            error_msg = f"❌ Error durante la generación de informes: {str(e)}"
+            st.error(error_msg)
+            st.error(traceback.format_exc())
+            report_logger.error(f"Error crítico en _generate_all_reports: {str(e)}")
+            report_logger.error(traceback.format_exc())
     
     
     
@@ -406,6 +547,15 @@ class InformesPage:
                 if st.button("🚨 Verificar Titulares sin Reportes", use_container_width=True):
                     with st.spinner("Verificando titulares sin reportes..."):
                         try:
+                            # Importar el módulo correctamente usando sys.path para asegurarnos de que encuentre el archivo
+                            import sys
+                            import os
+                            
+                            # Añadir el directorio raíz de la aplicación al path
+                            app_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                            if app_root not in sys.path:
+                                sys.path.insert(0, app_root)
+                            
                             from verificar_titulares_sin_reportes import verificar_titulares_sin_reportes
                             from database import crear_conexion
                             

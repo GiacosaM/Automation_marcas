@@ -180,7 +180,7 @@ def install_dependencies():
             [str(venv_python), "-m", "pip", "install", "-r", str(REQUIREMENTS_FILE)],
             capture_output=True,
             text=True,
-            timeout=600  # 10 minutos máximo
+            timeout=900  # 15 minutos máximo
         )
         
         if result.returncode != 0:

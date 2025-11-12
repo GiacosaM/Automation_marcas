@@ -543,7 +543,7 @@ def show_clientes_page():
                                                 del st.session_state['clientes_data']
 
                                             # Mostrar mensaje informativo sobre los botones de acción fuera del formulario
-                                            st.info("✅ **Cliente agregado con éxito.** Puedes agregar otro cliente o ver la lista de todos los clientes usando los botones abajo.")
+                                            st.info("✅ **Cliente agregado con éxito.**")
 
                                             # Guardar un flag para indicar que debemos cambiar de pestaña en la próxima ejecución
                                             st.session_state.cliente_recien_agregado = True
@@ -569,43 +569,7 @@ def show_clientes_page():
                                     for error in errors:
                                         st.error(error)
                     
-                    # Mostrar botones de acción fuera del formulario cuando se haya agregado un cliente
-                    if 'cliente_recien_agregado' in st.session_state and st.session_state.cliente_recien_agregado:
-                        st.session_state.cliente_recien_agregado = False  # Resetear flag
-                        
-                        st.markdown("---")
-                        st.markdown("### ¿Qué deseas hacer ahora?")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        # Botón para ver lista de clientes con estilo mejorado
-                        with col1:
-                            if st.button("📋 Ver lista de clientes", key="btn_ver_lista", use_container_width=True, type="primary"):
-                                # Este es el punto clave: configuramos el flag y forzamos rerun
-                                st.session_state.switch_to_list = True
-                                
-                                # Limpiar cualquier caché para asegurar datos frescos
-                                if 'clientes_data' in st.session_state:
-                                    del st.session_state['clientes_data']
-                                
-                                # Pequeña pausa para asegurar que los cambios se apliquen
-                                time.sleep(0.1)
-                                st.rerun()
-                                
-                        # Botón para agregar otro cliente
-                        with col2:
-                            if st.button("➕ Agregar otro cliente", key="btn_otro_cliente", use_container_width=True):
-                                # Limpiar los campos del formulario para un nuevo cliente
-                                st.session_state.form_titular = ""
-                                st.session_state.form_email = ""
-                                st.session_state.form_telefono = ""
-                                st.session_state.form_cuit = ""
-                                st.session_state.form_ciudad = ""
-                                st.session_state.form_provincia = ""
-                                st.session_state.form_direccion = ""
-                                
-                                # Recargar la página para mostrar el formulario limpio
-                                st.rerun()
+                   
             
             else:
                 st.info("No hay clientes registrados en el sistema")

@@ -30,6 +30,11 @@ def show_marcas_page():
     """Mostrar la página de gestión de marcas"""
     st.title("🏷️ Gestión de Marcas")
     
+    # Verificar si venimos de agregar una marca exitosamente
+    if st.session_state.get("marca_agregada_exitosamente", False):
+        # Limpiar la bandera para evitar entrar en este bloque de nuevo
+        del st.session_state["marca_agregada_exitosamente"]
+    
     # Cargar datos de marcas
     conn = crear_conexion()
     if conn:
@@ -160,20 +165,7 @@ def show_marcas_page():
                         st.markdown(f"📊 **{len(filtered_marcas)}** marcas de **{len(df_marcas)}** totales")
                         
                         # Crear grid para marcas con columnas personalizadas
-                        column_defs = [
-                            {"headerName": "ID", "field": "id", "hide": True},
-                            {"headerName": "Marca", "field": "marca", "width": 180},
-                            {"headerName": "Código", "field": "codigo_marca", "width": 120},
-                            {"headerName": "Clase", "field": "clase", "width": 100},
-                            {"headerName": "Acta", "field": "acta", "width": 120},
-                            {"headerName": "Nro. Concesión", "field": "nrocon", "width": 150},
-                            {"headerName": "Custodia", "field": "custodia", "width": 120},
-                            {"headerName": "Titular", "field": "titular", "width": 180},
-                            {"headerName": "CUIT", "field": "cuit", "width": 140},
-                            {"headerName": "Email", "field": "email", "width": 250},  # Columna de email más ancha
-                            {"headerName": "Cliente ID", "field": "cliente_id", "width": 120}
-                        ]
-                        
+                        # Usamos el método mejorado que corrige el error 'field'
                         grid_response = GridService.create_grid(
                             filtered_marcas, 
                             'grid_marcas', 
@@ -181,7 +173,19 @@ def show_marcas_page():
                             selection_mode='single',
                             fit_columns=False,
                             editable=False,
-                            custom_column_defs=column_defs
+                            custom_column_defs=[
+                                {"headerName": "ID", "field": "id", "hide": True},
+                                {"headerName": "Marca", "field": "marca", "width": 180},
+                                {"headerName": "Código", "field": "codigo_marca", "width": 120},
+                                {"headerName": "Clase", "field": "clase", "width": 100},
+                                {"headerName": "Acta", "field": "acta", "width": 120},
+                                {"headerName": "Nro. Concesión", "field": "nrocon", "width": 150},
+                                {"headerName": "Custodia", "field": "custodia", "width": 120},
+                                {"headerName": "Titular", "field": "titular", "width": 180}, 
+                                {"headerName": "CUIT", "field": "cuit", "width": 140},
+                                {"headerName": "Email", "field": "email", "width": 250},  # Columna de email más ancha
+                                {"headerName": "Cliente ID", "field": "cliente_id", "width": 120}
+                            ]
                         )
                         
                                 # Panel de acciones para marca seleccionada
@@ -438,19 +442,20 @@ def show_marcas_page():
                             clientes_df = pd.DataFrame(clientes_rows, columns=clientes_cols)
                             
                             if not clientes_df.empty:
-                                # Crear opciones para el selectbox con ID y nombre
-                                opciones_clientes = [("", "Sin vincular")] + [(str(row['id']), row['titular']) for _, row in clientes_df.iterrows()]
-                                cliente_labels = [f"{id} - {nombre}" if id else nombre for id, nombre in opciones_clientes]
+                                # Crear opciones para el selectbox SOLO con clientes (sin opción "Sin vincular")
+                                opciones_clientes = [(str(row['id']), row['titular']) for _, row in clientes_df.iterrows()]
+                                cliente_labels = [f"{id} - {nombre}" for id, nombre in opciones_clientes]
                                 
-                                # Mostrar selector
+                                # Mostrar selector con mensaje claro de obligatoriedad
+                                st.markdown("**🔗 Vincular a Cliente (Obligatorio)** ⚠️")
                                 cliente_seleccionado_idx = st.selectbox(
-                                    "Vincular a Cliente �", 
+                                    "Seleccione un cliente", 
                                     range(len(opciones_clientes)),
                                     format_func=lambda i: cliente_labels[i]
                                 )
                                 cliente_id_nueva = opciones_clientes[cliente_seleccionado_idx][0]
                             else:
-                                st.warning("No hay clientes disponibles para vincular.")
+                                st.error("❌ No hay clientes disponibles. Debe crear al menos un cliente antes de agregar marcas.")
                                 cliente_id_nueva = ""
                         
                         st.markdown("---")
@@ -469,6 +474,8 @@ def show_marcas_page():
                                 st.error("❌ El titular es obligatorio")
                             elif not cuit_nueva:
                                 st.error("❌ El CUIT es obligatorio")
+                            elif not cliente_id_nueva:
+                                st.error("❌ Debe seleccionar un cliente para vincular la marca")
                             else:
                                 try:
                                     # Insertar marca en la base de datos
@@ -479,12 +486,28 @@ def show_marcas_page():
                                         clase_nueva,
                                         acta_nueva,
                                         custodia_nueva,
-                                        titular_nueva,
-                                        cuit_nueva,
+                                        cuit_nueva,        # Parámetro cuit
+                                        titular_nueva,     # Parámetro titular
                                         nrocon_nueva,
                                         email_nueva,
                                         cliente_id_nueva if cliente_id_nueva else None
                                     )
+                                    
+                                    # Actualizar el nombre del titular en la tabla clientes si se ha vinculado un cliente
+                                    if resultado and cliente_id_nueva:
+                                        try:
+                                            # Actualizar solo el campo titular del cliente
+                                            cursor = conn.cursor()
+                                            cursor.execute("""
+                                                UPDATE clientes 
+                                                SET titular = ?
+                                                WHERE id = ?
+                                            """, (titular_nueva, int(cliente_id_nueva)))
+                                            conn.commit()
+                                            # El titular del cliente ha sido actualizado correctamente
+                                        except Exception as e:
+                                            # Continuar aunque falle la actualización del titular
+                                            pass
                                     
                                     if resultado:
                                         st.success("✅ Marca agregada correctamente")
@@ -493,8 +516,8 @@ def show_marcas_page():
                                         if 'marcas_data' in st.session_state:
                                             del st.session_state.marcas_data
                                         
-                                        # Limpiar campos del formulario
-                                        st.session_state["form_nueva_marca"] = {}
+                                        # Establecer una bandera para recargar la página
+                                        st.session_state["marca_agregada_exitosamente"] = True
                                         
                                         # Cambiar a la pestaña de lista
                                         st.session_state["active_tab"] = "Lista de Marcas"
@@ -525,21 +548,22 @@ def show_marcas_page():
                         if submit_button:
                             if not marca_nueva:
                                 st.error("❌ El nombre de la marca es obligatorio")
+                            elif not titular_nueva:
+                                st.error("❌ El titular es obligatorio")
+                            elif not cuit_nueva:
+                                st.error("❌ El CUIT es obligatorio")
                             else:
                                 try:
-                                    resultado = insertar_marca(
-                                        conn,
-                                        marca_nueva,
-                                        "",  # código_marca
-                                        clase_nueva,
-                                        "",  # acta
-                                        "",  # custodia
-                                        cuit_nueva,
-                                        titular_nueva
-                                    )
+                                    # Para "Agregar primera marca", siempre crear primero un cliente
+                                    # Este caso es especial para la primera marca en un sistema vacío
+                                    st.error("❌ Para agregar marcas es necesario crear primero un cliente en la sección 'Clientes'")
+                                    st.stop()  # Detener la ejecución
+                                    resultado = None
                                     
                                     if resultado:
                                         st.success(f"✅ Marca '{marca_nueva}' agregada correctamente")
+                                        # Establecer una bandera para recargar la página
+                                        st.session_state["marca_agregada_exitosamente"] = True
                                         time.sleep(1)
                                         st.rerun()
                                     else:

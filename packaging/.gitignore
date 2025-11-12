@@ -6,6 +6,7 @@ env/
 # Ignorar directorios de compilación
 build/
 dist/
+python/
 
 # Ignorar archivos generados por PyInstaller
 *.spec~
@@ -27,3 +28,15 @@ Thumbs.db
 # Ignorar checksums
 checksums.txt
 checksums.sha256
+
+MiAppMarcas.exe
+MiAppMarcas-Setup.exe
+InnosetupScript.iss
+GUIA_PASO_A_PASO.md
+log_config.txt
+
+assets/
+
+# Omitir la carpeta del entorno virtual
+.venv/
+venv/
