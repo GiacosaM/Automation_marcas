@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
 # Importar funciones de logs desde database.py y paths.py
-from database import insertar_log_envio
+from database import insertar_log_envio, cliente_tiene_marcas
 from paths import get_logs_dir
 from email_utils import obtener_credenciales
 
@@ -61,10 +61,17 @@ def validar_credenciales_email(email_usuario: str, password_usuario: str) -> boo
         smtp_host = credenciales.get('smtp_host', 'smtp.gmail.com')  # Valor por defecto como fallback
         smtp_port = credenciales.get('smtp_port', 587)  # Valor por defecto como fallback
         
-        server = smtplib.SMTP(smtp_host, smtp_port)
-        server.starttls()
-        server.login(email_usuario, password_usuario)
-        server.quit()
+        server = None
+        try:
+            server = smtplib.SMTP(smtp_host, smtp_port)
+            server.starttls()
+            server.login(email_usuario, password_usuario)
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
         return True
     except Exception as e:
         logging.error(f"Error validando credenciales: {e}")
@@ -181,17 +188,29 @@ def obtener_registros_pendientes_envio(conn):
             logging.warning(f"Titulares afectados: {', '.join(titulares_list)}")
             raise Exception(f"No se pueden enviar emails: hay {pendientes_count} reportes con importancia 'Pendiente' que requieren revisión manual. Titulares: {', '.join(titulares_list)}")
         
-        # Si no hay pendientes, proceder con la consulta normal
+        # Si no hay pendientes, proceder con la consulta normal.
+        # Doble JOIN con normalizar_titular(): tolera comas, tildes, espacios extra.
         cursor.execute("""
-            SELECT 
-                b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
-                b.numero_orden, b.solicitante, b.agente, b.numero_expediente, 
+            SELECT
+                b.id, b.titular, b.numero_boletin, b.fecha_boletin,
+                b.numero_orden, b.solicitante, b.agente, b.numero_expediente,
                 b.clase, b.marca_custodia, b.marca_publicada, b.clases_acta,
                 b.observaciones, b.nombre_reporte, b.ruta_reporte, b.importancia,
-                c.email, c.telefono, c.direccion, c.ciudad
+                COALESCE(c.email,  c2.email)       AS email,
+                COALESCE(c.telefono, c2.telefono)   AS telefono,
+                COALESCE(c.direccion, c2.direccion) AS direccion,
+                COALESCE(c.ciudad, c2.ciudad)      AS ciudad
             FROM boletines b
-            LEFT JOIN clientes c ON b.titular = c.titular
-            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0 
+            LEFT JOIN clientes c
+                   ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
+            LEFT JOIN Marcas m
+                   ON c.id IS NULL
+                  AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
+                  AND m.cliente_id IS NOT NULL
+            LEFT JOIN clientes c2
+                   ON c.id IS NULL
+                  AND m.cliente_id = c2.id
+            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0
             AND b.importancia IN ('Baja', 'Media', 'Alta')
             ORDER BY b.titular, b.importancia, b.numero_boletin
         """)
@@ -315,9 +334,7 @@ def obtener_archivo_reporte(boletines_data):
             if os.path.exists(ruta_completa):
                 return ruta_completa, boletin['nombre_reporte']
             else:
-                # Solo log archivos faltantes críticos
-                if not archivo_adjunto:
-                    email_logger.warning(f"⚠️ Archivo de reporte faltante para {titular} ({importancia})")
+                email_logger.warning(f"⚠️ Archivo de reporte faltante: {ruta_completa}")
     
     return None, None
 
@@ -354,26 +371,13 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         # Adjuntar alternative al root
         msg_root.attach(msg_alternative)
 
-        # Agregar logo si existe (mismo comportamiento que verificar_titulares_sin_reportes.py)
-        from paths import get_assets_dir
-        logo_path = os.path.join(get_assets_dir(), 'Logo.png')
-        # Buscar también en otras ubicaciones posibles si no existe en assets
-        if not os.path.exists(logo_path):
-            alt_paths = [
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png'),
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo1.png'),
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Logo.png')
-            ]
-            for path in alt_paths:
-                if os.path.exists(path):
-                    logo_path = path
-                    break
-
-        if os.path.exists(logo_path):
+        # Agregar logo si existe
+        from paths import get_logo_path
+        logo_path = get_logo_path()
+        if logo_path:
             try:
                 with open(logo_path, 'rb') as img_file:
                     img_data = img_file.read()
-                    # Intentar detectar tipo MIME por extensión
                     mime_type, _ = mimetypes.guess_type(logo_path)
                     if mime_type and mime_type.startswith('image/'):
                         subtype = mime_type.split('/')[1]
@@ -381,15 +385,14 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
                         ext = os.path.splitext(logo_path)[1].lstrip('.').lower()
                         subtype = ext if ext else 'png'
                     img = MIMEImage(img_data, _subtype=subtype)
-                    # Asegurarse de que el Content-ID coincida exactamente con cid:logo usado en la plantilla
                     img.add_header('Content-ID', '<logo>')
                     img.add_header('Content-Disposition', 'inline; filename="Logo.png"')
                     msg_root.attach(img)
-                    logger.info(f"Logo adjuntado desde {logo_path} con Content-ID <logo>")
+                    email_logger.info(f"Logo adjuntado desde {logo_path} con Content-ID <logo>")
             except Exception as e:
                 logging.warning(f"Error al adjuntar logo: {e}")
         else:
-            logging.warning(f"No se encontró el archivo de logo en ninguna ruta esperada. Buscado: {logo_path}")
+            logging.warning("Logo no encontrado. El correo se enviará sin logo.")
         
         # Agregar archivo adjunto si existe
         if archivo_adjunto and os.path.exists(archivo_adjunto):
@@ -420,20 +423,27 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
         smtp_port = credenciales.get('smtp_port', 587)  # Valor por defecto como fallback
         
         # Conectar al servidor SMTP
-        server = smtplib.SMTP(smtp_host, smtp_port)
-        server.starttls()
-        server.login(email_usuario, password_usuario)
-        
-        # Enviar email (usar msg_root si existe, sino msg para compatibilidad)
-        if 'msg_root' in locals():
-            text = msg_root.as_string()
-        elif 'msg' in locals():
-            text = msg.as_string()
-        else:
-            raise Exception("No se encontró el mensaje para enviar (msg_root/msg)")
+        server = None
+        try:
+            server = smtplib.SMTP(smtp_host, smtp_port)
+            server.starttls()
+            server.login(email_usuario, password_usuario)
+            
+            # Enviar email (usar msg_root si existe, sino msg para compatibilidad)
+            if 'msg_root' in locals():
+                text = msg_root.as_string()
+            elif 'msg' in locals():
+                text = msg.as_string()
+            else:
+                raise Exception("No se encontró el mensaje para enviar (msg_root/msg)")
 
-        server.sendmail(email_usuario, destinatario, text)
-        server.quit()
+            server.sendmail(email_usuario, destinatario, text)
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
         
         email_logger.info(f"📧 Email enviado exitosamente: {destinatario}")
         return True
@@ -481,9 +491,13 @@ def validar_clientes_para_envio(conn):
         'sin_reporte': [],
         'listos_para_envio': 0,
         'puede_continuar': True,
-        'mensajes': []
+        'mensajes': [],
+        # Indicadores adicionales solo para VISIBILIDAD en UI (no afectan la lógica de envío)
+        'sin_cliente': [],
+        'sin_marcas': []
     }
     
+    cursor = None
     try:
         # Obtener registros pendientes de envío agrupados por (titular + importancia)
         registros_por_grupo = obtener_registros_pendientes_envio(conn)
@@ -494,6 +508,9 @@ def validar_clientes_para_envio(conn):
         
         validacion['total_grupos'] = len(registros_por_grupo)
         
+        # Cursor reutilizable para consultas auxiliares de visibilidad
+        cursor = conn.cursor()
+        
         # Analizar cada grupo (titular + importancia)
         for clave_grupo, datos_grupo in registros_por_grupo.items():
             titular = datos_grupo['titular']
@@ -503,7 +520,54 @@ def validar_clientes_para_envio(conn):
             # Verificar si tiene email
             if not datos_grupo['email'] or not datos_grupo['email'].strip():
                 validacion['sin_email'].append(identificador_grupo)
-                validacion['mensajes'].append(f"⚠️ Grupo '{identificador_grupo}' no tiene email registrado")
+                
+                # Información adicional: ¿existe cliente? ¿tiene email? ¿tiene marcas?
+                try:
+                    # Buscar cliente: primero por nombre normalizado, luego fallback via Marcas
+                    cursor.execute(
+                        "SELECT id, email, cuit FROM clientes WHERE normalizar_titular(titular) = normalizar_titular(?) ORDER BY id DESC LIMIT 1",
+                        (titular,)
+                    )
+                    cliente_row = cursor.fetchone()
+
+                    if not cliente_row:
+                        # Fallback: buscar via Marcas con mismo titular normalizado → cliente_id
+                        cursor.execute("""
+                            SELECT c.id, c.email, c.cuit
+                            FROM Marcas m
+                            JOIN clientes c ON m.cliente_id = c.id
+                            WHERE normalizar_titular(m.titular) = normalizar_titular(?)
+                              AND m.cliente_id IS NOT NULL
+                            ORDER BY c.id DESC LIMIT 1
+                        """, (titular,))
+                        cliente_row = cursor.fetchone()
+
+                    if not cliente_row:
+                        validacion['sin_cliente'].append(identificador_grupo)
+                        validacion['mensajes'].append(
+                            f"⚠️ Grupo '{identificador_grupo}' no tiene cliente asociado al titular en la tabla de clientes"
+                        )
+                    else:
+                        cliente_id, email_cliente, cuit_cliente = cliente_row
+                        email_cliente_str = (email_cliente or "").strip()
+                        if not email_cliente_str:
+                            validacion['mensajes'].append(
+                                f"⚠️ Grupo '{identificador_grupo}' tiene cliente pero sin email registrado"
+                            )
+                        # Verificar solo a nivel informativo si el cliente tiene marcas vinculadas
+                        try:
+                            if not cliente_tiene_marcas(conn, cliente_id=cliente_id, cuit=cuit_cliente):
+                                validacion['sin_marcas'].append(identificador_grupo)
+                                validacion['mensajes'].append(
+                                    f"⚠️ Grupo '{identificador_grupo}' pertenece a un cliente sin marcas vinculadas (CUIT {cuit_cliente})"
+                                )
+                        except Exception as marcas_error:
+                            logging.debug(f"Error verificando marcas para cliente {cliente_id}: {marcas_error}")
+                except Exception as cliente_error:
+                    logging.debug(f"Error consultando cliente para titular '{titular}': {cliente_error}")
+                    
+                # Mensaje genérico de respaldo
+                validacion['mensajes'].append(f"⚠️ Grupo '{identificador_grupo}' no tiene email disponible para envío")
             else:
                 validacion['con_email'] += 1
             
@@ -526,6 +590,11 @@ def validar_clientes_para_envio(conn):
         if validacion['sin_reporte']:
             validacion['mensajes'].append(f"📄 {len(validacion['sin_reporte'])} grupos sin archivo de reporte")
         
+        if validacion['sin_marcas']:
+            validacion['mensajes'].append(
+                f"🏷️ {len(validacion['sin_marcas'])} grupos pertenecen a clientes sin marcas vinculadas (solo informativo, no bloquea el envío)"
+            )
+        
         if validacion['listos_para_envio'] == 0:
             validacion['puede_continuar'] = False
             validacion['mensajes'].append("❌ No hay grupos listos para recibir emails")
@@ -536,6 +605,9 @@ def validar_clientes_para_envio(conn):
         validacion['puede_continuar'] = False
         validacion['mensajes'].append(f"❌ Error durante la validación: {str(e)}")
         logging.error(f"Error en validación de grupos: {e}")
+    finally:
+        if cursor:
+            cursor.close()
     
     return validacion
 
@@ -703,14 +775,6 @@ def procesar_envio_emails(conn, email_usuario=None, password_usuario=None):
                     'titular': titular,
                     'importancia': importancia,
                     'email': datos_grupo.get('email', 'N/A'),
-                    'error': str(e)
-                })
-            
-            except Exception as e:
-                logging.error(f"Error procesando cliente Compose a response in Spanish: {titular}: {e}")
-                resultados['fallidos'].append({
-                    'titular': titular,
-                    'email': datos_cliente.get('email', 'N/A'),
                     'error': str(e)
                 })
     

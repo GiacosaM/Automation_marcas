@@ -158,17 +158,22 @@ def probar_envio(email, smtp_host, smtp_port, password):
         mensaje.attach(MIMEText(cuerpo, 'plain'))
         
         # Conectar al servidor SMTP
-        server = smtplib.SMTP(smtp_host, int(smtp_port))
-        server.starttls()
-        
-        # Iniciar sesión
-        server.login(email, password)
-        
-        # Enviar email
-        server.send_message(mensaje)
-        
-        # Cerrar conexión
-        server.quit()
+        server = None
+        try:
+            server = smtplib.SMTP(smtp_host, int(smtp_port))
+            server.starttls()
+            
+            # Iniciar sesión
+            server.login(email, password)
+            
+            # Enviar email
+            server.send_message(mensaje)
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
         
         return True, "Conexión exitosa. Se ha enviado un correo de prueba a tu dirección."
         
@@ -234,21 +239,14 @@ def eliminar_credenciales():
             except Exception as e:
                 logging.error(f"Error al eliminar contraseña del keyring: {e}")
                 
-        # Limpiar todas las cachés posibles en Streamlit
+        # Limpiar únicamente la clave de credenciales de email en Streamlit
         try:
             import streamlit as st
-            
-            # Limpiar caché de email_credentials
+
             if 'email_credentials' in st.session_state:
                 del st.session_state['email_credentials']
                 logging.info("Caché de email_credentials eliminada de la sesión")
-                
-            # Limpiar otras cachés relacionadas con email
-            for key in list(st.session_state.keys()):
-                if 'email' in key.lower() or 'credential' in key.lower():
-                    del st.session_state[key]
-                    logging.info(f"Caché adicional eliminada: {key}")
-                    
+
         except ImportError:
             logging.info("Streamlit no disponible, no se limpiaron cachés de sesión")
         except Exception as e:

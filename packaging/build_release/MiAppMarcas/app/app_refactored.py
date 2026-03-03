@@ -102,9 +102,10 @@ class MarcasApp:
         current_page = NavigationManager.get_current_page()
         
         # Debug para navegación
-        st.sidebar.write(f"Página actual: {current_page}")
-        if current_page == 'config':
-            st.sidebar.write(f"Sección config activa: {NavigationManager.is_section_active('config')}")
+        if self._is_debug_mode():
+            st.sidebar.write(f"Página actual: {current_page}")
+            if current_page == 'config':
+                st.sidebar.write(f"Sección config activa: {NavigationManager.is_section_active('config')}")
         
         if current_page == 'dashboard':
             self._show_dashboard()

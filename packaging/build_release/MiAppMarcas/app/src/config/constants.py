@@ -14,9 +14,11 @@ PAGE_CONFIG = {
 GRID_CONFIG = {
     "pagination_page_size": 10,
     "clients_pagination_page_size": 20,
+    "marcas_pagination_page_size": 15,
     "min_column_width": 100,
     "grid_height": 400,
-    "clients_grid_height": 600
+    "clients_grid_height": 600,
+    "marcas_grid_height": 500
 }
 
 # Columnas del grid de boletines
@@ -31,7 +33,7 @@ BULLETIN_COLUMNS = {
     'marca_custodia': {"width": 200, "header_name": "Marca Custodia"},
     'marca_publicada': {"width": 200, "header_name": "Marca Publicada"},
     'clases_acta': {"width": 120, "header_name": "Clases"},
-    'titular': {"width": 300, "wrapText": True, "autoHeight": True},
+    'titular': {"width": 300, "wrapText": True, "autoHeight": True, "pinned": "left"},
     'reporte_enviado': {
         "width": 120, 
         "header_name": "📤 Enviado",
@@ -88,6 +90,24 @@ CLIENT_COLUMNS = {
             "paddingTop": "10px"
         }
     }
+}
+
+# Columnas del grid de marcas
+MARCA_COLUMNS = {
+    'id': {"hide": True},
+    'marca': {"width": 180, "header_name": "🏷️ Marca", "pinned": 'left', "flex": 2},
+    'codigo_marca': {"width": 120, "header_name": "📝 Código", "flex": 1},
+    'clase': {"width": 100, "header_name": "🔢 Clase", "type": "numericColumn", "flex": 1},
+    'acta': {"width": 120, "header_name": "📄 Acta", "flex": 1},
+    'nrocon': {"width": 150, "header_name": "📑 Nro. Concesión", "flex": 1},
+    'custodia': {"width": 120, "header_name": "🔐 Custodia", "flex": 1},
+    'titular': {"width": 180, "header_name": "👤 Titular", "flex": 2},
+    'cuit': {"width": 140, "header_name": "🆔 CUIT", "flex": 1},
+    'email': {"width": 250, "header_name": "📧 Email", "flex": 2},
+    'cliente_id': {"hide": True},
+    # cliente_nombre viene del LEFT JOIN en obtener_marcas.
+    # Se muestra como indicador de vinculación; el id permanece oculto.
+    'cliente_nombre': {"width": 200, "header_name": "🔗 Cliente", "flex": 2},
 }
 
 # Opciones de importancia

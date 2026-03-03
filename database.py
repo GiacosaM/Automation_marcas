@@ -283,7 +283,7 @@ def obtener_datos(conn):
                 b.reporte_enviado, b.reporte_generado, b.fecha_alta, b.importancia,
                 c.email, c.telefono, c.direccion, c.ciudad
             FROM boletines b
-            LEFT JOIN clientes c ON b.titular = c.titular
+            LEFT JOIN clientes c ON LOWER(b.titular) = LOWER(c.titular)
         """)
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description]

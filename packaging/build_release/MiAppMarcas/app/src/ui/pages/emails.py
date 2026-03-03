@@ -14,7 +14,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 
 from database import crear_conexion, crear_tabla
 from database_extensions import obtener_logs_envios, obtener_estadisticas_logs, limpiar_logs_antiguos, obtener_emails_enviados
-from email_sender import procesar_envio_emails, generar_reporte_envios, obtener_info_reportes_pendientes, obtener_estadisticas_envios, validar_clientes_para_envio, validar_credenciales_email
+from email_sender import (
+    procesar_envio_emails, generar_reporte_envios, obtener_info_reportes_pendientes,
+    obtener_estadisticas_envios, validar_clientes_para_envio, validar_credenciales_email,
+    obtener_registros_pendientes_envio, obtener_mensajes_predefinidos,
+)
 from config import load_email_credentials, save_email_credentials, validate_email_format
 from src.ui.components import UIComponents
 from src.utils.session_manager import SessionManager
@@ -312,13 +316,23 @@ class EmailsPage:
                     try:
                         cursor = conn.cursor()
                         cursor.execute("""
-                            SELECT b.titular, c.email, COUNT(*) as cantidad_reportes,
+                            SELECT b.titular,
+                                   COALESCE(c.email, c2.email) AS email,
+                                   COUNT(*) as cantidad_reportes,
                                    GROUP_CONCAT(DISTINCT b.importancia) as importancias
                             FROM boletines b
-                            LEFT JOIN clientes c ON b.titular = c.titular
-                            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0 
+                            LEFT JOIN clientes c
+                                   ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
+                            LEFT JOIN Marcas m
+                                   ON c.id IS NULL
+                                  AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
+                                  AND m.cliente_id IS NOT NULL
+                            LEFT JOIN clientes c2
+                                   ON c.id IS NULL
+                                  AND m.cliente_id = c2.id
+                            WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0
                             AND b.importancia IN ('Baja', 'Media', 'Alta')
-                            GROUP BY b.titular, c.email
+                            GROUP BY b.titular, COALESCE(c.email, c2.email)
                             ORDER BY b.titular
                         """)
                         preview_data = cursor.fetchall()
@@ -407,84 +421,159 @@ class EmailsPage:
         # Validación previa antes de mostrar el botón
         validacion = validar_clientes_para_envio(conn)
         
-        # Mostrar información de validación
-        if validacion['sin_email'] or validacion['sin_reporte']:
+        # Mostrar información de validación y motivos detallados
+        if validacion['sin_email'] or validacion['sin_reporte'] or validacion.get('sin_marcas'):
             st.markdown("#### ⚠️ Avisos de Validación")
             
             if validacion['sin_email']:
                 with st.expander(f"📧 {len(validacion['sin_email'])} Grupos sin Email", expanded=True):
-                    st.warning("Los siguientes grupos no tienen email registrado y no recibirán reportes:")
+                    st.warning("Los siguientes grupos no tienen un email disponible y no recibirán reportes:")
                     for grupo in validacion['sin_email']:
                         st.write(f"• {grupo}")
-                    st.info("💡 Puedes agregar emails en la sección 'Clientes'")
+                    st.info("💡 Revisa la sección 'Clientes' para crear o completar los datos de contacto.")
             
             if validacion['sin_reporte']:
                 with st.expander(f"📄 {len(validacion['sin_reporte'])} Grupos sin Reporte", expanded=True):
-                    st.warning("Los siguientes grupos no tienen archivo de reporte:")
+                    st.warning("Los siguientes grupos no tienen archivo de reporte PDF generado:")
                     for grupo in validacion['sin_reporte']:
                         st.write(f"• {grupo}")
-                    st.info("💡 Genera los reportes en la sección 'Informes'")
+                    st.info("💡 Genera los reportes en la sección 'Informes'.")
+            
+            # Información adicional: clientes sin marcas vinculadas (no bloquea el envío)
+            if validacion.get('sin_marcas'):
+                with st.expander(f"🏷️ {len(validacion['sin_marcas'])} Grupos sin marcas vinculadas", expanded=False):
+                    st.warning(
+                        "Estos grupos pertenecen a clientes que no tienen marcas vinculadas por CUIT. "
+                        "El envío de emails no se bloquea por este motivo, pero puede indicar una carga incompleta."
+                    )
+                    for grupo in validacion['sin_marcas']:
+                        st.write(f"• {grupo}")
+                    st.info("💡 Verifica la vinculación Cliente ↔ Marca en las secciones 'Clientes' y 'Marcas'.")
+            
+            # Mostrar mensajes detallados de validación para mayor claridad
+            if validacion.get('mensajes'):
+                with st.expander("📝 Detalle de validación", expanded=False):
+                    for msg in validacion['mensajes']:
+                        st.write(msg)
         
         # Mostrar resumen de la validación
         if validacion['listos_para_envio'] > 0:
             st.success(f"✅ {validacion['listos_para_envio']} grupos listos para recibir emails")
-            # st.info("📨 Cada grupo representa una combinación de titular + importancia, enviándose emails separados por importancia")
-            
-            # Botón inicial para comenzar el proceso
-            if st.button("🚀 Enviar Todos los Emails", 
-                        type="primary", 
-                        use_container_width=True,
-                        disabled=not validacion['puede_continuar']):
-                
-                # Activar confirmación solo si la validación es exitosa
-                if validacion['puede_continuar']:
-                    st.session_state.confirmar_envio_emails = True
-                    st.rerun()
-                else:
-                    st.error("❌ No se puede continuar debido a los problemas de validación")
         else:
-            #st.error("❌ No hay grupos listos para recibir emails")
             st.info("Revisa que los clientes tengan email registrado y reportes generados")
-            
-            # Botón deshabilitado para mostrar el estado
-            st.button("🚀 Enviar Todos los Emails", 
-                    type="primary", 
-                    use_container_width=True,
-                    disabled=True)
+
+        # Botón único: habilitado/deshabilitado según validación
+        if st.button("🚀 Enviar Todos los Emails",
+                     type="primary",
+                     use_container_width=True,
+                     disabled=not validacion['puede_continuar']):
+            # Activar confirmación solo si la validación es exitosa
+            if validacion['puede_continuar']:
+                st.session_state.confirmar_envio_emails = True
+                st.rerun()
+            else:
+                st.error("❌ No se puede continuar debido a los problemas de validación")
     
     def _show_final_confirmation(self, conn, credenciales):
         """Mostrar confirmación final antes del envío"""
-        # Realizar validación final antes de confirmar
+        # Realizar validación final antes de confirmar (sin cambio de lógica)
         validacion_final = validar_clientes_para_envio(conn)
-        
-        st.warning("⚠️ ¿Estás seguro de enviar todos los emails?")
-        
-        # Mostrar información detallada de lo que se enviará
-        if validacion_final['listos_para_envio'] > 0:
-            st.success(f"📧 Se enviarán reportes a {validacion_final['listos_para_envio']} clientes")
-            
-            # Mostrar advertencias si las hay
-            if validacion_final['sin_email']:
-                st.warning(f"⚠️ {len(validacion_final['sin_email'])} clientes serán omitidos por no tener email")
-            
-            if validacion_final['sin_reporte']:
-                st.warning(f"⚠️ {len(validacion_final['sin_reporte'])} clientes serán omitidos por no tener reportes")
-        else:
+
+        # Guardia original intacta: sin grupos listos → abortar
+        if validacion_final['listos_para_envio'] == 0:
             st.error("❌ No hay clientes listos para recibir emails")
             st.session_state.confirmar_envio_emails = False
             st.rerun()
-        
+
+        # ── [UX] Tabla resumen ────────────────────────────────────────────────
+        # Calcular asunto usando la misma lógica que email_sender.py (sin DB)
+        now = datetime.now()
+        _meses_es = [
+            'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+            'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+        ]
+        _mes_anterior = (
+            f"{_meses_es[now.month - 2].capitalize()} {now.year}"
+            if now.month > 1 else f"Diciembre {now.year - 1}"
+        )
+
+        # Obtener grupos (misma query que ya ejecutó validar_clientes_para_envio)
+        try:
+            _grupos = obtener_registros_pendientes_envio(conn)
+        except Exception:
+            _grupos = {}
+
+        if _grupos:
+            _filas = []
+            for _datos in _grupos.values():
+                _imp = _datos['importancia']
+                _asunto = (
+                    f"Custodia de Marcas con deteccion de similares - {_mes_anterior}"
+                    if _imp.lower() == 'baja'
+                    else f"Custodia de Marcas con deteccion de similitudes relevantes - {_mes_anterior}"
+                )
+                _filas.append({
+                    'Titular':    _datos['titular'],
+                    'Email':      _datos.get('email') or '—',
+                    'Importancia': _imp,
+                    'Asunto':     _asunto,
+                })
+
+            _df = pd.DataFrame(_filas)
+            _df_listos = _df[_df['Email'] != '—'].reset_index(drop=True)
+
+            st.markdown("#### 📋 Resumen de envíos a confirmar")
+            st.dataframe(_df_listos, use_container_width=True, hide_index=True)
+
+            if validacion_final['sin_email']:
+                st.caption(
+                    f"ℹ️ {len(validacion_final['sin_email'])} grupo(s) omitidos por falta de email."
+                )
+            if validacion_final['sin_reporte']:
+                st.caption(
+                    f"ℹ️ {len(validacion_final['sin_reporte'])} grupo(s) omitidos por falta de reporte PDF."
+                )
+
+            # ── [UX] Vista previa del asunto ─────────────────────────────────
+            if not _df_listos.empty:
+                st.markdown("---")
+                st.markdown("##### 📨 Asunto del email")
+                for _asunto_u in _df_listos['Asunto'].unique():
+                    _imps = ', '.join(_df_listos[_df_listos['Asunto'] == _asunto_u]['Importancia'].unique())
+                    st.info(f"**{_asunto_u}** *(Importancia: {_imps})*")
+
+                # ── [UX] Vista previa del cuerpo ─────────────────────────────
+                _mensajes = obtener_mensajes_predefinidos()
+                _imps_presentes = _df_listos['Importancia'].unique().tolist()
+                with st.expander("👁 Vista previa del contenido del email", expanded=False):
+                    for _i, _imp in enumerate(_imps_presentes):
+                        _texto = _mensajes.get(_imp, _mensajes['default']).strip()
+                        st.markdown(f"**Nivel {_imp}:**")
+                        st.text(_texto)
+                        if _i < len(_imps_presentes) - 1:
+                            st.divider()
+        # ── [/UX] ─────────────────────────────────────────────────────────────
+
+        # ── [UX] Confirmación final profesional ───────────────────────────────
+        st.markdown("---")
+        _n = validacion_final['listos_para_envio']
+        st.warning(
+            f"⚠️ Se enviarán **{_n} email{'s' if _n != 1 else ''}** a clientes reales.  \n"
+            f"Esta acción **no se puede deshacer**."
+        )
+
         col_conf1, col_conf2 = st.columns(2)
         with col_conf1:
-            if st.button("✅ Sí, Enviar", type="primary", use_container_width=True):
+            if st.button("📤 Confirmar Envío Definitivo", type="primary", use_container_width=True):
                 self._process_email_sending(conn, credenciales)
-        
+
         with col_conf2:
             if st.button("❌ Cancelar", use_container_width=True):
                 st.session_state.confirmar_envio_emails = False
                 st.rerun()
-        
-        # Mostrar resultados de envío si están disponibles
+        # ── [/UX] ─────────────────────────────────────────────────────────────
+
+        # Mostrar resultados de envío si están disponibles (sin cambio)
         self._show_sending_results()
     
     def _process_email_sending(self, conn, credenciales):
@@ -589,7 +678,6 @@ class EmailsPage:
             
             # Auto-actualizar estadísticas
             st.success("🔄 Actualizando estadísticas...")
-            time.sleep(2)
             st.rerun()
     
     def _show_configuracion_tab(self):
@@ -711,10 +799,18 @@ class EmailsPage:
             if historial_df is None:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT b.titular, b.numero_boletin, b.fecha_envio_reporte, 
-                           b.importancia, c.email, 'informes' as tipo_envio
+                    SELECT b.titular, b.numero_boletin, b.fecha_envio_reporte,
+                           b.importancia, COALESCE(c.email, c2.email) AS email, 'informes' as tipo_envio
                     FROM boletines b
-                    LEFT JOIN clientes c ON b.titular = c.titular
+                    LEFT JOIN clientes c
+                           ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
+                    LEFT JOIN Marcas m
+                           ON c.id IS NULL
+                          AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
+                          AND m.cliente_id IS NOT NULL
+                    LEFT JOIN clientes c2
+                           ON c.id IS NULL
+                          AND m.cliente_id = c2.id
                     WHERE b.reporte_enviado = 1 
                     
                     UNION ALL
@@ -799,7 +895,17 @@ class EmailsPage:
     def _get_email_sending_stats(self, conn):
         """Obtener estadísticas específicas para el sistema de envío"""
         try:
-            stats = obtener_estadisticas_envios(conn)
+            # Intentar obtener stats con reintentos
+            max_retries = 2
+            for attempt in range(max_retries):
+                stats = obtener_estadisticas_envios(conn)
+                if stats and stats.get('total_reportes', 0) > 0:
+                    return stats
+                # Si falló el primer intento, esperar un poco
+                if attempt < max_retries - 1:
+                    time.sleep(0.1)
+            
+            # Si llegamos aquí, retornar lo que obtuvimos o valores por defecto
             return stats if stats else {
                 'total_reportes': 0,
                 'reportes_generados': 0,
@@ -807,7 +913,8 @@ class EmailsPage:
                 'pendientes_revision': 0,
                 'listos_envio': 0
             }
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error obteniendo estadísticas: {e}")
             return {
                 'total_reportes': 0,
                 'reportes_generados': 0,
@@ -818,24 +925,54 @@ class EmailsPage:
     
     def show(self):
         """Mostrar la página de emails"""
+        logging.info("=== EMAILS PAGE: Iniciando show() ===")
+        # Inicializar flag de primera carga si no existe
+        if 'emails_page_loaded' not in st.session_state:
+            st.session_state.emails_page_loaded = False
+            logging.info("Primera carga de página emails detectada")
+        
         UIComponents.create_section_header(
             "📧 Gestión de Envío de Emails",
             "Sistema completo de envío masivo de reportes",
             "blue-70"
         )
         
+        logging.info("Intentando crear conexión DB...")
         # Obtener estadísticas de envío de reportes
         conn = crear_conexion()
         if conn:
+            logging.info("Conexión DB creada exitosamente")
             try:
+                logging.info("Llamando a crear_tabla()...")
                 crear_tabla(conn)
+                logging.info("crear_tabla() completada")
                 
                 # Obtener estadísticas específicas del sistema de envío
+                logging.info("Obteniendo estadísticas de envío...")
                 stats = self._get_email_sending_stats(conn)
+                logging.info(f"Estadísticas obtenidas: {stats}")
+                
+                # Si es la primera carga y no hay stats válidas, forzar recarga
+                if not st.session_state.emails_page_loaded and stats:
+                    logging.info(f"Verificando si necesita rerun... total_reportes={stats.get('total_reportes', 0)}")
+                    if stats.get('total_reportes', 0) == 0:
+                        # Marcar como cargado y hacer rerun
+                        st.session_state.emails_page_loaded = True
+                        conn.close()
+                        logging.info("Forzando rerun por stats vacías")
+                        st.rerun()
+                    else:
+                        st.session_state.emails_page_loaded = True
+                        logging.info("Primera carga marcada como completada")
                 
                 if stats:
                     # Dashboard de estadísticas de reportes
-                    st.subheader("📊 Estado de Envíos de Reportes")
+                    col_header1, col_header2 = st.columns([4, 1])
+                    with col_header1:
+                        st.subheader("📊 Estado de Envíos de Reportes")
+                    with col_header2:
+                        if st.button("🔄 Actualizar", key="refresh_stats", help="Actualizar estadísticas"):
+                            st.rerun()
                     
                     col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
@@ -851,35 +988,6 @@ class EmailsPage:
                     
                     # Mostrar sistema completo de gestión de emails
                     self._show_email_management_system(conn, stats)
-                
-                # Crear tabla de emails si no existe (para compatibilidad)
-                cursor = conn.cursor()
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS emails_enviados (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        destinatario TEXT NOT NULL,
-                        asunto TEXT NOT NULL,
-                        mensaje TEXT NOT NULL,
-                        tipo_email TEXT DEFAULT 'general',
-                        status TEXT DEFAULT 'pendiente',
-                        fecha_envio DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        titular TEXT DEFAULT NULL
-                    )
-                """)
-                conn.commit()
-                
-                # Verificamos si la columna titular ya existe en la tabla emails_enviados
-                cursor.execute("PRAGMA table_info(emails_enviados)")
-                columns = [column[1] for column in cursor.fetchall()]
-                
-                if 'titular' not in columns:
-                    try:
-                        cursor.execute("ALTER TABLE emails_enviados ADD COLUMN titular TEXT DEFAULT NULL")
-                        conn.commit()
-                    except Exception as e:
-                        st.warning(f"No se pudo añadir la columna titular: {e}")
-                
-                cursor.close()
                 
                 # Mostrar estadísticas adicionales del sistema de emails simple
                 stats_simple = self._get_email_stats(conn)

@@ -17,7 +17,8 @@ cd /Users/martingiacosa/Desktop/Proyectos/Python/Automation
 # Activar entorno virtual (si lo usas)
 source venv/bin/activate
 
- C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas\app> .\venv\Scripts\Activate.ps1
+ C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas\app> 
+ .\venv\Scripts\Activate.ps1
 
 
 # Ejecutar la aplicación

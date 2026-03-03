@@ -1,0 +1,15 @@
+C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas\app
+
+.\venv\Scripts\python.exe -m streamlit run app_refactored.py
+46[
+
+
+
+
+
+
+
+
+
+     
+]

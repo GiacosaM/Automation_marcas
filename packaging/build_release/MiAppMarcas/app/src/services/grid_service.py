@@ -4,7 +4,7 @@ Servicio para manejo de grids y tablas
 import streamlit as st
 import pandas as pd
 import time
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 from typing import Dict, Any, Optional, Tuple
 import sys
 import os
@@ -13,7 +13,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from database import crear_conexion, actualizar_registro
-from src.config.constants import BULLETIN_COLUMNS, CLIENT_COLUMNS, GRID_CONFIG
+from src.config.constants import BULLETIN_COLUMNS, CLIENT_COLUMNS, MARCA_COLUMNS, GRID_CONFIG
 from src.utils.session_manager import SessionManager
 
 
@@ -37,7 +37,7 @@ class GridService:
             value=True,
             enableRowGroup=True,
             editable=False,
-            sorteable=True,
+            sortable=True,
             filterable=True,
             resizable=True,
             wrapText=True,
@@ -66,7 +66,7 @@ class GridService:
             value=True,
             enableRowGroup=True,
             editable=True,
-            sorteable=True,
+            sortable=True,
             filterable=True,
             resizable=True,
             wrapText=True,
@@ -223,6 +223,154 @@ class GridService:
         return grid_response
     
     @staticmethod
+    def _configure_marca_grid(gb: GridOptionsBuilder) -> None:
+        """
+        Configura el grid de marcas en modo SOLO LECTURA con selección por checkbox.
+
+        La columna técnica '_select' (ya insertada en el DataFrame por show_marca_grid)
+        actúa como soporte exclusivo del checkbox — desacopla el widget de selección
+        de cualquier columna de negocio y garantiza que siempre aparezca como
+        primera columna fija a la izquierda.
+        """
+        gb.configure_pagination(
+            enabled=True,
+            paginationAutoPageSize=False,
+            paginationPageSize=GRID_CONFIG.get("marcas_pagination_page_size", 15)
+        )
+
+        gb.configure_selection(
+            selection_mode='single',
+            use_checkbox=True
+        )
+
+        # Columnas de negocio: solo lectura
+        gb.configure_default_column(
+            groupable=True,
+            value=True,
+            enableRowGroup=True,
+            editable=False,
+            sortable=True,
+            filterable=True,
+            resizable=True,
+            wrapText=True,
+            autoHeight=True,
+            minWidth=GRID_CONFIG["min_column_width"],
+            flex=1,
+            singleClickEdit=False,
+            suppressClickEdit=True
+        )
+
+        # Columnas específicas de marca (forzar editable=False)
+        for column, config in MARCA_COLUMNS.items():
+            gb.configure_column(column, **{**config, 'editable': False})
+
+        # Estilos condicionales por fila: ámbar para marcas sin cliente vinculado.
+        # DEBE ser JsCode — AgGrid espera una función JS, no un string.
+        # El guard "!params.data" previene el error cuando la fila es undefined
+        # (cabecera flotante, filas de grupo, etc.).
+        row_style_sin_cliente = JsCode("""
+function(params) {
+    if (!params.data) return null;
+    var cid = params.data.cliente_id;
+    if (cid === null || cid === undefined || cid === '') {
+        return { 'background-color': '#fff3cd', 'color': '#856404' };
+    }
+    return null;
+}
+""")
+
+        # Opciones base del grid.
+        # allow_unsafe_jscode=True ya está activo en la llamada a AgGrid.
+        gb.configure_grid_options(
+            rowSelection='single',
+            suppressRowClickSelection=True,
+            suppressCellFocus=True,
+            enableRangeSelection=False,
+            undoRedoCellEditing=False,
+            getRowStyle=row_style_sin_cliente,
+        )
+
+        # Columna técnica exclusiva para el checkbox.
+        # checkboxSelection=True en esta columna es lo que hace que AgGrid
+        # renderice la celda del checkbox; sin esto el widget no aparece.
+        # pinned="left" la ancla como primera columna visible.
+        gb.configure_column(
+            '_select',
+            header_name='',
+            width=50,
+            checkboxSelection=True,
+            headerCheckboxSelection=False,
+            pinned='left',
+            editable=False,
+            sortable=False,
+            filter=False,
+            resizable=False,
+            suppressMenu=True
+        )
+
+    @staticmethod
+    def show_marca_grid(df: pd.DataFrame, key: str) -> Dict[str, Any]:
+        """
+        Muestra el grid de marcas en modo solo lectura con selección por checkbox.
+
+        Inserta una columna técnica '_select' como primera columna del DataFrame
+        de trabajo para anclar el checkbox de selección de forma garantizada,
+        independientemente del esquema real de la tabla Marcas.
+        La columna '_select' se elimina de selected_rows antes de devolverla.
+
+        Args:
+            df: DataFrame con los datos de marcas.
+            key: Clave única para el grid.
+
+        Returns:
+            dict con 'data' (DataFrame original) y
+            'selected_rows' (lista de dicts sin '_select', siempre inicializada).
+        """
+        # DataFrame de trabajo con la columna técnica de selección
+        df_grid = df.copy()
+        df_grid.insert(0, '_select', '')
+
+        gb = GridOptionsBuilder.from_dataframe(df_grid)
+        GridService._configure_marca_grid(gb)
+        grid_options = gb.build()
+
+        aggrid_response = AgGrid(
+            df_grid,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            fit_columns_on_grid_load=True,
+            theme='streamlit',
+            key=key,
+            allow_unsafe_jscode=True,
+            height=GRID_CONFIG.get("marcas_grid_height", 500),
+            width='100%'
+        )
+
+        # AgGridReturn es de solo lectura — construimos un dict propio.
+        # Normalizamos el tipo (DataFrame vs lista según versión de st-aggrid)
+        # y eliminamos la columna técnica '_select' para que el resto del código
+        # reciba exactamente la misma estructura que tenía el DataFrame original.
+        raw_selection = aggrid_response.get('selected_rows', [])
+        if isinstance(raw_selection, pd.DataFrame):
+            selected_rows = raw_selection.to_dict('records')
+        elif raw_selection is None:
+            selected_rows = []
+        else:
+            selected_rows = list(raw_selection)
+
+        # Quitar '_select' de cada fila seleccionada
+        selected_rows = [
+            {k: v for k, v in row.items() if k != '_select'}
+            for row in selected_rows
+        ]
+
+        return {
+            'data': aggrid_response.get('data'),
+            'selected_rows': selected_rows,
+        }
+    
+    @staticmethod
     def create_simple_grid(df: pd.DataFrame, key: str, 
                           selection_mode: str = 'single',
                           height: int = 400) -> Dict[str, Any]:
@@ -244,7 +392,7 @@ class GridService:
         gb.configure_selection(selection_mode=selection_mode, use_checkbox=True)
         gb.configure_default_column(
             editable=False,
-            sorteable=True,
+            sortable=True,
             filterable=True,
             resizable=True
         )
@@ -311,7 +459,7 @@ class GridService:
             value=True,
             enableRowGroup=True,
             editable=True,
-            sorteable=True,
+            sortable=True,
             filterable=True,
             resizable=True,
             wrapText=True,
@@ -354,7 +502,7 @@ class GridService:
         # Configuración de columnas
         gb.configure_default_column(
             editable=editable,
-            sorteable=True,
+            sortable=True,
             filterable=True,
             resizable=True,
             wrapText=True,

@@ -1,7 +1,7 @@
 # report_generator_optimized.py
 import os
 import logging
-import secrets  
+import unicodedata
 from fpdf import FPDF
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -243,13 +243,22 @@ class ProfessionalReportPDF(FPDF):
                 self.add_table_header(headers, col_widths)
             
             # Preparar datos de la fila
+            clases_acta_completo = record.get('clases_acta', '')
+            # Extraer todas las clases (números antes de "/") para el resumen
+            clases_resumen = ''
+            if clases_acta_completo:
+                # Dividir por espacios y extraer la parte antes de "/" de cada elemento
+                partes = clases_acta_completo.split()
+                clases = [parte.split('/')[0] for parte in partes if '/' in parte]
+                clases_resumen = ', '.join(clases) if clases else clases_acta_completo
+            
             row_data = [
                 str(i + 1),
                 record.get('boletin_corto', ''),
                 record.get('numero_orden', ''),
                 record.get('solicitante', ''),
                 record.get('marca_publicada', ''),
-                record.get('clase', '')
+                clases_resumen
             ]
             
             # Agregar fila con estilo zebra
@@ -362,18 +371,48 @@ class ReportGenerator:
         logger.warning("No se pudo encontrar la imagen del logo en ninguna ubicación")
         return False
     
-    def _fetch_pending_records(self, conn):
-        """Obtiene los registros pendientes de procesamiento para generar informes."""
+    def _fetch_pending_records(self, conn, filtros=None):
+        """Obtiene los registros pendientes de procesamiento.
+
+        Args:
+            conn:    Conexión SQLite activa.
+            filtros: Dict opcional con claves:
+                       'titulares'   → list[str] — solo incluir estos titulares.
+                       'importancias'→ list[str] — solo incluir estas importancias.
+                     Si es None o dict vacío se devuelven todos los registros procesables.
+        """
         try:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT titular, numero_boletin, fecha_boletin, numero_orden, solicitante, agente, 
+
+            where_clauses = [
+                "reporte_generado = 0",
+                "importancia != 'Pendiente'",
+            ]
+            params: list = []
+
+            if filtros:
+                titulares = filtros.get('titulares')
+                importancias = filtros.get('importancias')
+
+                if titulares:
+                    ph = ','.join('?' * len(titulares))
+                    where_clauses.append(f"titular IN ({ph})")
+                    params.extend(titulares)
+
+                if importancias:
+                    ph = ','.join('?' * len(importancias))
+                    where_clauses.append(f"importancia IN ({ph})")
+                    params.extend(importancias)
+
+            where_str = ' AND '.join(where_clauses)
+            query = f'''
+                SELECT titular, numero_boletin, fecha_boletin, numero_orden, solicitante, agente,
                        numero_expediente, clase, marca_custodia, marca_publicada, clases_acta, importancia
                 FROM boletines
-                WHERE reporte_generado = 0 
-                AND importancia != 'Pendiente'  -- ← NUEVA CONDICIÓN
+                WHERE {where_str}
                 ORDER BY titular, importancia, fecha_boletin DESC, numero_orden
-            ''')
+            '''
+            cursor.execute(query, params)
             return cursor.fetchall()
         except Exception as e:
             logger.error(f"Error al consultar la base de datos: {e}")
@@ -402,35 +441,126 @@ class ReportGenerator:
         }
     
     def _clean_filename(self, filename: str) -> str:
-        """Limpia el nombre del archivo de caracteres no válidos."""
-        return "".join(c for c in filename if c.isalnum() or c in (" ", "-", "_", ".")).strip()
+        """Elimina acentos, reemplaza espacios por guiones bajos y descarta
+        cualquier carácter no permitido en nombres de archivo."""
+        # Descomponer caracteres acentuados y descartar los diacríticos
+        nfd = unicodedata.normalize("NFD", str(filename))
+        ascii_str = nfd.encode("ascii", "ignore").decode("ascii")
+        # Reemplazar espacios por guiones bajos y filtrar caracteres inválidos
+        cleaned = "".join(
+            "_" if c == " " else c
+            for c in ascii_str
+            if c.isalnum() or c in ("-", "_", ".")
+        )
+        # Colapsar guiones bajos múltiples y quitar los extremos
+        import re as _re
+        return _re.sub(r"_+", "_", cleaned).strip("_")
+
+    def _make_report_filename(self, titular: str, importancia: str, output_dir: str) -> str:
+        """Genera un nombre de archivo PDF determinístico y trazable.
+
+        Formato:  Informe_<TITULAR>_<IMPORTANCIA>_<YYYYMMDD_HHMMSS>.pdf
+
+        Garantías:
+        - Sin caracteres inválidos en sistemas de archivos Windows/Linux/macOS.
+        - Sin números aleatorios: el timestamp hace cada generación única.
+        - Sin sobrescritura: si el archivo ya existe (misma generación al segundo),
+          agrega un contador _2, _3, ... hasta encontrar un nombre libre.
+        - Largo máximo de 180 caracteres en el titular (compatible con MAX_PATH).
+
+        Args:
+            titular:     Nombre del titular del informe.
+            importancia: Nivel de importancia (Alta, Media, Baja, etc.).
+            output_dir:  Directorio de salida donde se guardará el PDF.
+
+        Returns:
+            str: Nombre de archivo seguro (sin ruta), listo para usar con output_dir.
+        """
+        titular_limpio = self._clean_filename(titular)[:180]
+        importancia_limpia = self._clean_filename(importancia)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        base = f"Informe_{titular_limpio}_{importancia_limpia}_{timestamp}"
+        nombre = f"{base}.pdf"
+
+        # Evitar sobrescritura sin recurrir a números aleatorios
+        if os.path.exists(os.path.join(output_dir, nombre)):
+            counter = 2
+            while os.path.exists(os.path.join(output_dir, f"{base}_{counter}.pdf")):
+                counter += 1
+            nombre = f"{base}_{counter}.pdf"
+
+        return nombre
     
     def _mark_records_as_processed(self, conn, titular: str, importancia: str, nombre_reporte: str, ruta_reporte: str):
-        """Marca los registros como procesados en la base de datos."""
+        """Marca como procesados SOLO los registros que aún no fueron generados.
+
+        Condiciones del WHERE:
+          reporte_generado = 0  → garantiza que no se sobreescriben registros ya
+                                   generados pero no enviados (reporte_generado=1,
+                                   reporte_enviado=0), que tendrían una ruta_reporte
+                                   válida de una generación anterior.
+          reporte_enviado  = 0  → no modificar registros ya enviados.
+          titular + importancia → limitar al grupo exacto que se acaba de generar.
+          importancia != 'Pendiente' → defensa en profundidad; _fetch_pending_records
+                                        ya los excluye, pero se repite aquí por seguridad.
+        """
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                UPDATE boletines 
-                SET reporte_generado = 1, 
+                UPDATE boletines
+                SET reporte_generado = 1,
                     fecha_creacion_reporte = datetime('now', 'localtime'),
                     nombre_reporte = ?,
-                    ruta_reporte = ? 
-                WHERE reporte_enviado = 0 
+                    ruta_reporte = ?
+                WHERE reporte_generado = 0
+                AND reporte_enviado = 0
                 AND titular = ?
                 AND importancia = ?
                 AND importancia != 'Pendiente'
             ''', (nombre_reporte, ruta_reporte, titular, importancia))
+            filas_afectadas = cursor.rowcount
             conn.commit()
-            logger.info(f"Registros de {titular} (Importancia: {importancia}) marcados como procesados en la base de datos")
+            logger.info(
+                f"Registros marcados como procesados: {filas_afectadas} fila(s) "
+                f"para '{titular}' (Importancia: {importancia})"
+            )
+            if filas_afectadas == 0:
+                logger.warning(
+                    f"_mark_records_as_processed: 0 filas actualizadas para "
+                    f"'{titular}' ({importancia}). ¿Ya fueron procesados antes?"
+                )
         except Exception as e:
-            logger.error(f"Error al actualizar la base de datos para {titular} (Importancia: {importancia}): {e}")
+            # Deshacer cualquier cambio parcial antes de propagar el error
+            try:
+                conn.rollback()
+                logger.warning(
+                    f"Rollback ejecutado para '{titular}' ({importancia}) "
+                    f"tras fallo en UPDATE."
+                )
+            except Exception as rb_err:
+                logger.error(f"Rollback también falló: {rb_err}")
+            logger.error(
+                f"Error al actualizar la base de datos para '{titular}' "
+                f"(Importancia: {importancia}): {e}"
+            )
             raise
     
-    def generate_reports(self, conn):
-        """Genera los informes PDF y retorna información del resultado."""
+    def generate_reports(self, conn, filtros=None, on_progress=None):
+        """Genera los informes PDF y retorna información del resultado.
+
+        Args:
+            conn:        Conexión SQLite activa.
+            filtros:     Dict opcional con 'titulares' y/o 'importancias' para
+                         limitar la generación a un subconjunto de registros.
+                         None = generar todos los pendientes.
+            on_progress: Callable opcional con firma (current, total, titular).
+                         Se invoca después de cada informe (éxito o error) para
+                         que la UI pueda actualizar una barra de progreso.
+        """
         try:
-            # Obtener registros pendientes
-            registros = self._fetch_pending_records(conn)
+            # Obtener registros pendientes (filtrados si se especificó)
+            registros = self._fetch_pending_records(conn, filtros)
             
             # Verificar si hay registros con importancia 'Pendiente' ANTES de procesar
             cursor = conn.cursor()
@@ -516,22 +646,57 @@ class ReportGenerator:
             
             # Generar PDF por cada grupo (titular + importancia)
             reportes_generados = 0
+            errores_generacion = 0
             for (titular, importancia), registros_grupo in agrupados.items():
+
+                # ── Paso 1: generar el PDF en disco ──────────────────────────────
                 try:
                     nombre_archivo, ruta_archivo = self._generate_single_report(
                         titular, registros_grupo, mes_ano_anterior, mes_ano_archivo, importancia
                     )
-                    
-                    # Marcar los registros de este grupo específico como procesados
-                    self._mark_records_as_processed(conn, titular, importancia, nombre_archivo, ruta_archivo)
-                    reportes_generados += 1
-                    
-                    logger.info(f"✅ Informe generado para '{titular}' (Importancia: {importancia}) - {len(registros_grupo)} registros")
-                    
                 except Exception as e:
-                    logger.error(f"❌ Error al generar informe para '{titular}' (Importancia: {importancia}): {e}")
-                    # Continuar con el siguiente grupo en lugar de fallar completamente
+                    logger.error(
+                        f"❌ Error al generar PDF para '{titular}' "
+                        f"(Importancia: {importancia}): {e}"
+                    )
+                    errores_generacion += 1
+                    continue   # La BD no se toca: PDF nunca existió
+
+                # ── Paso 2: registrar en BD solo si el PDF existe en disco ───────
+                if not os.path.exists(ruta_archivo):
+                    logger.error(
+                        f"❌ El PDF no existe tras la generación para '{titular}' "
+                        f"(Importancia: {importancia}). No se actualizará la BD."
+                    )
+                    errores_generacion += 1
                     continue
+
+                try:
+                    self._mark_records_as_processed(
+                        conn, titular, importancia, nombre_archivo, ruta_archivo
+                    )
+                    reportes_generados += 1
+                    logger.info(
+                        f"✅ Informe generado para '{titular}' "
+                        f"(Importancia: {importancia}) - {len(registros_grupo)} registros"
+                    )
+                except Exception as e:
+                    # PDF creado pero BD no actualizada → riesgo de inconsistencia
+                    logger.error(
+                        f"❌ Error al actualizar BD para '{titular}' "
+                        f"(Importancia: {importancia}): {e}. "
+                        f"El PDF SÍ fue generado en: {ruta_archivo} — "
+                        f"puede actualizarse manualmente si es necesario."
+                    )
+                    errores_generacion += 1
+
+                # Notificar progreso al caller (UI) sin importar éxito/error
+                if on_progress:
+                    completados = reportes_generados + errores_generacion
+                    try:
+                        on_progress(completados, len(agrupados), titular)
+                    except Exception:
+                        pass  # El callback nunca debe interrumpir la generación
             
             # Resumen final
             logger.info(f"🎉 GENERACIÓN COMPLETADA:")
@@ -539,10 +704,10 @@ class ReportGenerator:
             logger.info(f"   • Registros procesados: {sum(len(regs) for regs in agrupados.values())}")
             if pendientes > 0:
                 logger.info(f"   • Registros pendientes sin procesar: {pendientes}")
-            
-            if reportes_generados < len(agrupados):
-                logger.warning(f"⚠️  ATENCIÓN: {len(agrupados) - reportes_generados} informes fallaron")
-            
+
+            if errores_generacion > 0:
+                logger.warning(f"⚠️  ATENCIÓN: {errores_generacion} informes fallaron")
+
             # Retornar información del resultado
             return {
                 'success': True,
@@ -551,7 +716,7 @@ class ReportGenerator:
                 'total_titulares': len(agrupados),
                 'registros_procesados': sum(len(regs) for regs in agrupados.values()),
                 'pendientes': pendientes,
-                'errores': len(agrupados) - reportes_generados
+                'errores': errores_generacion
             }
         
         except Exception as e:
@@ -601,24 +766,39 @@ class ReportGenerator:
                 record_data = self._format_record_data(registro)
                 pdf.add_detailed_record(record_data, i)
             
-            # Guardar PDF con nombre que incluya importancia
-            titular_limpio = self._clean_filename(titular)
-            digitos_random = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
-            nombre_archivo = f"Informe {titular_limpio} - {importancia} - {digitos_random}.pdf"
-            
-            ruta_archivo = os.path.join(self.output_dir, nombre_archivo)  
+            # Guardar PDF con nombre determinístico y trazable
+            nombre_archivo = self._make_report_filename(titular, importancia, self.output_dir)
+            ruta_archivo = os.path.join(self.output_dir, nombre_archivo)
             pdf.output(ruta_archivo)
+
+            # Verificar que el archivo fue creado y tiene contenido real
+            if not os.path.exists(ruta_archivo):
+                raise RuntimeError(
+                    f"pdf.output() no creó el archivo en disco: {ruta_archivo}"
+                )
+            if os.path.getsize(ruta_archivo) == 0:
+                os.remove(ruta_archivo)
+                raise RuntimeError(
+                    f"El PDF generado está vacío (0 bytes), se descartó: {ruta_archivo}"
+                )
+
             logger.info(f"Informe generado: {ruta_archivo}")
-            
             return nombre_archivo, ruta_archivo
-            
+
         except Exception as e:
             logger.error(f"Error al generar informe para {titular} (Importancia: {importancia}): {e}")
             raise
 
 
-def generar_informe_pdf(conn, watermark_image: str = None):
-    """Función principal para mantener compatibilidad con el código anterior."""
-    # Usar siempre la función get_logo_path() para obtener la ruta del logo
-    generator = ReportGenerator(None)  # Pasamos None para que ReportGenerator use get_logo_path()
-    return generator.generate_reports(conn)
+def generar_informe_pdf(conn, watermark_image: str = None, filtros=None, on_progress=None):
+    """Función principal para mantener compatibilidad con el código anterior.
+
+    Args:
+        conn:          Conexión SQLite activa.
+        watermark_image: Ignorado (se usa get_logo_path() internamente).
+        filtros:       Dict opcional {'titulares': [...], 'importancias': [...]}.
+                       None = generar todos los registros procesables.
+        on_progress:   Callable(current, total, titular) para feedback de progreso.
+    """
+    generator = ReportGenerator(None)
+    return generator.generate_reports(conn, filtros=filtros, on_progress=on_progress)

@@ -129,10 +129,6 @@ def show_email_config_page():
                     st.success("✅ Credenciales eliminadas correctamente")
                     st.info("La aplicación reiniciará para aplicar los cambios...")
                     
-                    # Esperar un momento para que se muestre el mensaje
-                    import time
-                    time.sleep(2)
-                    
                     # Reiniciar la aplicación para reflejar los cambios
                     st.rerun()
                 else:

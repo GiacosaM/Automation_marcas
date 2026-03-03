@@ -3,19 +3,146 @@
 import sqlite3
 import logging
 import os
+import re
+import unicodedata
 from datetime import datetime, timedelta
 from paths import get_db_path, get_logs_dir
 
 # Configuración del logging optimizado
 log_file = os.path.join(get_logs_dir(), 'boletines.log')
+
+# Forzar reconfiguración del logging
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
 logging.basicConfig(
-    level=logging.WARNING,  # Solo registrar WARNING y ERROR por defecto
+    level=logging.INFO,  # Cambiado a INFO para capturar logs de diagnóstico
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_file),
+        logging.FileHandler(log_file, mode='a', encoding='utf-8'),
         logging.StreamHandler()
-    ]
+    ],
+    force=True
 )
+
+# Función auxiliar para escribir debug directo al archivo
+def debug_write(mensaje):
+    """Escribe directamente al archivo de log sin depender de logging"""
+    try:
+        with open(log_file, 'a', encoding='utf-8') as f:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            f.write(f"{timestamp} - DEBUG - {mensaje}\n")
+            f.flush()
+    except Exception:
+        pass
+
+debug_write("=== DATABASE.PY CARGADO ===")
+
+# ---------------------------------------------------------------------------
+# UDF de normalización de nombres para comparación flexible en SQLite.
+# Registrada en cada conexión vía crear_conexion() → disponible en todas las
+# queries como normalizar_titular(nombre).
+#
+# Transforma ambos lados del JOIN de modo que:
+#   "ROSSI, NATALIA"  →  "rossi natalia"
+#   "Rossi Natalia"   →  "rossi natalia"
+# Cubriendo: mayúsculas, tildes, comas, puntos, guiones, espacios extra.
+# ---------------------------------------------------------------------------
+def _normalizar_titular(nombre):
+    """
+    Normaliza un nombre de titular para comparación flexible en JOINs SQLite.
+
+    Diseñada para textos copiados de PDFs, sistemas externos o ingresados
+    manualmente, donde pueden aparecer caracteres invisibles y espaciado
+    Unicode no estándar.
+
+    Pipeline de normalización:
+      1. Coerce a str (acepta cualquier tipo SQLite).
+      2. Eliminar caracteres invisibles / de control Unicode:
+           - Zero-Width Space          U+200B
+           - Zero-Width Non-Joiner     U+200C
+           - Zero-Width Joiner         U+200D
+           - Word Joiner               U+2060
+           - Soft Hyphen               U+00AD
+           - BOM / Zero-Width No-Break U+FEFF
+           - Left/Right marks          U+200E, U+200F
+           - Todos los demás controles (Cc) y formatos (Cf)
+      3. Convertir cualquier whitespace Unicode (NBSP U+00A0, thin space U+2009,
+         em space U+2003, ideographic space U+3000, etc.) → espacio ASCII normal.
+      4. Minúsculas.
+      5. Descomposición NFD + descarte de diacríticos/combining marks →
+         elimina tildes, diéresis, cedillas, etc.
+      6. Reemplazar puntuación frecuente (coma, punto, guion, barra, paréntesis,
+         corchetes, punto y coma, dos puntos, comillas) → espacio.
+      7. Colapsar espacios múltiples + strip.
+
+    Ejemplos garantizados:
+        "ROSSI, NATALIA"            → "rossi natalia"
+        "ROSSI\\u00a0NATALIA"       → "rossi natalia"  (NBSP)
+        "ROSSI\\u200bNATALIA"       → "rossinalatia"   (ZWS eliminado)
+        "GARCÍA, JOSÉ"              → "garcia jose"
+        "  Pérez - Rodríguez, M. "  → "perez rodriguez m"
+        "D'ANDREA MARCO"            → "d andrea marco"
+
+    IMPORTANTE — nunca lanza excepción:
+        SQLite trata cualquier excepción en una UDF como NULL, lo que hace
+        que la condición JOIN evalúe NULL = NULL → FALSE → fila no vinculada.
+        El doble try/except garantiza que siempre se devuelve algo utilizable.
+    """
+    if nombre is None:
+        return None
+    try:
+        s = str(nombre)
+
+        # ── Paso 1: eliminar caracteres de control e invisibles ──────────────
+        # Categorías Unicode:
+        #   Cc = control (tab, newline, etc.)
+        #   Cf = format (ZWJ, ZWNJ, BOM, soft-hyphen, directional marks, etc.)
+        # Se elimina todo el bloque Cf y Cc excepto el espacio ASCII (U+0020).
+        cleaned = []
+        for ch in s:
+            cat = unicodedata.category(ch)
+            if cat in ("Cc", "Cf"):
+                continue  # descartar sin reemplazar
+            cleaned.append(ch)
+        s = "".join(cleaned)
+
+        # ── Paso 2: normalizar cualquier whitespace Unicode → espacio ASCII ──
+        # \s de Python cubre: espacio, tab, newline, CR, FF, VT, y también
+        # U+00A0 (NBSP), U+2000-U+200A (espacios tipográficos), U+2028-U+2029
+        # (line/paragraph separators), U+3000 (espacio ideográfico), etc.
+        # re.sub con \s+ sobre el string ya limpio colapsa todo en un espacio.
+        # Primero normalizamos NFC para reunir posibles combining sueltos.
+        s = unicodedata.normalize("NFC", s)
+
+        # ── Paso 3: minúsculas ───────────────────────────────────────────────
+        s = s.lower()
+
+        # ── Paso 4: eliminar tildes/diacríticos ─────────────────────────────
+        # NFD descompone á → a + U+0301 (combining acute accent).
+        # encode ASCII 'ignore' descarta todo codepoint > 127 (combining marks).
+        s = unicodedata.normalize("NFD", s)
+        s = s.encode("ascii", "ignore").decode("ascii")
+
+        # ── Paso 5: puntuación → espacio ─────────────────────────────────────
+        # Cubre los separadores más comunes en nombres de titulares:
+        # coma, punto, guion, barra, paréntesis, corchetes, punto y coma,
+        # dos puntos, comillas simples/dobles/tipográficas, arroba, ampersand.
+        s = re.sub(r"[,.\-/()\[\]{};:'\"\u2018\u2019\u201c\u201d@&]", " ", s)
+
+        # ── Paso 6: colapsar whitespace múltiple ─────────────────────────────
+        s = re.sub(r"\s+", " ", s).strip()
+
+        return s
+
+    except Exception:
+        # Fallback de último recurso: sin normalización compleja.
+        # Siempre devuelve algo, nunca propaga excepción hacia SQLite.
+        try:
+            return re.sub(r"\s+", " ", str(nombre)).strip().lower()
+        except Exception:
+            return None
 
 # Logger específico para eventos críticos del sistema
 critical_logger = logging.getLogger('critical_events')
@@ -31,21 +158,161 @@ critical_logger.propagate = False
 
 def crear_conexion():
     """Crea y devuelve una conexión a la base de datos SQLite."""
+    debug_write(">>> Entrando a crear_conexion()")
     try:
-        conn = sqlite3.connect(get_db_path())
-        # Habilitar soporte de foreign keys
-        conn.execute("PRAGMA foreign_keys = ON")
-        # Solo log en caso de problemas - no en uso normal
+        # Usar timeout más alto y permitir conexiones desde distintos hilos
+        db_path = get_db_path()
+        debug_write(f"DB path: {db_path}")
+        conn = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
+
+        # Ajustes para reducir bloqueos - NO cambiar journal_mode en cada conexión
+        try:
+            conn.execute("PRAGMA foreign_keys = ON")
+            # Solo aplicar WAL si no está ya configurado (evita bloqueos en primera ejecución)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode")
+            current_mode = cursor.fetchone()[0]
+            if current_mode != 'wal':
+                debug_write(f"Configurando WAL mode (actual: {current_mode})")
+                conn.execute("PRAGMA journal_mode = WAL")
+            cursor.close()
+            
+            conn.execute("PRAGMA synchronous = NORMAL")
+            conn.execute("PRAGMA busy_timeout = 30000")
+        except Exception as pragma_e:
+            logging.warning(f"No se pudieron aplicar PRAGMA en DB {db_path}: {pragma_e}")
+
+        # Registrar la UDF de normalización de nombres.
+        # Disponible en SQL como:  normalizar_titular(columna)
+        conn.create_function("normalizar_titular", 1, _normalizar_titular)
+
+        # Auto-test: verifica que la UDF esté operativa y produce los resultados
+        # esperados para los patrones más frecuentes en datos de PDFs.
+        try:
+            test_cur = conn.cursor()
+            # Cada caso: (entrada, salida_esperada, descripción)
+            _udf_tests = [
+                ("ROSSI, NATALIA",          "rossi natalia", "coma + mayúsculas"),
+                ("ROSSI\u00a0NATALIA",      "rossi natalia", "NBSP U+00A0"),
+                ("GARC\u00cdA, JOS\u00c9",  "garcia jose",   "tildes + coma"),
+                ("  Pérez  -  Rodríguez  ", "perez rodriguez","guion + espacios extra"),
+                ("D\u2019ANDREA",           "d andrea",      "comilla tipográfica U+2019"),
+            ]
+            failed = []
+            for entrada, esperado, desc in _udf_tests:
+                test_cur.execute("SELECT normalizar_titular(?)", (entrada,))
+                got = test_cur.fetchone()[0]
+                if got != esperado:
+                    failed.append(f"  [{desc}] '{entrada}' → '{got}' (esperado: '{esperado}')")
+            test_cur.close()
+            if failed:
+                logging.warning(
+                    "normalizar_titular UDF: los siguientes casos no coinciden:\n" +
+                    "\n".join(failed)
+                )
+            else:
+                debug_write("UDF normalizar_titular OK: todos los auto-tests pasaron")
+        except Exception as udf_e:
+            logging.error(f"normalizar_titular UDF falló el auto-test: {udf_e}")
+
+        logging.info(f"Conexión SQLite abierta: {db_path}")
+        debug_write(f"<<< Conexión SQLite exitosa: {db_path}")
         return conn
     except sqlite3.Error as e:
+        debug_write(f"ERROR en crear_conexion: {e}")
         logging.error(f"Error al conectar con la base de datos: {e}")
         raise Exception(f"Error al conectar con la base de datos: {e}")
 
+def diagnosticar_vinculacion(conn, max_filas=20):
+    """
+    Diagnóstico de vinculación boletines↔clientes.
+
+    Devuelve un dict con:
+    - udf_ok:           bool  — la UDF está registrada y funciona
+    - udf_resultado:    str   — resultado del test 'ROSSI, NATALIA'
+    - db_path:          str   — ruta de la base de datos activa
+    - sin_cliente:      list  — titulares de boletines sin cliente vinculado
+    - muestra_norm:     list  — pares (titular_boletin_norm, titular_cliente_norm)
+                                para los primeros N boletines sin cliente
+    - python_version:   str   — versión de Python activa
+    """
+    import sys
+    resultado = {
+        "udf_ok": False,
+        "udf_resultado": None,
+        "db_path": None,
+        "sin_cliente": [],
+        "muestra_norm": [],
+        "python_version": sys.version,
+    }
+    try:
+        cursor = conn.cursor()
+
+        # 1) Ruta de la DB activa
+        cursor.execute("PRAGMA database_list")
+        db_list = cursor.fetchall()
+        resultado["db_path"] = db_list[0][2] if db_list else "desconocida"
+
+        # 2) Verificar UDF
+        try:
+            cursor.execute("SELECT normalizar_titular('ROSSI, NATALIA')")
+            resultado["udf_resultado"] = cursor.fetchone()[0]
+            resultado["udf_ok"] = (resultado["udf_resultado"] == "rossi natalia")
+        except Exception as e:
+            resultado["udf_resultado"] = f"ERROR: {e}"
+            resultado["udf_ok"] = False
+
+        # 3) Titulares de boletines sin cliente vinculado (con y sin UDF)
+        cursor.execute("""
+            SELECT DISTINCT b.titular
+            FROM boletines b
+            LEFT JOIN clientes c
+                   ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
+            LEFT JOIN Marcas m
+                   ON c.id IS NULL
+                  AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
+                  AND m.cliente_id IS NOT NULL
+            LEFT JOIN clientes c2
+                   ON c.id IS NULL AND m.cliente_id = c2.id
+            WHERE c.id IS NULL AND c2.id IS NULL
+            ORDER BY b.titular
+            LIMIT ?
+        """, (max_filas,))
+        resultado["sin_cliente"] = [r[0] for r in cursor.fetchall()]
+
+        # 4) Para cada titular sin cliente, mostrar el valor normalizado
+        #    y los valores normalizados de clientes que existen en la DB
+        if resultado["sin_cliente"]:
+            muestras = []
+            for titular in resultado["sin_cliente"][:5]:  # solo primeros 5
+                norm_b = _normalizar_titular(titular)
+                cursor.execute(
+                    "SELECT titular, normalizar_titular(titular) FROM clientes ORDER BY titular LIMIT 10"
+                )
+                clientes_norm = cursor.fetchall()
+                muestras.append({
+                    "boletin_original": titular,
+                    "boletin_normalizado": norm_b,
+                    "clientes_normalizados": [
+                        {"original": r[0], "normalizado": r[1]} for r in clientes_norm
+                    ],
+                })
+            resultado["muestra_norm"] = muestras
+
+        cursor.close()
+    except Exception as e:
+        resultado["error"] = str(e)
+    return resultado
+
+
 def crear_tabla(conn):
     """Crea las tablas 'boletines' y 'clientes' con índices si no existen."""
+    debug_write(">>> Entrando a crear_tabla()")
     cursor = None
     try:
         cursor = conn.cursor()
+        debug_write("Cursor creado, verificando tablas...")
+        logging.info("Iniciando creación/verificación de tablas en la base de datos")
         
         # Crear tabla boletines
         # Solo log la primera creación de tablas, no verificaciones rutinarias
@@ -189,7 +456,46 @@ def crear_tabla(conn):
         ''')
         conn.commit()
 
+        # Crear tabla emails_enviados (compatibilidad con módulo de envíos)
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='emails_enviados'")
+        tabla_emails_existe = cursor.fetchone()
+
+        if not tabla_emails_existe:
+            critical_logger.info("Creando tabla 'emails_enviados' por primera vez...")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS emails_enviados (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                destinatario TEXT NOT NULL,
+                asunto TEXT NOT NULL,
+                mensaje TEXT NOT NULL,
+                tipo_email TEXT DEFAULT 'general',
+                status TEXT DEFAULT 'pendiente',
+                fecha_envio DATETIME DEFAULT CURRENT_TIMESTAMP,
+                titular TEXT DEFAULT NULL
+            )
+        """)
+        conn.commit()
+
+        if not tabla_emails_existe:
+            critical_logger.info("Tabla 'emails_enviados' creada exitosamente.")
+
+        # Verificar y agregar columna 'titular' si la tabla ya existía sin ella
+        try:
+            cursor.execute("PRAGMA table_info(emails_enviados)")
+            columns_emails = [column[1] for column in cursor.fetchall()]
+
+            if 'titular' not in columns_emails:
+                cursor.execute("ALTER TABLE emails_enviados ADD COLUMN titular TEXT DEFAULT NULL")
+                critical_logger.info("Columna 'titular' agregada a emails_enviados.")
+                conn.commit()
+        except Exception as e:
+            logging.warning(f"Error actualizando estructura de emails_enviados: {e}")
+
+        logging.info("Finalizada creación/verificación de tablas en la base de datos")
+        debug_write("<<< crear_tabla() completada exitosamente")
     except sqlite3.Error as e:
+        debug_write(f"ERROR en crear_tabla: {e}")
         logging.error(f"Error al crear tablas o índice: {e}")
         raise Exception(f"Error al crear tablas o índice: {e}")
     finally:
@@ -271,19 +577,45 @@ def insertar_datos(conn, datos_agrupados):
         cursor.close()
 
 def obtener_datos(conn):
-    """Obtiene todos los registros de boletines con datos de clientes mediante LEFT JOIN."""
+    """
+    Obtiene todos los registros de boletines con datos de clientes.
+
+    Estrategia de vinculación (dos pasos, sin modificar boletines):
+    1. Unión directa por nombre: LOWER(b.titular) = LOWER(c.titular)
+    2. Fallback via Marcas: si el paso 1 no encuentra cliente,
+       busca una marca cuyo titular coincida con el del boletín y
+       usa el cliente_id de esa marca (c2).
+    Esto permite recuperar datos de email/teléfono/etc. para boletines
+    históricos cuyo titular fue guardado con un nombre diferente al del
+    cliente, siempre que ambos nombres existan en la tabla Marcas.
+    """
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT 
-                b.id, b.titular, b.marca_custodia, b.marca_publicada, b.numero_boletin, b.fecha_boletin, 
-                b.numero_orden, 
-                b.solicitante, b.agente, b.numero_expediente, b.clase, 
-                b.clases_acta, 
-                b.reporte_enviado, b.reporte_generado, b.fecha_alta, b.importancia,
-                c.email, c.telefono, c.direccion, c.ciudad
+            SELECT
+                b.id, b.titular, b.numero_orden, b.marca_custodia, b.marca_publicada, b.numero_boletin,
+                b.importancia, b.fecha_boletin,
+                b.solicitante, b.agente, b.numero_expediente, b.clase,
+                b.clases_acta,
+                b.reporte_enviado, b.reporte_generado, b.fecha_alta,
+                COALESCE(c.email,  c2.email)     AS email,
+                COALESCE(c.telefono, c2.telefono) AS telefono,
+                COALESCE(c.direccion, c2.direccion) AS direccion,
+                COALESCE(c.ciudad, c2.ciudad)    AS ciudad
             FROM boletines b
-            LEFT JOIN clientes c ON b.titular = c.titular
+            -- Paso 1: vínculo directo por nombre normalizado
+            --   normalizar_titular() elimina comas, tildes, espacios extra, etc.
+            --   Ej: "ROSSI, NATALIA" y "ROSSI NATALIA" → "rossi natalia"
+            LEFT JOIN clientes c
+                   ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
+            -- Paso 2: fallback via Marcas cuando el paso 1 no resuelve
+            LEFT JOIN Marcas m
+                   ON c.id IS NULL
+                  AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
+                  AND m.cliente_id IS NOT NULL
+            LEFT JOIN clientes c2
+                   ON c.id IS NULL
+                  AND m.cliente_id = c2.id
         """)
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description]
@@ -365,17 +697,31 @@ def actualizar_importancia_boletin(conn, boletin_id, importancia):
         cursor.close()
 
 def obtener_boletines_para_clasificar(conn):
-    """Obtiene boletines con reporte generado pero no enviado para clasificar."""
+    """
+    Obtiene boletines con reporte generado pero no enviado para clasificar.
+
+    Aplica la misma estrategia de doble JOIN que obtener_datos:
+    1. Unión directa por nombre (case-insensitive, consistente con obtener_datos).
+    2. Fallback via Marcas cuando el paso 1 no resuelve el cliente.
+    """
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT 
-                b.id, b.titular, b.numero_boletin, b.fecha_boletin, 
-                b.numero_orden, b.solicitante, b.marca_custodia, 
+            SELECT
+                b.id, b.titular, b.numero_boletin, b.fecha_boletin,
+                b.numero_orden, b.solicitante, b.marca_custodia,
                 b.marca_publicada, b.importancia,
-                c.email
+                COALESCE(c.email, c2.email) AS email
             FROM boletines b
-            LEFT JOIN clientes c ON b.titular = c.titular
+            LEFT JOIN clientes c
+                   ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
+            LEFT JOIN Marcas m
+                   ON c.id IS NULL
+                  AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
+                  AND m.cliente_id IS NOT NULL
+            LEFT JOIN clientes c2
+                   ON c.id IS NULL
+                  AND m.cliente_id = c2.id
             WHERE b.reporte_generado = 1 AND b.reporte_enviado = 0
             ORDER BY b.titular, b.numero_boletin, b.numero_orden
         """)
@@ -411,53 +757,63 @@ def eliminar_registro(conn, id):
 def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provincia, cuit):
     """
     Inserta un nuevo cliente en la tabla 'clientes', verificando duplicados.
-    Además, verifica si el CUIT ya existe en la tabla Marcas y compara el titular.
-    Si los titulares no coinciden, usa el titular de la tabla Marcas.
     Luego vincula automáticamente todas las marcas con el mismo CUIT.
-    
+
+    IMPORTANTE sobre el nombre del titular:
+    El cliente se guarda SIEMPRE con el nombre tal como viene del boletín (parámetro
+    `titular`). No se sobreescribe con el nombre de la tabla Marcas aunque difiera,
+    porque la vinculación boletín↔cliente se realiza por coincidencia de texto
+    (normalizar_titular(b.titular) = normalizar_titular(c.titular)). Cambiar el nombre rompería ese JOIN
+    para todos los boletines históricos de ese titular.
+    Si hay discrepancia con Marcas, se registra en el log para revisión manual.
+
     Args:
         conn: Conexión a la base de datos
-        titular: Nombre del titular
+        titular: Nombre del titular (se preserva exactamente como viene del boletín)
         email: Email del cliente
         telefono: Teléfono del cliente
         direccion: Dirección del cliente
         ciudad: Ciudad del cliente
         provincia: Provincia del cliente
         cuit: CUIT del cliente
-        
+
     Returns:
         int: ID del cliente insertado o None si ocurre un error
     """
     try:
         cursor = conn.cursor()
-        
-        # Verificar si ya existe un cliente con el mismo titular
-        cursor.execute('SELECT COUNT(*) FROM clientes WHERE titular = ?', (titular,))
-        if cursor.fetchone()[0] > 0:
-            logging.info(f"Cliente omitido (ya existe): Titular {titular}")
-            raise Exception(f"Cliente con titular '{titular}' ya existe.")
-        
-        # Nombre del titular para insertar (puede ser actualizado si se encuentra en la tabla Marcas)
-        nombre_titular_final = titular
-        
-        # Si hay un CUIT, verificar si existe en la tabla Marcas y comparar el nombre del titular
+
+        # Verificar duplicado usando normalización: "ROSSI, NATALIA" y "ROSSI NATALIA"
+        # se consideran el mismo titular.
+        cursor.execute(
+            'SELECT titular FROM clientes WHERE normalizar_titular(titular) = normalizar_titular(?)',
+            (titular,)
+        )
+        existing = cursor.fetchone()
+        if existing:
+            logging.info(f"Cliente omitido (ya existe como '{existing[0]}'): Titular '{titular}'")
+            raise Exception(f"Cliente con titular '{titular}' ya existe (registrado como '{existing[0]}').")
+
+        # Registrar discrepancia con Marcas si la hay, SIN modificar el nombre recibido.
+        # El nombre no se sobreescribe para preservar la vinculación por texto con boletines.
         if cuit:
             cursor.execute('SELECT titular FROM Marcas WHERE cuit = ? LIMIT 1', (cuit,))
             resultado_marca = cursor.fetchone()
-            
             if resultado_marca and resultado_marca[0]:
                 titular_en_marcas = resultado_marca[0]
-                
-                # Si los nombres no coinciden, usar el de la tabla Marcas
-                if titular_en_marcas.strip() != titular.strip():
-                    logging.info(f"Actualizando nombre del cliente de '{titular}' a '{titular_en_marcas}' según tabla Marcas")
-                    nombre_titular_final = titular_en_marcas
-        
-        # Insertar el nuevo cliente con el nombre correcto
+                if _normalizar_titular(titular_en_marcas) != _normalizar_titular(titular):
+                    logging.warning(
+                        f"insertar_cliente: discrepancia de nombre entre boletín "
+                        f"('{titular}') y Marcas ('{titular_en_marcas}') para CUIT {cuit}. "
+                        "Se conserva el nombre del boletín. La vinculación retroactiva "
+                        "se resolverá vía Marcas en las consultas de historial/email."
+                    )
+
+        # Insertar el cliente con el nombre exacto recibido (del boletín)
         cursor.execute('''
             INSERT INTO clientes (titular, email, telefono, direccion, ciudad, provincia, fecha_alta, cuit)
             VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
-        ''', (nombre_titular_final, email, telefono, direccion, ciudad, provincia, cuit))
+        ''', (titular, email, telefono, direccion, ciudad, provincia, cuit))
         
         conn.commit()
         
@@ -465,7 +821,7 @@ def insertar_cliente(conn, titular, email, telefono, direccion, ciudad, provinci
         cursor.execute("SELECT last_insert_rowid()")
         cliente_id = cursor.fetchone()[0]
         
-        logging.info(f"Cliente insertado: ID {cliente_id}, Titular {nombre_titular_final}")
+        logging.info(f"Cliente insertado: ID {cliente_id}, Titular {titular}")
         
         # Vincular marcas existentes con este CUIT
         if cuit:
@@ -1492,11 +1848,65 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
         if 'cursor' in locals():
             cursor.close()
 
+def verificar_cuit_duplicado_marca(conn, cuit, excluir_id=None):
+    """
+    Verifica si un CUIT ya existe en la tabla Marcas.
+
+    Args:
+        conn:        Conexión SQLite activa.
+        cuit:        CUIT a verificar (se normaliza a solo dígitos internamente).
+        excluir_id:  ID de la marca que se está editando; se excluye de la búsqueda
+                     para que el CUIT actual de la marca no se reporte como duplicado.
+
+    Returns:
+        dict | None:
+            None  → el CUIT es único (o estaba vacío).
+            dict  → {'id': int, 'marca': str, 'titular': str}
+                    de la primera marca que ya usa ese CUIT.
+    """
+    if not cuit:
+        return None
+    cuit_norm = "".join(ch for ch in str(cuit) if ch.isdigit())
+    if not cuit_norm:
+        return None
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        if excluir_id is not None:
+            cursor.execute(
+                "SELECT id, marca, titular FROM Marcas "
+                "WHERE REPLACE(REPLACE(COALESCE(cuit,''),'-',''),' ','') = ? "
+                "AND id != ? LIMIT 1",
+                (cuit_norm, int(excluir_id)),
+            )
+        else:
+            cursor.execute(
+                "SELECT id, marca, titular FROM Marcas "
+                "WHERE REPLACE(REPLACE(COALESCE(cuit,''),'-',''),' ','') = ? LIMIT 1",
+                (cuit_norm,),
+            )
+        row = cursor.fetchone()
+        if row:
+            return {"id": row[0], "marca": row[1], "titular": row[2]}
+        return None
+    except Exception as e:
+        logging.error(f"verificar_cuit_duplicado_marca: {e}")
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+
+
 def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, cuit=None, titular=None, nrocon=None, email=None, cliente_id=None):
     """
     Inserta una nueva marca en la tabla 'marcas'.
-    Si existe un cliente con el mismo CUIT, establece automáticamente la relación.
-    
+
+    Lógica de vinculación (en orden de prioridad):
+      1. Si se recibe cliente_id explícito y válido → se usa directamente.
+      2. Si cliente_id es None → se intenta resolver por CUIT (fallback original).
+      3. Si aún es None tras el fallback → se hace una segunda búsqueda post-insert
+         por CUIT para cubrir condiciones de carrera.
+
     Args:
         conn: Conexión a la base de datos
         marca: Nombre de la marca
@@ -1506,82 +1916,135 @@ def insertar_marca(conn, marca, codigo_marca, clase, acta=None, custodia=None, c
         custodia: Indicador de custodia
         cuit: CUIT del titular
         titular: Nombre del titular
-        
+        nrocon: Número de concesión
+        email: Email de contacto
+        cliente_id: ID de cliente explícito (prioridad sobre búsqueda por CUIT)
+
     Returns:
         int: ID de la marca insertada o None si ocurre un error
     """
     try:
         cursor = conn.cursor()
-        cliente_id = None
         cliente_nombre = None
-        
-        # Si se proporciona un CUIT, buscar el cliente correspondiente
-        if cuit:
-            # Asegurar compatibilidad entre string e int para CUIT
+
+        # --- Paso 1: respetar cliente_id explícito recibido por parámetro ---
+        # Normalizar: el formulario puede enviar el id como string ("42") o int (42).
+        cliente_id_resuelto = None
+        if cliente_id is not None and str(cliente_id).strip() not in ("", "None"):
+            try:
+                cliente_id_resuelto = int(cliente_id)
+            except (ValueError, TypeError):
+                cliente_id_resuelto = None
+
+        if cliente_id_resuelto is not None:
+            # Verificar que el cliente realmente existe antes de usarlo
+            cursor.execute(
+                "SELECT titular FROM clientes WHERE id = ?",
+                (cliente_id_resuelto,)
+            )
+            cliente_row = cursor.fetchone()
+            if cliente_row:
+                cliente_nombre = cliente_row[0]
+                logging.info(
+                    f"Usando cliente_id explícito {cliente_id_resuelto} "
+                    f"('{cliente_nombre}') para marca '{marca}'"
+                )
+            else:
+                logging.warning(
+                    f"cliente_id {cliente_id_resuelto} no existe en clientes; "
+                    f"aplicando fallback por CUIT para marca '{marca}'"
+                )
+                cliente_id_resuelto = None
+
+        # --- Paso 2 (fallback): buscar cliente por CUIT solo si no hay id explícito ---
+        if cliente_id_resuelto is None and cuit:
             cuit_str = str(cuit) if isinstance(cuit, (int, float)) else cuit
             cuit_int = int(cuit) if isinstance(cuit, str) and cuit.isdigit() else None
-            
-            # Intentar buscar el cliente con CUIT como string y como int
-            # Ordenar por id DESC para tomar el cliente más reciente con ese CUIT
+
             if cuit_int is not None:
-                cursor.execute("SELECT id, titular, cuit FROM clientes WHERE cuit = ? OR cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str, cuit_int))
+                cursor.execute(
+                    "SELECT id, titular, cuit FROM clientes "
+                    "WHERE cuit = ? OR cuit = ? ORDER BY id DESC LIMIT 1",
+                    (cuit_str, cuit_int)
+                )
             else:
-                cursor.execute("SELECT id, titular, cuit FROM clientes WHERE cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str,))
-                
+                cursor.execute(
+                    "SELECT id, titular, cuit FROM clientes "
+                    "WHERE cuit = ? ORDER BY id DESC LIMIT 1",
+                    (cuit_str,)
+                )
+
             cliente_result = cursor.fetchone()
             if cliente_result:
-                cliente_id = cliente_result[0]
+                cliente_id_resuelto = cliente_result[0]
                 cliente_nombre = cliente_result[1]
                 cliente_cuit = cliente_result[2]
-                logging.info(f"Vinculando marca '{marca}' con cliente '{cliente_nombre}' (ID: {cliente_id}, CUIT: {cliente_cuit})")
+                logging.info(
+                    f"Vinculando marca '{marca}' con cliente '{cliente_nombre}' "
+                    f"(ID: {cliente_id_resuelto}, CUIT: {cliente_cuit}) [por CUIT]"
+                )
             else:
-                logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca '{marca}'")
-        
-        # Insertar la nueva marca
+                logging.info(
+                    f"No se encontró cliente con CUIT {cuit} para vincular con marca '{marca}'"
+                )
+
+        # --- Insertar la nueva marca con el cliente_id resuelto ---
         cursor.execute("""
             INSERT INTO Marcas (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular, nrocon, email)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (marca, codigo_marca, clase, acta, custodia, cuit, cliente_id, titular, nrocon, email))
-        
-        # Obtener el ID de la marca recién insertada
+        """, (marca, codigo_marca, clase, acta, custodia, cuit,
+              cliente_id_resuelto, titular, nrocon, email))
+
         cursor.execute("SELECT last_insert_rowid()")
         marca_id = cursor.fetchone()[0]
-        
+
         conn.commit()
-        
-        # Después de insertar la marca, verificamos de nuevo si existe un cliente con el mismo CUIT
-        # Este paso es necesario en caso de que el cliente haya sido insertado entre nuestra verificación y nuestra inserción
-        if cuit:
-            # Asegurar compatibilidad entre string e int para CUIT
+
+        # --- Paso 3: segunda verificación por CUIT (solo si aún sin cliente) ---
+        # Cubre condición de carrera: cliente insertado entre la verificación y el INSERT.
+        # No se ejecuta cuando ya se resolvió un cliente_id en los pasos anteriores.
+        if cliente_id_resuelto is None and cuit:
             cuit_str = str(cuit) if isinstance(cuit, (int, float)) else cuit
             cuit_int = int(cuit) if isinstance(cuit, str) and cuit.isdigit() else None
-            
-            # Intentar buscar el cliente más reciente (mayor ID) con CUIT como string y como int
+
             if cuit_int is not None:
-                cursor.execute("SELECT id FROM clientes WHERE cuit = ? OR cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str, cuit_int))
+                cursor.execute(
+                    "SELECT id FROM clientes WHERE cuit = ? OR cuit = ? ORDER BY id DESC LIMIT 1",
+                    (cuit_str, cuit_int)
+                )
             else:
-                cursor.execute("SELECT id FROM clientes WHERE cuit = ? ORDER BY id DESC LIMIT 1", (cuit_str,))
-                
+                cursor.execute(
+                    "SELECT id FROM clientes WHERE cuit = ? ORDER BY id DESC LIMIT 1",
+                    (cuit_str,)
+                )
+
             cliente_result = cursor.fetchone()
             if cliente_result and cliente_result[0]:
-                cliente_id_reciente = cliente_result[0]
-                
-                # Actualizar la marca recién insertada con el cliente_id más reciente
-                cursor.execute("""
-                    UPDATE Marcas SET cliente_id = ? WHERE id = ?
-                """, (cliente_id_reciente, marca_id))
+                cliente_id_resuelto = cliente_result[0]
+                cursor.execute(
+                    "UPDATE Marcas SET cliente_id = ? WHERE id = ?",
+                    (cliente_id_resuelto, marca_id)
+                )
                 conn.commit()
-                logging.info(f"Marca ID {marca_id} vinculada automáticamente con cliente ID {cliente_id_reciente} (el más reciente)")
+                logging.info(
+                    f"Marca ID {marca_id} vinculada automáticamente con cliente "
+                    f"ID {cliente_id_resuelto} [por CUIT post-insert]"
+                )
             else:
-                logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca ID {marca_id}")
-        
-        if cliente_id:
-            logging.info(f"Marca insertada y vinculada: '{marca}' (ID: {marca_id}) con cliente '{cliente_nombre}' (ID: {cliente_id})")
+                logging.info(
+                    f"No se encontró cliente con CUIT {cuit} para vincular con marca ID {marca_id}"
+                )
+
+        if cliente_id_resuelto:
+            logging.info(
+                f"Marca insertada y vinculada: '{marca}' (ID: {marca_id}) "
+                f"con cliente '{cliente_nombre}' (ID: {cliente_id_resuelto})"
+            )
         else:
             logging.info(f"Marca insertada sin vincular: '{marca}' (ID: {marca_id})")
-        
+
         return marca_id
-        
+
     except sqlite3.Error as e:
         logging.error(f"Error al insertar marca: {e}")
         conn.rollback()
@@ -1620,17 +2083,50 @@ def actualizar_marca(conn, marca_id, marca, codigo_marca, clase, acta=None, cust
             return False
             
         cuit_antiguo = result[0]
-        cliente_id = None
-        
-        # Si se proporciona un CUIT (nuevo o existente), intentar vincular con cliente
-        if cuit:
-            cursor.execute("SELECT id FROM clientes WHERE cuit = ?", (cuit,))
+
+        # P3 — Respetar el cliente_id recibido como parámetro con la misma
+        # lógica de prioridad que usa insertar_marca:
+        #   1. cliente_id explícito y válido → usarlo directamente.
+        #   2. cliente_id None + CUIT disponible → buscar cliente por CUIT (fallback).
+        #   3. Sin datos suficientes → dejar NULL.
+        # La versión anterior sobreescribía incondicionalmente con None (bug).
+        cliente_id_resuelto = None
+
+        if cliente_id is not None and str(cliente_id).strip() not in ("", "None"):
+            try:
+                cliente_id_resuelto = int(cliente_id)
+            except (ValueError, TypeError):
+                cliente_id_resuelto = None
+
+        if cliente_id_resuelto is not None:
+            cursor.execute("SELECT id FROM clientes WHERE id = ?", (cliente_id_resuelto,))
+            if not cursor.fetchone():
+                logging.warning(
+                    f"actualizar_marca: cliente_id {cliente_id_resuelto} no encontrado; "
+                    f"aplicando fallback por CUIT para marca ID {marca_id}"
+                )
+                cliente_id_resuelto = None
+
+        # Fallback por CUIT solo cuando no se recibió cliente_id válido
+        if cliente_id_resuelto is None and cuit:
+            cursor.execute(
+                "SELECT id FROM clientes WHERE cuit = ? ORDER BY id DESC LIMIT 1",
+                (str(cuit),)
+            )
             cliente_result = cursor.fetchone()
             if cliente_result:
-                cliente_id = cliente_result[0]
-                logging.info(f"Actualizando vinculación de marca ID {marca_id} con cliente ID {cliente_id}")
+                cliente_id_resuelto = cliente_result[0]
+                logging.info(
+                    f"actualizar_marca: marca ID {marca_id} vinculada con cliente "
+                    f"ID {cliente_id_resuelto} [por CUIT {cuit}]"
+                )
             else:
-                logging.info(f"No se encontró cliente con CUIT {cuit} para vincular con marca ID {marca_id}")
+                logging.info(
+                    f"actualizar_marca: no se encontró cliente con CUIT {cuit} "
+                    f"para marca ID {marca_id}"
+                )
+
+        cliente_id = cliente_id_resuelto
         
         # Actualizar la marca
         # Actualizar la marca con todos los campos
@@ -1655,6 +2151,43 @@ def actualizar_marca(conn, marca_id, marca, codigo_marca, clase, acta=None, cust
     finally:
         if cursor:
             cursor.close()
+
+def actualizar_marca_cliente(conn, marca_id, cliente_id):
+    """
+    Actualiza únicamente el cliente_id de una marca existente.
+    Pasar cliente_id=None desvincula la marca de cualquier cliente.
+
+    Args:
+        conn: Conexión SQLite activa.
+        marca_id: ID de la marca a modificar.
+        cliente_id: Nuevo ID de cliente (int) o None para desvincular.
+
+    Returns:
+        bool: True si se actualizó al menos una fila, False en caso contrario.
+    """
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE Marcas SET cliente_id = ? WHERE id = ?",
+            (cliente_id, marca_id)
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            logging.warning(f"actualizar_marca_cliente: marca ID {marca_id} no encontrada")
+            return False
+        logging.info(
+            f"Marca ID {marca_id} → cliente_id actualizado a {cliente_id}"
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Error en actualizar_marca_cliente: {e}")
+        conn.rollback()
+        return False
+    finally:
+        if cursor:
+            cursor.close()
+
 
 def obtener_marcas(conn, filtro_cuit=None, filtro_cliente_id=None):
     """

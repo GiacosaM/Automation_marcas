@@ -1,0 +1,41 @@
+
+============================================================
+         MiAppMarcas - Sistema de Gestión de Marcas
+============================================================
+
+2025-11-13 18:49:48,893 - INFO - ============================================================
+2025-11-13 18:49:48,893 - INFO - Iniciando MiAppMarcas Launcher
+2025-11-13 18:49:48,893 - INFO - Directorio base: C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas
+2025-11-13 18:49:48,893 - INFO - Python embebido: C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas\python
+2025-11-13 18:49:48,893 - INFO - Entorno virtual: C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas\.venv
+2025-11-13 18:49:48,893 - INFO - Aplicación: C:\Users\Iara\Desktop\Automation\Automation_marcas\packaging\build_release\MiAppMarcas\app
+2025-11-13 18:49:48,893 - INFO - ============================================================
+2025-11-13 18:49:48,893 - INFO - Entorno ya configurado, saltando setup
+  ✅ Entorno ya configurado
+
+2025-11-13 18:49:48,893 - INFO - Iniciando Streamlit...
+
+============================================================
+                   INICIANDO MIAPPMARCAS
+============================================================
+
+2025-11-13 18:49:48,940 - INFO - Streamlit ya está corriendo en puerto 8501
+  ℹ️  Streamlit ya está ejecutándose
+  🌐 Abriendo navegador en http://localhost:8501
+
+  🌐 Abriendo navegador en http://localhost:8501...
+2025-11-13 18:49:51,429 - INFO - Navegador abierto
+
+============================================================
+  🎉 ¡MiAppMarcas está ejecutándose!
+  🌐 URL: http://localhost:8501
+
+  💡 Consejos:
+     - Mantén esta ventana abierta
+     - Para cerrar, cierra esta ventana
+     - Revisa launcher.log si hay problemas
+============================================================
+
+2025-11-13 18:49:51,445 - INFO - Launcher completado exitosamente
+
+  Presiona Enter para cerrar esta ventana...

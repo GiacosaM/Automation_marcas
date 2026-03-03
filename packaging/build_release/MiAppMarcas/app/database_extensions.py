@@ -38,7 +38,6 @@ def obtener_emails_enviados(conn, filtro_fechas=None, filtro_titular=None, filtr
         # Construir consulta
         query = """
             SELECT id, destinatario, asunto, fecha_envio, status, 
-                   mensaje_error, 
         """
         
         if tiene_titular:

@@ -94,6 +94,10 @@ def verificar_titulares_sin_reportes(conn):
     Returns:
         dict: Un diccionario con información sobre el resultado de la verificación y envío
     """
+    # ── [LOG] id del registro en verificaciones_log; accesible en except ─────
+    _log_id = None
+    # ── [/LOG] ───────────────────────────────────────────────────────────────
+
     try:
         # Obtener el mes y año actual
         fecha_actual = datetime.now()
@@ -112,6 +116,20 @@ def verificar_titulares_sin_reportes(conn):
         # Definir el periodo del reporte (mes pasado) como string (formato: MM-YYYY)
         periodo_reporte = f"{mes_reporte:02d}-{anio_reporte}"
 
+        # ── [LOG] Block 1: registrar inicio en verificaciones_log ────────────
+        _mes_ejecutado = f"{anio_reporte}-{mes_reporte:02d}"
+        try:
+            _log_cur = conn.cursor()
+            _log_cur.execute(
+                "INSERT INTO verificaciones_log (mes_ejecutado, resultado) VALUES (?, ?)",
+                (_mes_ejecutado, 'en_progreso'),
+            )
+            conn.commit()
+            _log_id = _log_cur.lastrowid
+        except Exception as _log_err:
+            logger.warning(f"verificaciones_log: no se pudo insertar registro inicial: {_log_err}")
+        # ── [/LOG] ───────────────────────────────────────────────────────────
+
         primer_dia = primer_dia_mes_pasado.strftime("%Y-%m-%d")
         ultimo_dia = ultimo_dia_mes_pasado.strftime("%Y-%m-%d")
         
@@ -125,11 +143,15 @@ def verificar_titulares_sin_reportes(conn):
             logger.error("No se encontraron credenciales de email configuradas. Abortando envíos.")
             return {"estado": "error", "mensaje": "Credenciales de email no configuradas"}
         
-        # Obtener todos los titulares únicos con sus emails
+        # Obtener todos los titulares únicos con sus emails.
+        # Se usa normalizar_titular() para tolerar diferencias de formato
+        # entre el titular registrado en Marcas y en clientes
+        # (ej: "ROSSI, NATALIA" vs "ROSSI NATALIA").
         cursor.execute("""
-            SELECT DISTINCT m.titular, c.email 
+            SELECT DISTINCT m.titular, c.email
             FROM Marcas m
-            JOIN clientes c ON m.titular = c.titular
+            JOIN clientes c
+              ON normalizar_titular(m.titular) = normalizar_titular(c.titular)
             WHERE c.email IS NOT NULL AND c.email != ''
         """)
         
@@ -340,25 +362,12 @@ Sistema de Gestión de Marcas"""
                 msg_root.attach(msg_alternative)
 
                 # Agregar logo si existe
-                from paths import get_assets_dir
-                logo_path = os.path.join(get_assets_dir(), 'Logo.png')
-                # Buscar también en otras ubicaciones posibles si no existe en assets
-                if not os.path.exists(logo_path):
-                    alt_paths = [
-                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo.png'),
-                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'imagenes', 'Logo1.png'),
-                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Logo.png')
-                    ]
-                    for path in alt_paths:
-                        if os.path.exists(path):
-                            logo_path = path
-                            break
-
-                if os.path.exists(logo_path):
+                from paths import get_logo_path
+                logo_path = get_logo_path()
+                if logo_path:
                     try:
                         with open(logo_path, 'rb') as img_file:
                             img_data = img_file.read()
-                            # Intentar detectar tipo MIME por extensión
                             mime_type, _ = mimetypes.guess_type(logo_path)
                             if mime_type and mime_type.startswith('image/'):
                                 subtype = mime_type.split('/')[1]
@@ -366,7 +375,6 @@ Sistema de Gestión de Marcas"""
                                 ext = os.path.splitext(logo_path)[1].lstrip('.').lower()
                                 subtype = ext if ext else 'png'
                             img = MIMEImage(img_data, _subtype=subtype)
-                            # Asegurarse de que el Content-ID coincida exactamente con cid:logo usado en la plantilla
                             img.add_header('Content-ID', '<logo>')
                             img.add_header('Content-Disposition', 'inline; filename="Logo.png"')
                             msg_root.attach(img)
@@ -374,20 +382,22 @@ Sistema de Gestión de Marcas"""
                     except Exception as e:
                         logger.warning(f"Error al adjuntar logo: {e}")
                 else:
-                    logger.warning(f"No se encontró el archivo de logo en ninguna ruta esperada. Buscado: {logo_path}")
+                    logger.warning("Logo no encontrado. El correo se enviará sin logo.")
                     
                 # Enviar email - usando el método exacto que funciona en email_verification_system.py
                 port = int(email_port) if isinstance(email_port, str) else email_port
-                server = smtplib.SMTP(email_host, port)
-                server.ehlo()  # Identificarse con el servidor
-                server.starttls()
-                server.ehlo()  # Identificarse nuevamente después de TLS
-                server.login(email_user, email_password)
-                
-                # Usar sendmail en lugar de send_message (importante para evitar el error de relay)
-                msg_content = msg_root.as_string()
-                server.sendmail(email_user, [email], msg_content)
-                server.quit()
+                server = smtplib.SMTP(email_host, port, timeout=10)
+                try:
+                    server.ehlo()  # Identificarse con el servidor
+                    server.starttls()
+                    server.ehlo()  # Identificarse nuevamente después de TLS
+                    server.login(email_user, email_password)
+                    
+                    # Usar sendmail en lugar de send_message (importante para evitar el error de relay)
+                    msg_content = msg_root.as_string()
+                    server.sendmail(email_user, [email], msg_content)
+                finally:
+                    server.quit()
                 
                 # Registrar envío en la tabla emails_enviados
                 try:
@@ -470,7 +480,22 @@ Sistema de Gestión de Marcas"""
                     )
 
         logger.info('Mensaje para UI: %s', mensaje_ui)
-        
+
+        # ── [LOG] Block 2: marcar ejecución como exitosa ─────────────────────
+        if _log_id is not None:
+            try:
+                _log_cur = conn.cursor()
+                _log_cur.execute(
+                    "UPDATE verificaciones_log "
+                    "SET resultado = ?, titulares_procesados = ? "
+                    "WHERE id = ?",
+                    ('exitosa', len(titulares_con_marcas_sin_reportes), _log_id),
+                )
+                conn.commit()
+            except Exception as _log_err:
+                logger.warning(f"verificaciones_log: no se pudo actualizar a 'exitosa': {_log_err}")
+        # ── [/LOG] ───────────────────────────────────────────────────────────
+
         return {
             "estado": "completado",
             "titulares_con_marcas_sin_reportes": len(titulares_con_marcas_sin_reportes),
@@ -482,6 +507,20 @@ Sistema de Gestión de Marcas"""
         }
     
     except Exception as e:
+        # ── [LOG] Block 3: marcar ejecución como fallida ─────────────────────
+        if _log_id is not None:
+            try:
+                _log_cur = conn.cursor()
+                _log_cur.execute(
+                    "UPDATE verificaciones_log "
+                    "SET resultado = ?, error_mensaje = ? "
+                    "WHERE id = ?",
+                    ('fallida', str(e)[:500], _log_id),
+                )
+                conn.commit()
+            except Exception as _log_err:
+                logger.warning(f"verificaciones_log: no se pudo actualizar a 'fallida': {_log_err}")
+        # ── [/LOG] ───────────────────────────────────────────────────────────
         logger.error(f"Error durante la verificación de titulares sin reportes: {e}")
         return {"estado": "error", "mensaje": str(e)}
 

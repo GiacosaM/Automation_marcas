@@ -42,12 +42,7 @@ def get_data_dir():
     Returns:
         str: Ruta absoluta al directorio de datos.
     """
-    # Si estamos ejecutando localmente y queremos usar una ubicación específica
-    if os.path.exists("/Users/martingiacosa/Desktop/MiAppMarcas"):
-        data_dir = "/Users/martingiacosa/Desktop/MiAppMarcas"
-    else:
-        # Usar el directorio base de la aplicación (donde está el ejecutable o el script)
-        data_dir = get_base_dir()
+    data_dir = get_base_dir()
     
     # Crear subdirectorios necesarios
     for subdir in ['assets', 'imagenes', 'informes', 'logs', 'config']:
@@ -238,33 +233,44 @@ def inicializar_assets():
 
 def get_logo_path():
     """
-    Obtiene la ruta al logo de la aplicación.
-    Si no existe en el directorio de assets, intenta inicializarlo.
-    
+    Obtiene la ruta al logo de la aplicación buscando en orden de prioridad
+    dentro de los directorios 'assets' e 'imagenes' del proyecto.
+
+    Soporta los nombres y extensiones usados históricamente en el sistema:
+    logo.jpg, logo.png, Logo.png, logo_alt.jpg, marca_agua.jpg, etc.
+
+    No lanza excepciones: si no se encuentra ningún archivo devuelve None y
+    el informe/correo se genera igualmente sin logo.
+
     Returns:
-        str: Ruta absoluta al archivo de logo o None si no se encuentra.
+        str | None: Ruta absoluta al primer archivo de logo encontrado, o None.
     """
-    logo_path = os.path.join(get_assets_dir(), "logo.jpg")
-    alt_logo_path = os.path.join(get_assets_dir(), "logo_alt.jpg")
-    
-    # Verificar si el logo principal existe
-    if os.path.exists(logo_path):
-        return logo_path
-    
-    # Verificar si el logo alternativo existe
-    if os.path.exists(alt_logo_path):
-        return alt_logo_path
-    
-    # Si no existe ninguno, intentar inicializar los assets
+    assets_dir = get_assets_dir()
+    images_dir = get_image_path()   # directorio imagenes/
+
+    # Candidatos en orden de prioridad (primero assets, luego imagenes)
+    candidates = [
+        os.path.join(assets_dir, "logo.jpg"),
+        os.path.join(assets_dir, "logo.png"),
+        os.path.join(assets_dir, "Logo.png"),
+        os.path.join(assets_dir, "logo_alt.jpg"),
+        os.path.join(images_dir, "marca_agua.jpg"),
+        os.path.join(images_dir, "marca_agua.png"),
+        os.path.join(images_dir, "Logo.png"),
+        os.path.join(images_dir, "logo.png"),
+        os.path.join(images_dir, "Logo1.png"),
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    # Último recurso: intentar copiar desde imagenes/ → assets/ y re-buscar
     if inicializar_assets():
-        return get_logo_path()  # Llamada recursiva después de inicializar
-    
-    # Si no se pudo obtener el logo de ninguna forma, intentar retornar
-    # la ruta directa a la imagen en el directorio del proyecto
-    project_logo = get_image_path("marca_agua.jpg")
-    if os.path.exists(project_logo):
-        return project_logo
-        
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+
     return None
 
 # Si se ejecuta como script principal, mostrar información de las rutas
