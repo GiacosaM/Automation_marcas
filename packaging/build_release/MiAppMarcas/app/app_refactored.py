@@ -15,7 +15,7 @@ import streamlit as st
 
 # Configuración de página (debe ser lo primero)
 st.set_page_config(
-    page_title="Sistema de Gestión de Marcas",
+    page_title="Sistema de Gestión de Marca",
     page_icon="🏢",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -43,6 +43,10 @@ from src.ui.pages.marcas import show_marcas_page
 from auth_manager_simple import handle_authentication
 from database import crear_conexion, limpieza_automatica_logs
 #from verificador_programado import inicializar_verificador_en_app, mostrar_panel_verificacion
+
+# Configuración centralizada de logging: consola solo WARNING/ERROR, archivo logs/app.log con INFO+
+from logging_config import setup_logging
+setup_logging()
 
 
 class MarcasApp:

@@ -70,6 +70,7 @@ def _asistente_crear_cliente(conn, titular: str, cuit_sugerido: str = "") -> boo
             campo_titular = st.text_input(
                 "Nombre / Razón Social *",
                 value=titular,
+                disabled=True,
                 help="Debe coincidir exactamente con el nombre del titular en el boletín."
             )
             campo_email = st.text_input(
@@ -483,69 +484,27 @@ def show_historial_page():
                     st.warning("⚠️ No se encontró la columna 'fecha_boletin'. Se muestra el historial completo sin filtrar por fecha.")
                     df_visible = df_all.copy()
 
-                # Sección de métricas y grid solo si hay datos visibles
-                if not df_visible.empty:
-                    # Mostrar métricas usando solo los datos visibles
-                    total_boletines = len(df_visible)
-                    st.subheader(f"📈 Métricas Generales")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Total Boletines", total_boletines)
-                    
-                    with col2:
-                        alta_importancia = len(
-                            [r for _, r in df_visible.iterrows()
-                             if 'importancia' in r and r['importancia'] == "Alta"]
+                # Panel de asistente: titulares sin cliente o sin email en todo el historial (df_all)
+                if 'tiene_cliente' in df_all.columns or 'tiene_email' in df_all.columns:
+                    titulares_sin_cliente = set()
+                    titulares_sin_email = set()
+
+                    if 'tiene_cliente' in df_all.columns:
+                        titulares_sin_cliente = set(
+                            df_all[~df_all['tiene_cliente']]['titular'].dropna().unique()
                         )
-                        st.metric("🔴 Alta Importancia", alta_importancia)
-                    
-                    with col3:
-                        baja_importancia = len(
-                            [r for _, r in df_visible.iterrows()
-                             if 'importancia' in r and r['importancia'] == "Baja"]
+                    if 'tiene_email' in df_all.columns:
+                        titulares_sin_email = set(
+                            df_all[~df_all['tiene_email']]['titular'].dropna().unique()
                         )
-                        st.metric("🟡 Baja Importancia", baja_importancia)
-                    
-                    with col4:
-                        pendientes = len(
-                            [r for _, r in df_visible.iterrows()
-                             if 'importancia' in r and r['importancia'] == "Pendiente"]
-                        )
-                        st.metric("⚠️ Pendientes", pendientes)
-                    
-                    # Mostrar advertencia si hay registros pendientes
-                    if pendientes > 0:
-                        st.warning(
-                            "⚠️ Hay registros marcados como 'Pendiente'. "
-                            "Puedes cambiar la importancia haciendo clic en la celda correspondiente del grid."
-                        )
-                    
-                    st.markdown("---")
 
-                    # Panel de asistente: titulares sin cliente o sin email en la vista actual
-                    # Solo se muestra si ya calculamos los indicadores de vinculación
-                    if 'tiene_cliente' in df_visible.columns or 'tiene_email' in df_visible.columns:
-                        titulares_sin_cliente = set()
-                        titulares_sin_email = set()
+                    titulares_necesitan_cliente = titulares_sin_cliente | titulares_sin_email
 
-                        if 'tiene_cliente' in df_visible.columns:
-                            titulares_sin_cliente = set(
-                                df_visible[~df_visible['tiene_cliente']]['titular'].dropna().unique()
-                            )
-                        if 'tiene_email' in df_visible.columns:
-                            titulares_sin_email = set(
-                                df_visible[~df_visible['tiene_email']]['titular'].dropna().unique()
-                            )
+                    if titulares_necesitan_cliente:
+                        titulares_ordenados = sorted(titulares_necesitan_cliente)
 
-                        # Unión: titulares que necesitan atención
-                        titulares_necesitan_cliente = titulares_sin_cliente | titulares_sin_email
-
-                        if titulares_necesitan_cliente:
-                            titulares_ordenados = sorted(titulares_necesitan_cliente)
-
-                            # Botón de diagnóstico de vinculación (visible cuando hay titulares sin cliente)
+                        # Diagnóstico técnico solo visible para rol admin (RBAC)
+                        if (st.session_state.get("user_info") or {}).get("role") == "admin":
                             with st.expander("🔍 Diagnóstico de vinculación (técnico)", expanded=False):
                                 st.caption(
                                     "Ejecuta un diagnóstico para verificar si la normalización de nombres "
@@ -597,64 +556,101 @@ def show_historial_page():
                                         except Exception as e:
                                             st.error(f"Error ejecutando diagnóstico: {e}")
 
-                            # El expander se mantiene abierto mientras haya algún formulario activo.
-                            alguno_activo = any(
-                                st.session_state.get(f"asistente_activo_{t}", False)
-                                for t in titulares_ordenados
+                        alguno_activo = any(
+                            st.session_state.get(f"asistente_activo_{t}", False)
+                            for t in titulares_ordenados
+                        )
+
+                        with st.expander(
+                            f"👤 {len(titulares_necesitan_cliente)} titular(es) sin cliente/email — "
+                            "Asistente de creación rápida",
+                            expanded=alguno_activo
+                        ):
+                            st.caption(
+                                "Estos titulares tienen reportes pero no tienen un cliente con email asociado. "
+                                "Crea el cliente directamente desde aquí sin salir de la pantalla."
                             )
 
-                            with st.expander(
-                                f"👤 {len(titulares_necesitan_cliente)} titular(es) sin cliente/email — "
-                                "Asistente de creación rápida",
-                                expanded=alguno_activo
-                            ):
-                                st.caption(
-                                    "Estos titulares tienen reportes pero no tienen un cliente con email asociado. "
-                                    "Crea el cliente directamente desde aquí sin salir de la pantalla."
-                                )
+                            for titular_pendiente in titulares_ordenados:
+                                motivo = []
+                                if titular_pendiente in titulares_sin_cliente:
+                                    motivo.append("sin cliente")
+                                elif titular_pendiente in titulares_sin_email:
+                                    motivo.append("sin email")
+                                motivo_str = " · ".join(motivo)
 
-                                for titular_pendiente in titulares_ordenados:
-                                    motivo = []
-                                    if titular_pendiente in titulares_sin_cliente:
-                                        motivo.append("sin cliente")
-                                    elif titular_pendiente in titulares_sin_email:
-                                        motivo.append("sin email")
-                                    motivo_str = " · ".join(motivo)
+                                flag_key = f"asistente_activo_{titular_pendiente}"
+                                ya_activo = st.session_state.get(flag_key, False)
 
-                                    flag_key = f"asistente_activo_{titular_pendiente}"
-                                    ya_activo = st.session_state.get(flag_key, False)
+                                col_t, col_btn = st.columns([4, 1])
+                                with col_t:
+                                    st.markdown(
+                                        f"**{titular_pendiente}** "
+                                        f"<span style='color:#f59e0b;font-size:0.85rem;'>({motivo_str})</span>",
+                                        unsafe_allow_html=True
+                                    )
+                                with col_btn:
+                                    if not ya_activo:
+                                        if st.button(
+                                            "➕ Crear cliente",
+                                            key=f"btn_asistente_{titular_pendiente[:30]}",
+                                            use_container_width=True
+                                        ):
+                                            st.session_state[flag_key] = True
+                                            st.rerun()
+                                    else:
+                                        st.caption("✏️ Formulario abierto ↓")
 
-                                    col_t, col_btn = st.columns([4, 1])
-                                    with col_t:
-                                        st.markdown(
-                                            f"**{titular_pendiente}** "
-                                            f"<span style='color:#f59e0b;font-size:0.85rem;'>({motivo_str})</span>",
-                                            unsafe_allow_html=True
+                                form_slot = st.container()
+                                if ya_activo:
+                                    with form_slot:
+                                        creado = _asistente_crear_cliente(
+                                            conn,
+                                            titular=titular_pendiente,
                                         )
-                                    with col_btn:
-                                        if not ya_activo:
-                                            if st.button(
-                                                "➕ Crear cliente",
-                                                key=f"btn_asistente_{titular_pendiente[:30]}",
-                                                use_container_width=True
-                                            ):
-                                                st.session_state[flag_key] = True
-                                                st.rerun()
-                                        else:
-                                            st.caption("✏️ Formulario abierto ↓")
+                                        if creado:
+                                            st.rerun()
 
-                                    # Placeholder inline: se define aquí, en la posición exacta
-                                    # del titular, por lo que el formulario aparece justo debajo
-                                    # de su fila sin desplazar al usuario al final de la página.
-                                    form_slot = st.container()
-                                    if ya_activo:
-                                        with form_slot:
-                                            creado = _asistente_crear_cliente(
-                                                conn,
-                                                titular=titular_pendiente,
-                                            )
-                                            if creado:
-                                                st.rerun()
+                # Sección de métricas y grid solo si hay datos visibles
+                if not df_visible.empty:
+                    # Mostrar métricas usando solo los datos visibles
+                    total_boletines = len(df_visible)
+                    st.subheader(f"📈 Métricas Generales")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("Total Boletines", total_boletines)
+                    
+                    with col2:
+                        alta_importancia = len(
+                            [r for _, r in df_visible.iterrows()
+                             if 'importancia' in r and r['importancia'] == "Alta"]
+                        )
+                        st.metric("🔴 Alta Importancia", alta_importancia)
+                    
+                    with col3:
+                        baja_importancia = len(
+                            [r for _, r in df_visible.iterrows()
+                             if 'importancia' in r and r['importancia'] == "Baja"]
+                        )
+                        st.metric("🟡 Baja Importancia", baja_importancia)
+                    
+                    with col4:
+                        pendientes = len(
+                            [r for _, r in df_visible.iterrows()
+                             if 'importancia' in r and r['importancia'] == "Pendiente"]
+                        )
+                        st.metric("⚠️ Pendientes", pendientes)
+                    
+                    # Mostrar advertencia si hay registros pendientes
+                    if pendientes > 0:
+                        st.warning(
+                            "⚠️ Hay registros marcados como 'Pendiente'. "
+                            "Puedes cambiar la importancia haciendo clic en la celda correspondiente del grid."
+                        )
+                    
+                    st.markdown("---")
 
                     # Convertir tipos de datos correctamente en el subconjunto visible
                     if 'reporte_enviado' in df_visible.columns:
@@ -689,11 +685,11 @@ def show_historial_page():
                     
                     # Mostrar datos en grid usando el servicio de boletines
                     st.subheader("📋 Datos del Historial")
-                    st.caption(
-                        "Las columnas 'tiene_cliente', 'tiene_email' y 'tiene_marcas_vinculadas' "
-                        "muestran el estado actual de vinculación necesario para el envío de emails. "
-                        "Solo son indicadores visuales: no modifican la lógica de negocio."
-                    )
+                    #st.caption(
+                        #"Las columnas 'tiene_cliente', 'tiene_email' y 'tiene_marcas_vinculadas' "
+                        #"muestran el estado actual de vinculación necesario para el envío de emails. "
+                        #"Solo son indicadores visuales: no modifican la lógica de negocio."
+                    #)
                     
                     # Usar el grid específico para boletines que incluye edición de importancia
                     GridService.show_bulletin_grid(

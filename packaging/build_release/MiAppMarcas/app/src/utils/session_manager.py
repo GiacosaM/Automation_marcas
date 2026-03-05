@@ -1,6 +1,7 @@
 """
 Gestor de estado de sesión de Streamlit
 """
+import logging
 import streamlit as st
 from typing import Any, Dict, Set
 import time
@@ -78,7 +79,7 @@ class SessionManager:
     def set_current_page(page: str, reset_sections: bool = True) -> None:
         """Establecer la página actual y opcionalmente resetear secciones"""
         st.session_state.current_page = page
-        print(f"Estableciendo página actual: {page}")
+        logging.debug(f"Estableciendo página actual: {page}")
         if reset_sections:
             SessionManager.reset_navigation_sections()
     

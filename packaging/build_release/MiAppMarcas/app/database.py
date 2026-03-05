@@ -206,7 +206,7 @@ def crear_conexion():
                     failed.append(f"  [{desc}] '{entrada}' → '{got}' (esperado: '{esperado}')")
             test_cur.close()
             if failed:
-                logging.warning(
+                logging.debug(
                     "normalizar_titular UDF: los siguientes casos no coinciden:\n" +
                     "\n".join(failed)
                 )

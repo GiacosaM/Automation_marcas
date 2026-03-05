@@ -25,11 +25,11 @@ GRID_CONFIG = {
 BULLETIN_COLUMNS = {
     'numero_boletin': {"width": 120, "header_name": "N° Boletín"},
     'fecha_boletin': {"width": 120, "header_name": "Fecha"},
-    'numero_orden': {"width": 120, "header_name": "N° Orden"},
+    'numero_orden': {"width": 120, "header_name": "Nro. de Orden"},
     'solicitante': {"width": 200},
     'agente': {"width": 200},
     'numero_expediente': {"width": 150, "header_name": "N° Expediente"},
-    'clase': {"width": 100},
+    'clase': {"width": 100, "header_name": "Clase"},
     'marca_custodia': {"width": 200, "header_name": "Marca Custodia"},
     'marca_publicada': {"width": 200, "header_name": "Marca Publicada"},
     'clases_acta': {"width": 120, "header_name": "Clases"},
@@ -56,7 +56,7 @@ BULLETIN_COLUMNS = {
     },
     'importancia': {
         "width": 120,
-        "header_name": "⚡ Importancia",
+        "header_name": "Importancia",
         "editable": True,
         "cellEditor": 'agSelectCellEditor',
         "cellEditorParams": {'values': ['Baja',  'Alta', 'Pendiente']},

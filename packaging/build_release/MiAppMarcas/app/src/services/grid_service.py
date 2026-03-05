@@ -164,6 +164,12 @@ class GridService:
         Returns:
             Respuesta del grid
         """
+        # Orden visual: titular (pinned), id, clase, clases_acta, numero_orden, importancia, resto
+        priority_cols = ['titular', 'id', 'clase', 'clases_acta', 'numero_orden', 'importancia']
+        ordered = [c for c in priority_cols if c in df.columns]
+        ordered += [c for c in df.columns if c not in ordered]
+        df = df[ordered]
+
         gb = GridOptionsBuilder.from_dataframe(df)
         GridService._configure_bulletin_grid(gb)
         grid_options = gb.build()
