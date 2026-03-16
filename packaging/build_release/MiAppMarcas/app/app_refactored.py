@@ -9,6 +9,19 @@ Autor: Sistema refactorizado
 import sys
 import os
 import json
+import warnings
+
+# Ocultar warnings de pandas sobre parsing de fechas
+warnings.filterwarnings(
+    "ignore",
+    message="Parsing dates in %Y-%m-%dT%H:%M:%S format when dayfirst=True"
+)
+
+# Ocultar warning de conflicto PyFPDF / fpdf2
+warnings.filterwarnings(
+    "ignore",
+    message="You have both PyFPDF & fpdf2 installed"
+)
 
 # Configurar Streamlit ANTES de cualquier otra importación
 import streamlit as st

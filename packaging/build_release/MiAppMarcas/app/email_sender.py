@@ -267,7 +267,7 @@ def obtener_registros_pendientes_envio(conn):
         
         titulares_unicos = len(set(clave.split('|')[0] for clave in registros_por_cliente_importancia.keys()))
         # Solo log para procesos de envío importantes
-        email_logger.info(f"📊 Procesando envíos: {len(registros_por_cliente_importancia)} grupos, {titulares_unicos} titulares únicos")
+        email_logger.info(f"Procesando envíos: {len(registros_por_cliente_importancia)} grupos, {titulares_unicos} titulares únicos")
         return registros_por_cliente_importancia
     
     except sqlite3.Error as e:
@@ -334,7 +334,7 @@ def obtener_archivo_reporte(boletines_data):
             if os.path.exists(ruta_completa):
                 return ruta_completa, boletin['nombre_reporte']
             else:
-                email_logger.warning(f"⚠️ Archivo de reporte faltante: {ruta_completa}")
+                email_logger.warning(f"Archivo de reporte faltante: {ruta_completa}")
     
     return None, None
 
@@ -445,11 +445,11 @@ def enviar_email(destinatario, asunto, mensaje, archivo_adjunto=None, nombre_arc
                 except Exception:
                     pass
         
-        email_logger.info(f"📧 Email enviado exitosamente: {destinatario}")
+        email_logger.info(f"Email enviado exitosamente: {destinatario}")
         return True
         
     except Exception as e:
-        email_logger.error(f"❌ Error al enviar email a {destinatario}: {e}")
+        email_logger.error(f"Error al enviar email a {destinatario}: {e}")
         return False
 
 def actualizar_estado_envio(conn, boletines_ids):

@@ -1063,7 +1063,7 @@ def actualizar_cliente(conn, cliente_id, titular, email, telefono, direccion, ci
                             UPDATE Marcas SET cliente_id = ? WHERE id = ?
                         """, (cliente_id, marca_id))
                         
-                        logging.info(f"✅ Vinculada marca ID {marca_id} '{marca_nombre}' con CUIT {marca_cuit} al cliente {cliente_id}")
+                        logging.info(f"Vinculada marca ID {marca_id} '{marca_nombre}' con CUIT {marca_cuit} al cliente {cliente_id}")
                         marcas_vinculadas += 1
             
             conn.commit()
@@ -1202,11 +1202,11 @@ def insertar_log_envio(conn, titular, email, estado, error=None, numero_boletin=
         
         # Log crítico para todos los envíos de email (exitosos y fallidos)
         if estado == 'exitoso':
-            critical_logger.info(f"📧 EMAIL ENVIADO: {titular} ({importancia}) → {email}")
+            critical_logger.info(f"EMAIL ENVIADO: {titular} ({importancia}) -> {email}")
         elif estado == 'fallido':
-            critical_logger.error(f"❌ EMAIL FALLIDO: {titular} → {email} | Error: {error}")
+            critical_logger.error(f"EMAIL FALLIDO: {titular} -> {email} | Error: {error}")
         elif estado in ['sin_email', 'sin_archivo']:
-            critical_logger.warning(f"⚠️ EMAIL OMITIDO: {titular} - {estado.replace('_', ' ').title()}")
+            critical_logger.warning(f"EMAIL OMITIDO: {titular} - {estado.replace('_', ' ').title()}")
         
     except sqlite3.Error as e:
         logging.error(f"Error al insertar log de envío: {e}")
@@ -1522,7 +1522,7 @@ def limpiar_logs_antiguos(conn, dias=30):
             """, (fecha_limite,))
             conn.commit()
             
-            critical_logger.info(f"🧹 Limpieza de logs: {registros_a_eliminar} registros antiguos eliminados (conservando errores)")
+            critical_logger.info(f"Limpieza de logs: {registros_a_eliminar} registros antiguos eliminados (conservando errores)")
             return registros_a_eliminar
         else:
             return 0
@@ -1614,7 +1614,7 @@ def limpieza_automatica_logs(conn):
                 f.write(ahora.isoformat())
             
             if eliminados > 0:
-                critical_logger.info(f"🤖 Limpieza automática: {eliminados} logs antiguos eliminados")
+                critical_logger.info(f"Limpieza automática: {eliminados} logs antiguos eliminados")
         
         # 2. Verificar si el archivo de log necesita optimización
         log_file = 'boletines.log'
@@ -1625,7 +1625,7 @@ def limpieza_automatica_logs(conn):
                 resultado_opt = optimizar_archivo_log()
                 if "optimizado" in resultado_opt.lower():
                     resultado['archivo_optimizado'] = True
-                    critical_logger.info("🤖 Optimización automática del archivo de log ejecutada")
+                    critical_logger.info("Optimización automática del archivo de log ejecutada")
         
         # 3. Limpiar archivos de respaldo muy antiguos (90+ días)
         directorio = '.'
@@ -1637,7 +1637,7 @@ def limpieza_automatica_logs(conn):
                     
                     if (ahora - fecha_dt).days > 90:
                         os.remove(archivo)
-                        critical_logger.info(f"🤖 Respaldo antiguo eliminado: {archivo}")
+                        critical_logger.info(f"Respaldo antiguo eliminado: {archivo}")
                 except:
                     pass
         
@@ -1818,7 +1818,7 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
                         UPDATE Marcas SET cliente_id = ? WHERE id = ?
                     """, (cliente_id, marca_id))
                     
-                    logging.info(f"✅ Vinculada marca ID {marca_id} '{marca_nombre}' con CUIT {marca_cuit} al cliente {cliente_id}")
+                    logging.info(f"Vinculada marca ID {marca_id} '{marca_nombre}' con CUIT {marca_cuit} al cliente {cliente_id}")
                     marcas_vinculadas += 1
         
         conn.commit()
@@ -2177,7 +2177,7 @@ def actualizar_marca_cliente(conn, marca_id, cliente_id):
             logging.warning(f"actualizar_marca_cliente: marca ID {marca_id} no encontrada")
             return False
         logging.info(
-            f"Marca ID {marca_id} → cliente_id actualizado a {cliente_id}"
+            f"Marca ID {marca_id} -> cliente_id actualizado a {cliente_id}"
         )
         return True
     except Exception as e:

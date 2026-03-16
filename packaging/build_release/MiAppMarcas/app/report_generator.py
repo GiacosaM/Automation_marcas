@@ -579,16 +579,16 @@ class ReportGenerator:
             
             # Logging mejorado con más información
             if pendientes > 0:
-                logger.info(f"📋 ESTADO DE REGISTROS:")
-                logger.info(f"   • Total registros sin procesar: {total_sin_procesar}")
-                logger.info(f"   • Registros con estado 'Pendiente' (no se procesarán): {pendientes}")
-                logger.info(f"   • Registros listos para procesar: {len(registros)}")
-                logger.warning(f"⚠️  HAY {pendientes} REGISTROS CON IMPORTANCIA 'PENDIENTE' QUE NO SERÁN PROCESADOS")
+                logger.info(f"ESTADO DE REGISTROS:")
+                logger.info(f"   - Total registros sin procesar: {total_sin_procesar}")
+                logger.info(f"   - Registros con estado 'Pendiente' (no se procesarán): {pendientes}")
+                logger.info(f"   - Registros listos para procesar: {len(registros)}")
+                logger.warning(f"HAY {pendientes} REGISTROS CON IMPORTANCIA 'PENDIENTE' QUE NO SERÁN PROCESADOS")
             
             if not registros:
                 if pendientes > 0:
-                    logger.info("❌ No hay registros listos para generar informes")
-                    logger.info("💡 Sugerencia: Cambia la importancia de los registros 'Pendiente' para procesarlos")
+                    logger.info("No hay registros listos para generar informes")
+                    logger.info("Sugerencia: Cambia la importancia de los registros 'Pendiente' para procesarlos")
                     return {
                         'success': False,
                         'message': 'pending_only',
@@ -597,7 +597,7 @@ class ReportGenerator:
                         'reportes_generados': 0
                     }
                 else:
-                    logger.info("✅ No hay registros pendientes para generar informes")
+                    logger.info("No hay registros pendientes para generar informes")
                     return {
                         'success': True,
                         'message': 'no_pending',
@@ -636,13 +636,13 @@ class ReportGenerator:
             
             # Log de inicio con resumen mejorado
             titulares_unicos = len(set(clave[0] for clave in agrupados.keys()))
-            logger.info(f"🚀 INICIANDO GENERACIÓN DE INFORMES")
-            logger.info(f"   • Período: {mes_ano}")
-            logger.info(f"   • Titulares únicos: {titulares_unicos}")
-            logger.info(f"   • Grupos (titular + importancia): {len(agrupados)}")
-            logger.info(f"   • Total de registros: {len(registros)}")
+            logger.info(f"INICIANDO GENERACIÓN DE INFORMES")
+            logger.info(f"   - Período: {mes_ano}")
+            logger.info(f"   - Titulares únicos: {titulares_unicos}")
+            logger.info(f"   - Grupos (titular + importancia): {len(agrupados)}")
+            logger.info(f"   - Total de registros: {len(registros)}")
             if pendientes > 0:
-                logger.info(f"   • Registros excluidos (Pendientes): {pendientes}")
+                logger.info(f"   - Registros excluidos (Pendientes): {pendientes}")
             
             # Generar PDF por cada grupo (titular + importancia)
             reportes_generados = 0
@@ -656,7 +656,7 @@ class ReportGenerator:
                     )
                 except Exception as e:
                     logger.error(
-                        f"❌ Error al generar PDF para '{titular}' "
+                        f"Error al generar PDF para '{titular}' "
                         f"(Importancia: {importancia}): {e}"
                     )
                     errores_generacion += 1
@@ -665,7 +665,7 @@ class ReportGenerator:
                 # ── Paso 2: registrar en BD solo si el PDF existe en disco ───────
                 if not os.path.exists(ruta_archivo):
                     logger.error(
-                        f"❌ El PDF no existe tras la generación para '{titular}' "
+                        f"El PDF no existe tras la generación para '{titular}' "
                         f"(Importancia: {importancia}). No se actualizará la BD."
                     )
                     errores_generacion += 1
@@ -677,15 +677,15 @@ class ReportGenerator:
                     )
                     reportes_generados += 1
                     logger.info(
-                        f"✅ Informe generado para '{titular}' "
+                        f"Informe generado para '{titular}' "
                         f"(Importancia: {importancia}) - {len(registros_grupo)} registros"
                     )
                 except Exception as e:
                     # PDF creado pero BD no actualizada → riesgo de inconsistencia
                     logger.error(
-                        f"❌ Error al actualizar BD para '{titular}' "
+                        f"Error al actualizar BD para '{titular}' "
                         f"(Importancia: {importancia}): {e}. "
-                        f"El PDF SÍ fue generado en: {ruta_archivo} — "
+                        f"El PDF SÍ fue generado en: {ruta_archivo} - "
                         f"puede actualizarse manualmente si es necesario."
                     )
                     errores_generacion += 1
@@ -699,14 +699,14 @@ class ReportGenerator:
                         pass  # El callback nunca debe interrumpir la generación
             
             # Resumen final
-            logger.info(f"🎉 GENERACIÓN COMPLETADA:")
-            logger.info(f"   • Informes generados exitosamente: {reportes_generados}/{len(agrupados)}")
-            logger.info(f"   • Registros procesados: {sum(len(regs) for regs in agrupados.values())}")
+            logger.info(f"GENERACIÓN COMPLETADA:")
+            logger.info(f"   - Informes generados exitosamente: {reportes_generados}/{len(agrupados)}")
+            logger.info(f"   - Registros procesados: {sum(len(regs) for regs in agrupados.values())}")
             if pendientes > 0:
-                logger.info(f"   • Registros pendientes sin procesar: {pendientes}")
+                logger.info(f"   - Registros pendientes sin procesar: {pendientes}")
 
             if errores_generacion > 0:
-                logger.warning(f"⚠️  ATENCIÓN: {errores_generacion} informes fallaron")
+                logger.warning(f"ATENCIÓN: {errores_generacion} informes fallaron")
 
             # Retornar información del resultado
             return {
@@ -720,7 +720,7 @@ class ReportGenerator:
             }
         
         except Exception as e:
-            logger.error(f"💥 ERROR CRÍTICO durante la generación de informes: {e}")
+            logger.error(f"ERROR CRÍTICO durante la generación de informes: {e}")
             return {
                 'success': False,
                 'message': 'error',

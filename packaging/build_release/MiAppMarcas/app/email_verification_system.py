@@ -272,7 +272,7 @@ class EmailVerificationSystem:
                         self.email_password = password
                         self.credentials_missing = False
                 else:
-                    logger.warning("⚠️ Credenciales de email no configuradas o incompletas en el sistema centralizado")
+                    logger.warning("Credenciales de email no configuradas o incompletas en el sistema centralizado")
                     return False
             
             # VERSIÓN 3 (MODIFICADA): HTML con estilos e imagen incorporada

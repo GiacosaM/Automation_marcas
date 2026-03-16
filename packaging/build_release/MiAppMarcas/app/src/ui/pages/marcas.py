@@ -293,20 +293,8 @@ def show_marcas_page():
                                         st.session_state.pop('_marcas_selected_data', None)
                                         st.rerun()
 
-                                col1, col2, col3, col4, col5 = st.columns(5)
-                                with col1:
-                                    if st.button("📧 Enviar Email", type="secondary",
-                                                 use_container_width=True):
-                                        st.info("📧 Funcionalidad próximamente")
-                                with col2:
-                                    if st.button("📋 Ver Boletines", type="secondary",
-                                                 use_container_width=True):
-                                        st.info("📋 Funcionalidad próximamente")
-                                with col3:
-                                    if st.button("📄 Generar Reporte", type="secondary",
-                                                 use_container_width=True):
-                                        st.info("📄 Funcionalidad próximamente")
-                                with col4:
+                                col_editar, col_eliminar = st.columns(2)
+                                with col_editar:
                                     editar_key = f"editar_marca_activo_{selected_marca['id']}"
                                     label_editar = (
                                         "✖ Cerrar edición"
@@ -320,7 +308,7 @@ def show_marcas_page():
                                             editar_key, False
                                         )
                                         st.rerun()
-                                with col5:
+                                with col_eliminar:
                                     eliminar_key = f"confirmar_eliminar_{selected_marca['id']}"
                                     if not st.session_state.get(eliminar_key, False):
                                         if st.button("🗑️ Eliminar", type="secondary",
