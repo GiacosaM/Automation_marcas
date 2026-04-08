@@ -2,7 +2,7 @@
 Sistema de Gestión de Marcas - Estudio Contable
 Aplicación principal refactorizada con arquitectura modular
 
-Versión: 2.1.0
+Versión: ver version.py (APP_VERSION)
 Autor: Sistema refactorizado
 """
 
@@ -10,6 +10,14 @@ import sys
 import os
 import json
 import warnings
+
+# Raíz de la app: importar version.py de forma fiable
+_APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _APP_ROOT not in sys.path:
+    sys.path.insert(0, _APP_ROOT)
+from version import APP_DISPLAY
+
+
 
 # Ocultar warnings de pandas sobre parsing de fechas
 warnings.filterwarnings(
@@ -28,7 +36,7 @@ import streamlit as st
 
 # Configuración de página (debe ser lo primero)
 st.set_page_config(
-    page_title="Sistema de Gestión de Marca",
+    page_title=f"{APP_DISPLAY} – Sistema de Gestión de Marca",
     page_icon="🏢",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -44,6 +52,7 @@ import pandas as pd
 # from src.config.settings import app_settings
 from src.ui.styles import AppStyles
 from src.ui.navigation import NavigationManager
+from src.ui.version_banner import render_version_banner
 from src.ui.components import UIComponents
 from src.utils.session_manager import SessionManager
 
@@ -196,6 +205,9 @@ class MarcasApp:
         """Ejecutar la aplicación principal"""
         # Inicializar verificador programado (ejecuta verificaciones automáticas)
         #inicializar_verificador_en_app()
+
+        # Versión visible en todas las vistas (misma ruta de ejecución que el menú)
+        render_version_banner(APP_DISPLAY)
         
         # Verificar autenticación
         if not handle_authentication():
