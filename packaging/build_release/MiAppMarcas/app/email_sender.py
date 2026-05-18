@@ -234,7 +234,7 @@ def obtener_registros_pendientes_envio(conn):
             
             # Asignar datos del cliente (solo la primera vez)
             if not registros_por_grupo[clave_grupo]['email']:
-                registros_por_grupo[clave_grupo]['email'] = row[16]  # c.email
+                registros_por_grupo[clave_grupo]['email'] = (row[16].replace('\xa0', '').strip() or None) if row[16] else None
                 registros_por_grupo[clave_grupo]['telefono'] = row[17]  # c.telefono
                 registros_por_grupo[clave_grupo]['direccion'] = row[18]  # c.direccion
                 registros_por_grupo[clave_grupo]['ciudad'] = row[19]  # c.ciudad

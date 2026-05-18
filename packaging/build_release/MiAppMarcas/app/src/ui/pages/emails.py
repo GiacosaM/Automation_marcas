@@ -269,6 +269,9 @@ class EmailsPage:
     
     def _show_email_management_system(self, conn, stats):
         """Mostrar sistema completo de gestión de emails"""
+        _ultimo = st.session_state.get('resultados_envio')
+        if _ultimo and len(_ultimo.get('fallidos', [])) > 0:
+            st.error(f"⚠️ Se detectaron {len(_ultimo['fallidos'])} error(es) en el último envío de emails. Revisar detalle más abajo.")
         # Verificar si hay reportes con importancia pendiente
         if stats['pendientes_revision'] > 0:
             st.warning(f"⚠️ Hay {stats['pendientes_revision']} reportes con importancia 'Pendiente' que requieren revisión antes del envío.")
@@ -418,6 +421,7 @@ class EmailsPage:
     
     def _show_initial_send_button(self, conn):
         """Mostrar botón inicial para comenzar el proceso de envío"""
+        self._show_sending_results()
         # Validación previa antes de mostrar el botón
         validacion = validar_clientes_para_envio(conn)
         
@@ -617,68 +621,59 @@ class EmailsPage:
         """Mostrar resultados detallados del envío"""
         if 'resultados_envio' in st.session_state and st.session_state.resultados_envio:
             resultados = st.session_state.resultados_envio
-            st.session_state.resultados_envio = None  # Limpiar después de mostrar
-            
-            st.success("🎉 Proceso de envío completado!")
-            
-            # Métricas de resultados
-            col_r1, col_r2, col_r3, col_r4 = st.columns(4)
-            with col_r1:
-                st.metric("✅ Exitosos", len(resultados['exitosos']))
-            with col_r2:
-                st.metric("❌ Fallidos", len(resultados['fallidos']))
-            with col_r3:
-                st.metric("📧 Sin Email", len(resultados['sin_email']))
-            with col_r4:
-                st.metric("📄 Sin Archivo", len(resultados['sin_archivo']))
-            
-            # Detalles de envíos exitosos
-            if len(resultados['exitosos']) > 0:
-                st.success(f"🎉 ¡{len(resultados['exitosos'])} emails enviados exitosamente!")
-                with st.expander(f"📧 Ver detalles de envíos exitosos ({len(resultados['exitosos'])})", expanded=False):
+            # st.session_state.resultados_envio = None  # Limpiar después de mostrar
+
+            n_exitosos   = len(resultados['exitosos'])
+            n_fallidos   = len(resultados['fallidos'])
+            n_sin_email  = len(resultados['sin_email'])
+            n_sin_archivo = len(resultados['sin_archivo'])
+
+            # ── Bloque principal: un solo mensaje de estado ───────────────────
+            if n_fallidos > 0:
+                st.error(
+                    f"⚠️ Envío completado con errores — "
+                    f"{n_exitosos} enviados · {n_fallidos} fallidos · "
+                    f"{n_sin_email} sin email · {n_sin_archivo} sin archivo"
+                )
+            else:
+                st.success(
+                    f"✅ Envío completado — "
+                    f"{n_exitosos} enviados · {n_sin_email} sin email · {n_sin_archivo} sin archivo"
+                )
+
+            # ── Detalles opcionales, todos colapsados ─────────────────────────
+            if n_exitosos > 0:
+                with st.expander(f"Ver enviados exitosamente ({n_exitosos})", expanded=False):
                     for envio in resultados['exitosos']:
-                        titular = envio.get('titular', 'N/A')
-                        importancia = envio.get('importancia', 'N/A')
-                        email = envio.get('email', 'N/A')
-                        cantidad = envio.get('cantidad_boletines', 0)
-                        st.write(f"✅ **{titular}** ({importancia}) → {email} ({cantidad} boletines)")
-            
-            # Detalles de fallos
-            if len(resultados['fallidos']) > 0:
-                st.error(f"❌ {len(resultados['fallidos'])} envíos fallaron")
-                with st.expander(f"Ver detalles de fallos ({len(resultados['fallidos'])})", expanded=True):
+                        st.write(
+                            f"✅ **{envio.get('titular', 'N/A')}** ({envio.get('importancia', 'N/A')}) "
+                            f"→ {envio.get('email', 'N/A')} ({envio.get('cantidad_boletines', 0)} boletines)"
+                        )
+
+            if n_fallidos > 0:
+                with st.expander(f"Ver detalle de fallos ({n_fallidos})", expanded=False):
                     for fallo in resultados['fallidos']:
-                        titular = fallo.get('titular', 'N/A')
-                        importancia = fallo.get('importancia', 'N/A')
-                        email = fallo.get('email', 'N/A')
-                        error = fallo.get('error', 'N/A')
-                        st.write(f"❌ **{titular}** ({importancia}) → {email}")
-                        st.write(f"   Error: {error}")
-            
-            # Grupos sin email
-            if len(resultados['sin_email']) > 0:
-                st.warning(f"📧 {len(resultados['sin_email'])} grupos no recibieron emails por falta de dirección de email")
-                with st.expander(f"Ver grupos sin email ({len(resultados['sin_email'])})", expanded=False):
+                        st.write(
+                            f"❌ **{fallo.get('titular', 'N/A')}** ({fallo.get('importancia', 'N/A')}) "
+                            f"→ {fallo.get('email', 'N/A')}"
+                        )
+                        st.caption(f"Error: {fallo.get('error', 'N/A')}")
+
+            if n_sin_email > 0:
+                with st.expander(f"Ver grupos sin email ({n_sin_email})", expanded=False):
                     for grupo in resultados['sin_email']:
                         st.write(f"• {grupo}")
                     st.info("💡 Puedes agregar emails en la sección 'Clientes'")
-            
-            # Grupos sin archivo
-            if len(resultados['sin_archivo']) > 0:
-                st.warning(f"📄 {len(resultados['sin_archivo'])} grupos no recibieron emails por falta de archivo de reporte")
-                with st.expander(f"Ver grupos sin reporte ({len(resultados['sin_archivo'])})", expanded=False):
+
+            if n_sin_archivo > 0:
+                with st.expander(f"Ver grupos sin reporte ({n_sin_archivo})", expanded=False):
                     for grupo in resultados['sin_archivo']:
                         st.write(f"• {grupo}")
                     st.info("💡 Genera los reportes en la sección 'Informes'")
-            
-            # Mostrar reporte detallado
-            with st.expander("📋 Reporte Detallado", expanded=len(resultados['exitosos']) == 0):
+
+            with st.expander("📋 Reporte Detallado", expanded=False):
                 reporte = generar_reporte_envios(resultados)
                 st.text(reporte)
-            
-            # Auto-actualizar estadísticas
-            st.success("🔄 Actualizando estadísticas...")
-            st.rerun()
     
     def _show_configuracion_tab(self):
         """Mostrar tab de configuración de email"""
@@ -781,56 +776,27 @@ class EmailsPage:
         
         # Consultar historial de envíos
         try:
-            # Primero intentar obtener datos de la función específica
-            historial_df = None
-            try:
-                # Intentar usar la función dedicada si existe
-                from database_extensions import obtener_emails_enviados
-                emails_enviados = obtener_emails_enviados(conn, limite=200)
-                if emails_enviados and len(emails_enviados) > 0:
-                    # Convertir a DataFrame si la función devuelve resultados
-                    columnas = ['ID', 'Destinatario', 'Asunto', 'Fecha Envío', 'Estado', 'Error', 'Titular', 'Tipo']
-                    historial_df = pd.DataFrame(emails_enviados, columns=columnas)
-                    st.success(f"✅ Cargados {len(emails_enviados)} registros de envíos desde la extensión de base de datos")
-            except Exception as e:
-                st.warning(f"Usando consulta de respaldo: {str(e)}")
-            
-            # Si la función específica falló, usar la consulta directa
-            if historial_df is None:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT b.titular, b.numero_boletin, b.fecha_envio_reporte,
-                           b.importancia, COALESCE(c.email, c2.email) AS email, 'informes' as tipo_envio
-                    FROM boletines b
-                    LEFT JOIN clientes c
-                           ON normalizar_titular(b.titular) = normalizar_titular(c.titular)
-                    LEFT JOIN Marcas m
-                           ON c.id IS NULL
-                          AND normalizar_titular(b.titular) = normalizar_titular(m.titular)
-                          AND m.cliente_id IS NOT NULL
-                    LEFT JOIN clientes c2
-                           ON c.id IS NULL
-                          AND m.cliente_id = c2.id
-                    WHERE b.reporte_enviado = 1 
-                    
-                    UNION ALL
-                    
-                    -- Incluir notificaciones de clientes sin reportes
-                    SELECT e.titular, 
-                           'Sin reportes', e.fecha_envio, 
-                           'Sin Reportes' as importancia, e.destinatario as email, 'notificacion' as tipo_envio
-                    FROM emails_enviados e
-                    WHERE e.tipo_email = 'notificacion' AND e.status = 'enviado'
-                    
-                    ORDER BY fecha_envio_reporte DESC
-                    LIMIT 150
-                """)
-                historial_envios = cursor.fetchall()
-                cursor.close()
-                
-                if historial_envios:
-                    historial_df = pd.DataFrame(historial_envios, 
-                        columns=['Titular', 'Boletín', 'Fecha Envío', 'Importancia', 'Email', 'Tipo'])
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    titular,
+                    numero_boletin,
+                    fecha_envio_default,
+                    importancia,
+                    email,
+                    estado,
+                    COALESCE(error, '') AS error
+                FROM envios_log
+                ORDER BY fecha_envio_default DESC
+                LIMIT 150
+            """)
+            historial_envios = cursor.fetchall()
+            cursor.close()
+
+            historial_df = pd.DataFrame(
+                historial_envios,
+                columns=['Titular', 'Boletín', 'Fecha Envío', 'Importancia', 'Email', 'Estado', 'Error']
+            )
             
             if historial_df is not None and not historial_df.empty:
                 # Formatear fecha permitiendo formatos mixtos
@@ -839,31 +805,47 @@ class EmailsPage:
                         historial_df['Fecha Envío'], errors='coerce'
                     ).dt.strftime('%d/%m/%Y %H:%M')
                 
-                # Crear filtros para el historial
-                col_filter1, col_filter2 = st.columns([2, 2])
+                # ── Filtros ───────────────────────────────────────────────────
+                col_filter1, col_filter2, col_filter3 = st.columns([2, 2, 2])
                 with col_filter1:
-                    # Si existe columna Titular, permitir filtrado
                     if 'Titular' in historial_df.columns:
                         titular_filter = st.text_input("🔍 Filtrar por Titular:", key="titular_filter")
                         if titular_filter:
                             historial_df = historial_df[historial_df['Titular'].str.contains(titular_filter, case=False, na=False)]
-                
+
                 with col_filter2:
-                    # Si existe columna Importancia, permitir filtrado
                     if 'Importancia' in historial_df.columns and 'Importancia' in historial_df:
                         importancias = ['Todas'] + sorted(historial_df['Importancia'].dropna().unique().tolist())
                         imp_filter = st.selectbox("🏷️ Filtrar por Importancia:", importancias, key="imp_filter")
                         if imp_filter != 'Todas':
                             historial_df = historial_df[historial_df['Importancia'] == imp_filter]
-                
-                # Mostrar el grid con los datos de historial usando el GridService
-                from src.services.grid_service import GridService
-                grid_result = GridService.create_grid(
-                    historial_df, 
-                    key='grid_historial_envios',
-                    height=400,
-                    selection_mode='single',
-                    fit_columns=True
+
+                with col_filter3:
+                    estado_filter = st.selectbox(
+                        "📋 Filtrar por Estado:",
+                        ["Todos", "exitoso", "fallido", "sin_email", "sin_archivo"],
+                        key="estado_filter"
+                    )
+                    if estado_filter != "Todos":
+                        historial_df = historial_df[historial_df['Estado'] == estado_filter]
+
+                # ── Resumen ───────────────────────────────────────────────────
+                n_total    = len(historial_df)
+                n_exitosos = (historial_df['Estado'] == 'exitoso').sum()
+                n_fallidos = (historial_df['Estado'] == 'fallido').sum()
+                st.info(f"Historial: {n_total} registros | ✔️ {n_exitosos} exitosos | ❌ {n_fallidos} fallidos")
+
+                # ── Tabla con color en columna Estado ─────────────────────────
+                def _color_estado(val):
+                    if val == 'exitoso':                    return 'background-color: #d4edda; color: #155724'
+                    if val == 'fallido':                    return 'background-color: #f8d7da; color: #721c24'
+                    if val in ('sin_email', 'sin_archivo'): return 'background-color: #fff3cd; color: #856404'
+                    return ''
+
+                st.dataframe(
+                    historial_df.style.applymap(_color_estado, subset=['Estado']),
+                    use_container_width=True,
+                    hide_index=True
                 )
 
                 # Añadir exportación CSV

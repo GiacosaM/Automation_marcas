@@ -48,7 +48,7 @@ def obtener_emails_enviados(conn, filtro_fechas=None, filtro_titular=None, filtr
         query += """
                    tipo_email
             FROM emails_enviados
-            WHERE 1=1
+            WHERE status = 'enviado'
         """
         params = []
         
