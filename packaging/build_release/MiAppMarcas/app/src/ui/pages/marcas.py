@@ -536,18 +536,20 @@ def show_marcas_page():
                                                 )
                                                 st.stop()
 
-                                            # Verificar CUIT duplicado en otras marcas
+                                            # Verificar combinación CUIT + clase + acta + nrocon única
                                             if e_cuit_limpio:
                                                 dup_edit = verificar_cuit_duplicado_marca(
-                                                    conn, e_cuit_limpio, excluir_id=_mid
+                                                    conn, e_cuit_limpio,
+                                                    clase=e_clase, acta=e_acta, nrocon=e_nrocon,
+                                                    excluir_id=_mid
                                                 )
                                                 if dup_edit:
                                                     st.error(
-                                                        f"❌ El CUIT **{e_cuit_limpio}** ya está "
-                                                        f"registrado en la marca **{dup_edit['marca']}** "
+                                                        "❌ Ya existe una marca registrada con la misma "
+                                                        "combinación de CUIT, clase, acta y nrocon. "
+                                                        f"Marca: **{dup_edit['marca']}** "
                                                         f"(titular: {dup_edit['titular']}, "
-                                                        f"ID: {dup_edit['id']}). "
-                                                        "Cada marca debe tener un CUIT único."
+                                                        f"ID: {dup_edit['id']})."
                                                     )
                                                     st.stop()
 
@@ -828,14 +830,17 @@ def show_marcas_page():
                                         )
                                         st.stop()
 
-                                    # Verificar que el CUIT no esté registrado en otra marca
-                                    dup = verificar_cuit_duplicado_marca(conn, cuit_limpio)
+                                    # Verificar combinación CUIT + clase + acta + nrocon única
+                                    dup = verificar_cuit_duplicado_marca(
+                                        conn, cuit_limpio,
+                                        clase=clase_nueva, acta=acta_nueva, nrocon=nrocon_nueva
+                                    )
                                     if dup:
                                         st.error(
-                                            f"❌ El CUIT **{cuit_limpio}** ya está registrado "
-                                            f"en la marca **{dup['marca']}** "
-                                            f"(titular: {dup['titular']}, ID: {dup['id']}). "
-                                            "Cada marca debe tener un CUIT único."
+                                            "❌ Ya existe una marca registrada con la misma "
+                                            "combinación de CUIT, clase, acta y nrocon. "
+                                            f"Marca: **{dup['marca']}** "
+                                            f"(titular: {dup['titular']}, ID: {dup['id']})."
                                         )
                                         st.stop()
 

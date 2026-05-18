@@ -1848,42 +1848,52 @@ def _vincular_marcas_con_cliente(conn, cliente_id, cuit):
         if 'cursor' in locals():
             cursor.close()
 
-def verificar_cuit_duplicado_marca(conn, cuit, excluir_id=None):
+def verificar_cuit_duplicado_marca(conn, cuit, clase=None, acta=None, nrocon=None, excluir_id=None):
     """
-    Verifica si un CUIT ya existe en la tabla Marcas.
+    Verifica si ya existe una marca con la misma combinación de CUIT + clase + acta + nrocon.
 
     Args:
         conn:        Conexión SQLite activa.
         cuit:        CUIT a verificar (se normaliza a solo dígitos internamente).
-        excluir_id:  ID de la marca que se está editando; se excluye de la búsqueda
-                     para que el CUIT actual de la marca no se reporte como duplicado.
+        clase:       Clase de la marca (int o None).
+        acta:        Número de acta (str o None).
+        nrocon:      Número de concesión (str o None).
+        excluir_id:  ID de la marca en edición; se excluye para evitar falso positivo propio.
 
     Returns:
         dict | None:
-            None  → el CUIT es único (o estaba vacío).
+            None  → la combinación es única (o el CUIT estaba vacío).
             dict  → {'id': int, 'marca': str, 'titular': str}
-                    de la primera marca que ya usa ese CUIT.
+                    de la primera marca que ya usa esa combinación.
     """
     if not cuit:
         return None
     cuit_norm = "".join(ch for ch in str(cuit) if ch.isdigit())
     if not cuit_norm:
         return None
+    # Normalizar los tres campos adicionales para comparación NULL-safe
+    clase_cmp = str(clase).strip() if clase is not None else ''
+    acta_cmp  = str(acta).strip()  if acta  else ''
+    nrocon_cmp = str(nrocon).strip() if nrocon else ''
     cursor = None
     try:
         cursor = conn.cursor()
+        base_sql = (
+            "SELECT id, marca, titular FROM Marcas "
+            "WHERE REPLACE(REPLACE(COALESCE(cuit,''),'-',''),' ','') = ? "
+            "AND COALESCE(CAST(clase AS TEXT),'') = ? "
+            "AND COALESCE(TRIM(acta),'') = ? "
+            "AND COALESCE(TRIM(nrocon),'') = ? "
+        )
         if excluir_id is not None:
             cursor.execute(
-                "SELECT id, marca, titular FROM Marcas "
-                "WHERE REPLACE(REPLACE(COALESCE(cuit,''),'-',''),' ','') = ? "
-                "AND id != ? LIMIT 1",
-                (cuit_norm, int(excluir_id)),
+                base_sql + "AND id != ? LIMIT 1",
+                (cuit_norm, clase_cmp, acta_cmp, nrocon_cmp, int(excluir_id)),
             )
         else:
             cursor.execute(
-                "SELECT id, marca, titular FROM Marcas "
-                "WHERE REPLACE(REPLACE(COALESCE(cuit,''),'-',''),' ','') = ? LIMIT 1",
-                (cuit_norm,),
+                base_sql + "LIMIT 1",
+                (cuit_norm, clase_cmp, acta_cmp, nrocon_cmp),
             )
         row = cursor.fetchone()
         if row:
